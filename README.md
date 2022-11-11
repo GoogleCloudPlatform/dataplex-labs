@@ -5,7 +5,7 @@ This repository features self-contained, hands-on-labs with detailed and step-by
 
 ## Labs
 
-| # | Feature | Lab summary | Author |
+| # | Product feature | Lab summary | Author |
 | -- | :--- | :--- |:--- |
 | 1. ||||
 | 2. ||||
@@ -24,3 +24,11 @@ This repository and its contents are not an official Google Product.
 
 ## Contact
 Share you feedback, ideas, by logging [issues](../../issues).
+
+## Release History
+
+| # | Release Summary | Date |  Contributor |
+| -- | :--- | :--- |:--- |
+| 1. ||||
+| 2. ||||
+| 3. ||||
