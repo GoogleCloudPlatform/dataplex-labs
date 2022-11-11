@@ -14,4 +14,4 @@ All solutions within this repository are provided under the Apache 2.0 license. 
 This repository and its contents are not an official Google Product.
 
 ## Contact
-Share you feedback, ideas, by logging issues.
+Share you feedback, ideas, by logging [issues](https://github.com/googlestaging/dataplex-labs/issues).
