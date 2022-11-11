@@ -5,7 +5,7 @@ This repository features self-contained, hands-on-labs with detailed and step-by
 
 
 ## Contributing
-See the contributing [instructions](../CONTRIBUTION.md) to get started contributing.
+See the contributing [instructions](../CONTRIBUTING.md) to get started contributing.
 
 ## License
 All solutions within this repository are provided under the Apache 2.0 license. Please see the LICENSE file for more detailed terms and conditions.
