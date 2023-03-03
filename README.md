@@ -28,5 +28,3 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | # | Release Summary | Date |  Contributor |
 | -- | :--- | :--- |:--- |
 | 1. |Initial release of quickstart labs series | 20230303 | Anagha Khanolkar|
-| 2. ||||
-| 3. ||||
