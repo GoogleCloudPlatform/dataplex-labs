@@ -20,7 +20,7 @@ All solutions within this repository are provided under the Apache 2.0 license. 
 ## Disclaimer
 This repository and its contents are not an official Google Product.
 
-## Contact
+## Issues
 Share you feedback, ideas, by logging [issues](../../issues).
 
 ## Release History
