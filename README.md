@@ -1,16 +1,14 @@
 # Dataplex Labs
 
 ## About
-This repository features self-contained, hands-on-labs with detailed and step-by-step instructions, associated collateral (data, code, configuration, terraform etc) that demystify features and integration points of Dataplex - GCP's Data Fabric as a Service for standing up Data Mesh Architecture.
+This repository features self-contained, hands-on-labs with detailed and step-by-step instructions and associated collateral (data, code, configuration, terraform etc) that demystify features and integration points of Dataplex - GCP's Data Governance and Management Service.
 
 ## Labs
 
-| # | Product feature | Lab summary | Author |
-| -- | :--- | :--- |:--- |
-| 1. ||||
-| 2. ||||
-| 3. ||||
-
+| # | Category | Lab | Lab summary | Author |
+| -- | :-- | :--- | :--- |:--- |
+| 1. |Product-centric | Dataplex Quickstart Labs| Lab series showcasing Dataplex features for a learning experience. <br><br>*If you dont know Dataplex and want to learn the product, with step by step instructions for every feature, as and when they are released* <br><br>| Anagha Khanolkar|
+| 2. |Solution-centric | Dataplex Data Mesh Lab 1 - Banking| Lab series showcasing Data Mesh architecture powered by Dataplex with a Banking usecase. <br><br> *If you know Dataplex already and want to learn how to architect a Data Mesh* <br><br>| Mansi Maharana |
 
 
 ## Contributing
