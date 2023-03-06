@@ -3,7 +3,7 @@
 ## 1. About
 Dataplex provides building blocks and plugable data management tasks that can be plugged into data engineering pipelines to build data products. In this lab, you will learn how to build Data Products. The diagram below depicts the overall flow. 
 
-![build-dp-flow](/lab4-build-data-products/resources/imgs/building-dp-flow.png)
+![build-dp-flow](/data-mesh-banking-labs/lab4-build-data-products/resources/imgs/building-dp-flow.png)
 
 ### 1.1. Prerequisites
 Lab2-data-security successfully completed.
@@ -71,7 +71,7 @@ Use Dataproc template to move the data from raw/curated zone to refine zone in B
     ```
  - **Step 2**: Monitor the Job. It will take a few seconds to spin up, execute and complete 
     - Go to Dataplex process tab → Choose “Custom Spark” → Click on the name of your task → Click on the job-id (wait for a few seconds and refresh if the job_id URL is not active) → This will take you to Dataproc Batch tab where you can look at the output for jobs logs and Details tab for input arguments 
-     ![dataplex-task-output](/lab4-build-data-products/resources/imgs/dplx-task-output.png)
+     ![dataplex-task-output](/data-mesh-banking-labs/lab4-build-data-products/resources/imgs/dplx-task-output.png)
 
      One the status is “Successful” move on to next step
 
@@ -176,14 +176,14 @@ In this sub task we will trigger a composer workflow that will first create the 
     ```
 - **Step2:** Go to Composer Service UI → You should see ${PROJECT_ID}-composer environment. Click on the Airflow UI.
 
-    ![airflow UI](/lab4-build-data-products/resources/imgs/airflow-ui.png)
+    ![airflow UI](/data-mesh-banking-labs/lab4-build-data-products/resources/imgs/airflow-ui.png)
 
 - **Step3**: Search for  “etl_with_dq_customer_data_product_wf”
 - **Step4**: Trigger the DAG manually and monitor
     - You can go to Dataplex --> Process Tab --> Under the "Data Quality" Tab, you will find the DQ job that was triggered by the airflow job.  
 - **Step5**: Once the DAG successfully completes, validate all the 3 Customer Data Products are Populated in BigQuery DS customer_data_product
 
-    ![bq_cust_results](/lab4-build-data-products/resources/imgs/bq_cust_results.png)
+    ![bq_cust_results](/data-mesh-banking-labs/lab4-build-data-products/resources/imgs/bq_cust_results.png)
 
 ### 2.2. Building Merchant Domain Data Products
 

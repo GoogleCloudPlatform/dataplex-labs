@@ -21,7 +21,7 @@ Cloud Data Loss Prevention uses information types—or infoTypes—to define wha
 
 In this lab, we'll use a Terraform template to configure the DLP Data profiler. We will carry out steps 1, 2, and 3 of this lab based on the architecture diagram below. Step 4,5 & 7 will be done in the lab7-register-data-product. 
 
-![data classification](/lab5-data-classification/resources/imgs/dc-technical-architecture.png)
+![data classification](/data-mesh-banking-labs/lab5-data-classification/resources/imgs/dc-technical-architecture.png)
 
 
 ### 1.5. Note
@@ -55,7 +55,7 @@ Follow the below instructions to setup the DLP Auto profiler job.
 - **Step6**: Click Continue 
 - **Step7**: Under Manage Schedules (Optional)
     - Click on Edit Schedule, Choose “Reprofile daily” for both When Schema Changes and When Table Changes
-    ![dlp options](/lab5-data-classification/resources/imgs/dlp_options.png)
+    ![dlp options](/data-mesh-banking-labs/lab5-data-classification/resources/imgs/dlp_options.png)
     - Click “Done” and hit continue
 - **Step8**: Under Select inspection template
     - Choose “Select existing inspection template” and provide this value 
@@ -70,7 +70,7 @@ Follow the below instructions to setup the DLP Auto profiler job.
 		Dataset id: central_dlp_data
 		Table id: dlp_data_profiles
 
-       ![dlp_bq_specs](/lab5-data-classification/resources/imgs/dlp_bq_profile.png)
+       ![dlp_bq_specs](/data-mesh-banking-labs/lab5-data-classification/resources/imgs/dlp_bq_profile.png)
     - Click continue
 
 - **Step10**: Under Set location to store configuration
@@ -80,10 +80,10 @@ Follow the below instructions to setup the DLP Auto profiler job.
 - **Step11**: Leave "Review and Create" at default and click Create
 - **Step12**: Make sure configuration has been successfully created 
 
-     ![scan config](/lab5-data-classification/resources/imgs/dlp_scan_configuration.png)
+     ![scan config](/data-mesh-banking-labs/lab5-data-classification/resources/imgs/dlp_scan_configuration.png)
 - **Step13** After a few minutes check to make sure the data profile is available in the "DATA PROFILE" tab, choose the Iowa region and the central_dlp_table dataset has been poupulated in Bigquery. Meanwhile feel free to move to the next lab. 
 
-   ![dlp profile](/lab5-data-classification/resources/imgs/dlp_profile.png)
+   ![dlp profile](/data-mesh-banking-labs/lab5-data-classification/resources/imgs/dlp_profile.png)
 
 In a later lab, we will use these results to annotate the Data products with the Data classification info. 
 

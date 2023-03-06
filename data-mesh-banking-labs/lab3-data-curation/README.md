@@ -37,7 +37,7 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
 
     - Then, Select Create Dataflow Pipeline  in Convert to Curated Formats panel
 
-        ![dataplex tasks](/lab3-data-curation/resources/imgs/dataplex-tasks.png)
+        ![dataplex tasks](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/dataplex-tasks.png)
 
 - **Step2:** Enter the Base  Parameters 
 
@@ -48,7 +48,7 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
     - **Regional Endpoint** : us-central1(Iowa) 
 
     - **Sample Screenshot**:
-        ![Base parameters](/lab3-data-curation/resources/imgs/base-parameter.png)
+        ![Base parameters](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/base-parameter.png)
 
 
 - **Step3:** Enter the Required Parameters 
@@ -62,7 +62,7 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
     - **Dataplex asset name for the destination GCS bucket**: projects/${PROJECT_ID}/locations/us-central1/lakes/consumer-banking--customer--domain/zones/customer-curated-zone/assets/customer-curated-data
 
     - **Sample Screenshot** 
-        ![required parameters](/lab3-data-curation/resources/imgs/required_parameters.png)
+        ![required parameters](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/required_parameters.png)
 
 - **Step4:** Enter the Optional Parameters **Very critical for job success**
 
@@ -72,7 +72,7 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
     - **Subnetwork**: https://www.googleapis.com/compute/v1/projects/${PROJECT_ID}/regions/us-central1/subnetworks/dataplex-default
     - **Sample ScreenShot**:
 
-        ![optional_parameter](/lab3-data-curation/resources/imgs/Optional-parameter.png)
+        ![optional_parameter](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/Optional-parameter.png)
 
 - **Step5:** Set Schedule <br>
 
@@ -81,16 +81,16 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
 
 - **Step6:** Click **Run** button ad then **Run Pipeline**
 
-     ![run_button](/lab3-data-curation/resources/imgs/run_button.png)
+     ![run_button](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/run_button.png)
 
 - **Step7:** Give it a couple of seconds, and after click on the refresh button. Shows the current job that was scheduled and is in pending/running status
 
 
-    ![jobstatatus](/lab3-data-curation/resources/imgs/job_status.png)
+    ![jobstatatus](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/job_status.png)
 
 - **Step8:** Monitor the job. Click on the refresh button again after a few minutes. 
 
-    ![pipline status](/lab3-data-curation/resources/imgs/monitor_pipeline.png)
+    ![pipline status](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/monitor_pipeline.png)
 
 - **Step9:** Validate the output 
 
@@ -98,7 +98,7 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
     - Select "Customer Curated Zone" 
     - Select "Customer Curated Data" Asset 
     - Scroll down to Resource details and click the External URL link
-        ![external_url](/lab3-data-curation/resources/imgs/external_url.png)
+        ![external_url](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/external_url.png)
     - Open customers_data folder 
     - Open the dt=2022-01-01 folder
     - You should see the "customer.parquet" file created here
@@ -112,10 +112,10 @@ The Customer Raw data has 2 feeds coming into the gcs raw bucket. We will conver
     - Navigate to the Discover menu, Search optin 
 
     - Open 'Consumer banking - Customer Domain' and select 'Customer Curated Zone' to filter the assets in the curated layer. 
-     ![filtered search](/lab3-data-curation/resources/imgs/filter_search.png)
+     ![filtered search](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/filter_search.png)
 
     - Select **customer_curated_data** from the list of assets shown on the right panel to see the following display. Validate the entry details to see the parquet format file information 
-    ![curated metadata](/lab3-data-curation/resources/imgs/curated_metadata.png)
+    ![curated metadata](/data-mesh-banking-labs/lab3-data-curation/resources/imgs/curated_metadata.png)
 
 Suggestion: As a homework, try to curate the merchants data.  
 

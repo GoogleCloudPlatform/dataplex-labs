@@ -55,13 +55,13 @@ If you have just run your previous lab i.e. Building your Data Product Lab, make
 
 In order to verify Go to Dataplex  → Manage tab → Click on Customer - Source Domain Lake → Click on Customer Data Product Zone
 
-![entities](/lab7-register-data-products/resources/imgs/entities_screnshot.png)
+![entities](/data-mesh-banking-labs/lab7-register-data-products/resources/imgs/entities_screnshot.png)
 
 Do this for all the other domain data product zones as well. 
 
 #### 2.1.2 Validate Data Catalog tag template
 Make sure tag templates are created in ${PROJECT_ID}  created. Go to Dataplex → Manage Catalog → Tag templates. You should see the below 4 Tag Templates. Open each one and look the schema: 
-![tagtemplates](/lab7-register-data-products/resources/imgs/tag_templates.png)
+![tagtemplates](/data-mesh-banking-labs/lab7-register-data-products/resources/imgs/tag_templates.png)
 
 #### 2.1.3  Validate the DLP results are populated
 Make sure Data is populated by the DLP job profiler into ${PROJECT_ID}.central_dlp_data dataset. If the data has not been populated the data classification tags will fail. 
@@ -131,11 +131,11 @@ gcloud dataplex tasks create customer-tag-job \
 4.  Go to Dataplex UI → Process → Custom Spark tab → Monitor the job → you will find a job named “customer-tag-job”
 
 5. Once job is successful, Go to Dataplex Search Tab and type this into the search bar - tag:data_product_information
-![tag-search](/lab7-register-data-products/resources/imgs/tag-search.png)
+![tag-search](/data-mesh-banking-labs/lab7-register-data-products/resources/imgs/tag-search.png)
 
 6. Click on customer_data -> Go to the Tags section and make sure the data product information is created.
 
-![dp_info_tag](/lab7-register-data-products/resources/imgs/dp_info_tag.png)
+![dp_info_tag](/data-mesh-banking-labs/lab7-register-data-products/resources/imgs/dp_info_tag.png)
 
 As you can see the automation utilities was able to derive most of the information. But at times, certain values may needs to be overriden. 
 

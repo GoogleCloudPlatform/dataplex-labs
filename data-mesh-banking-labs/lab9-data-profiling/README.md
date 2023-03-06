@@ -32,7 +32,7 @@ User Configured Data Profiling
 
 ### 1.6. User Configured Dataplex Profiling - what's supported
 
-![supported](/lab9-data-profiling/resources/imgs/lab-profiling-01.png)
+![supported](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-01.png)
 
 ### 1.7. Roles for Data Profiling - what's available
 
@@ -70,29 +70,29 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$CUST
 
 #### 2.2.1. Navigate to the "Profile" UI from the Dataplex landing page
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-02.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-02.png)
 
 <br><br>
 
 #### 2.2.2. Create a profile scan as depicted below
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-03.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-03.png)
 
 <br><br>
 
 #### 2.2.3. Review the profile scan list & click on the scan profile created
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-04.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-04.png)
 
 <br><br>
 
 ### 2.3. Run the Data Profiling scan created
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-06.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-06.png)
 
 <br><br>
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-07.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-07.png)
 
 <br><br>
 
@@ -100,7 +100,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$CUST
 
 ### 2.4. Review the Data Profiling Results
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-08.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-08.png)
 
 <br><br>
 
@@ -108,7 +108,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$CUST
 
 Note how you cannot switch to incremental mode.
 
-![navigate](/lab9-data-profiling/resources/imgs/lab-profiling-08.png)
+![navigate](/data-mesh-banking-labs/lab9-data-profiling/resources/imgs/lab-profiling-08.png)
 
 <br><br>
 
