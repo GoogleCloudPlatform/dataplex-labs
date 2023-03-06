@@ -1,0 +1,17 @@
+dq_report_config:
+  project_id:  _project_datagov_
+  dataset_id: "central_dq_results"
+  table_id: "dq_results"
+quality_score: derived
+dq_dashboard: "<a href=\"https://datastudio.google.com/c/u/0/reporting/faf194a4-6388-4df4-b566-99529a152f5c/page/x16FC\">Link to Data Quality Dashboard</a>"
+timeliness_score : derived
+correctness_score : derived
+integrity_score : derived
+conformity_score : derived
+completeness_score : derived
+uniqueness_score : derived
+accuracy_score : derived
+last_modified_by : derived
+last_modified_date : derived
+related_data_product : derived
+last_profiling_date: derived

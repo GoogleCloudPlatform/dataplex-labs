@@ -1,0 +1,2 @@
+entity_name
+auth_table

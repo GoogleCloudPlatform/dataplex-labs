@@ -1,0 +1,162 @@
+metadata_registry_defaults:
+ dataplex:
+   projects: _project_datagov_
+   locations: us-central1
+   lakes: consumer-banking--customer--domain
+   zones: customer-data-product-zone
+
+row_filters:
+ NONE:
+   filter_sql_expr: |-
+      True
+ INTERNATIONAL_ITEMS:
+   filter_sql_expr: |-
+      REGEXP_CONTAINS(item_id, 'INTNL')
+
+rule_dimensions:
+  - consistency
+  - correctness
+  - duplication
+  - completeness
+  - conformance
+  - integrity
+  - timeliness
+  - accuracy
+
+
+rules:
+ NOT_NULL:
+  rule_type: NOT_NULL
+  dimension: completeness
+  
+ NOT_BLANK:
+  rule_type: NOT_BLANK
+  dimension: completeness
+
+ NO_DUPLICATES_IN_COLUMN_GROUPS:
+   rule_type: CUSTOM_SQL_STATEMENT
+   dimension: duplication
+   params:
+     custom_sql_arguments:
+       - column_names
+     custom_sql_statement: |-
+       select a.*
+       from data a
+       inner join (
+         select
+           $column_names
+         from data
+         group by $column_names
+         having count(*) > 1
+       ) duplicates
+       using ($column_names)
+
+ VALUE_ZERO_OR_POSITIVE:
+   rule_type: CUSTOM_SQL_EXPR
+   dimension: correctness
+   params:
+     custom_sql_expr: |-
+       $column >= 0
+
+ VALUE_POSITIVE:
+   rule_type: CUSTOM_SQL_EXPR
+   dimension: correctness
+   params:
+     custom_sql_expr: |-
+       $column > 0
+
+ VALID_SSN:
+   rule_type: REGEX
+   dimension: conformance
+   params:
+     pattern: |-
+      ^d{3}-?d{2}-?d{4}$
+
+ VALID_EMAIL:
+    rule_type: REGEX
+    dimension: conformance
+    params:
+      pattern: |-
+        ^[^@]+[@]{1}[^@]+$
+
+ NO_DELAYED_INGESTION_DAY_LEVEL:
+    rule_type: CUSTOM_SQL_STATEMENT
+    dimension: timeliness
+    params:
+      custom_sql_arguments:
+        - ingestion_date_day
+        - elapsed_time_days
+      custom_sql_statement: |-
+        select * from
+        (select count(*) as n
+          from data a
+          where cast($ingestion_date_day as Date) >= date_sub(current_date(), interval $elapsed_time_days day) 
+        )
+        where n = 0
+ NO_ACCURACY_ISSUES_SIMPLE:
+    rule_type: CUSTOM_SQL_STATEMENT
+    dimension: accuracy
+    params:
+      custom_sql_arguments:
+        - deviation_threshold_pct
+      custom_sql_statement: |-
+        select
+          *
+        from (
+          select
+            countif(gender in ('M', 'F')) as n
+          from data
+          )
+        where
+          ifnull(safe_divide(n,
+              (
+              select
+                count(*)
+              from data
+              )),
+            cast('inf' as float64)) < (1 - ($deviation_threshold_pct / 100))
+
+rule_bindings:
+
+ VALID_CUSTOMER:
+    entity_uri: dataplex://entities/tokenized_customer_data
+    column_id: client_id
+    row_filter_id: NONE
+    rule_ids:
+      - NOT_NULL
+      - NOT_BLANK
+      - NO_DUPLICATES_IN_COLUMN_GROUPS:
+         column_names: "client_id"
+
+ NO_DELAYED_INGESTION_DAY_LEVEL:
+    entity_uri: dataplex://entities/tokenized_customer_data
+    column_id: client_id
+    row_filter_id: NONE
+    rule_ids:
+      - NO_DELAYED_INGESTION_DAY_LEVEL:
+          ingestion_date_day: ingest_date
+          elapsed_time_days: 1
+
+ #VALID_EMAIL:
+ #   entity_uri: dataplex://entities/tokenized_customer_data
+ #   column_id: EMAIL
+ #   row_filter_id: NONE
+ #   rule_ids:
+ #     - VALID_EMAIL
+
+ VALID_SSN:
+   entity_uri: dataplex://entities/tokenized_customer_data
+   column_id: ssn
+   row_filter_id: NONE
+   rule_ids:
+     - VALID_SSN
+     - NO_DUPLICATES_IN_COLUMN_GROUPS:
+         column_names: "ssn"
+
+ #ACCURACY_CHECK_SIMPLE:
+ #   entity_uri: dataplex://entities/tokenized_customer_data
+ #   column_id: gender
+ #   row_filter_id: NONE
+ #   rule_ids:
+ #     - NO_ACCURACY_ISSUES_SIMPLE:
+ #         deviation_threshold_pct: 25
