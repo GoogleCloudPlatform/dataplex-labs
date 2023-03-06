@@ -1,0 +1,17 @@
+dlp_report_config:
+  project_id: _project_datagov_
+  dataset_id: "central_dlp_data"
+  table_id: "dlp_data_profiles_latest_v1"
+is_pii: false
+sensitivity_score: derived
+risk_score: derived
+info_types: derived
+is_confidential: false
+is_restricted: false
+is_public: false
+is_encrypted: false
+encryption_key_type:  derived
+last_profiling_date: derived
+last_modified_by: derived
+last_modified_date: derived
+related_data_products: derived

@@ -1,0 +1,50 @@
+{
+    "image":"gcr.io/df-dataplex-templates-preview/dataplex-file-format-conversion-image",
+    "metadata":{
+      "name":"Dataplex: Convert GCS File Format [Preview]",
+      "description":"A pipeline that converts file format of GCS files, registering metadata for the newly created files in Dataplex.",
+      "parameters":[
+          {
+              "name":"inputAssetOrEntitiesList",
+              "label":"Dataplex asset name or Dataplex entity names for the files to be converted.",
+              "helpText":"Dataplex asset or Dataplex entities that contain the input files. Format: projects/<name>/locations/<loc>/lakes/<lake-name>/zones/<zone-name>/assets/<asset name> OR projects/<name>/locations/<loc>/lakes/<lake-name>/zones/<zone-name>/entities/<entity 1 name>,projects/<name>/locations/<loc>/lakes/<lake-name>/zones/<zone-name>/entities/<entity 2 name>... .",
+              "paramType":"TEXT",
+              "regexes":["^(projects\\/[^\\n\\r\\/]+\\/locations\\/[^\\n\\r\\/]+\\/lakes\\/[^\\n\\r\\/]+\\/zones\\/[^\\n\\r\\/]+\\/assets\\/[^\\n\\r\\/]+|projects\\/[^\\n\\r\\/]+\\/locations\\/[^\\n\\r\\/]+\\/lakes\\/[^\\n\\r\\/]+\\/zones\\/[^\\n\\r\\/]+\\/entities\\/[^\\n\\r\\/,]+(,projects\\/[^\\n\\r\\/]+\\/locations\\/[^\\n\\r\\/]+\\/lakes\\/[^\\n\\r\\/]+\\/zones\\/[^\\n\\r\\/]+\\/entities\\/[^\\n\\r\\/,]+)*)$"],
+              "isOptional":false
+          },
+          {
+              "name":"outputFileFormat",
+              "label":"Output file format in GCS.",
+              "helpText":"Output file format in GCS. Format: PARQUET or AVRO.",
+              "paramType":"TEXT",
+              "regexes":["^(PARQUET|AVRO)$"],
+              "isOptional":false
+          },
+          {
+              "name":"outputFileCompression",
+              "label":"Output file compression in GCS.",
+              "help_text":"Output file compression. Format: UNCOMPRESSED, SNAPPY, GZIP, or BZIP2. Default: SNAPPY. BZIP2 not supported for PARQUET files.",
+              "param_type":"TEXT",
+              "regexes":["^(UNCOMPRESSED|SNAPPY|GZIP|BZIP2)$"],
+              "is_optional":true
+          },
+          {
+              "name":"writeDisposition",
+              "label":"Action that occurs if a destination file already exists.",
+              "help_text":"Specifies the action that occurs if a destination file already exists. Format: OVERWRITE, FAIL, SKIP. Default: SKIP. If SKIP, only files that dont exist in the destination directory will be processed. If FAIL and at least one file already exists, no data will be processed and an error will be produced.",
+              "param_type":"TEXT",
+              "regexes":["^(OVERWRITE|FAIL|SKIP)$"],
+              "is_optional":true
+          },
+          {
+              "name":"outputAsset",
+              "label":"Dataplex asset name for the destination GCS bucket.",
+              "helpText":"Name of the Dataplex asset that contains GCS bucket where output files will be put into. Format: projects/<name>/locations/<loc>/lakes/<lake-name>/zones/<zone-name>/assets/<asset name>.",
+              "paramType":"TEXT",
+              "regexes":["^projects\\/[^\\n\\r\\/]+\\/locations\\/[^\\n\\r\\/]+\\/lakes\\/[^\\n\\r\\/]+\\/zones\\/[^\\n\\r\\/]+\\/assets\\/[^\\n\\r\\/]+$"],
+              "isOptional":false
+          }
+      ]
+    },
+    "sdk_info":{"language":"JAVA"}
+}

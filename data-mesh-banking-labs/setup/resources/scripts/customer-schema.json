@@ -1,0 +1,111 @@
+[
+    {
+      "name": "client_id",
+      "type": "STRING"
+    },
+    {
+      "name": "ssn",
+      "type": "STRING"
+    },
+    {
+      "name": "first_name",
+      "type": "STRING"
+    },
+    {
+      "name": "middle_name",
+      "type": "INTEGER"
+    },
+    {
+      "name": "last_name",
+      "type": "STRING"
+    },
+    {
+      "name": "dob",
+      "type": "DATE"
+    },
+    {
+      "name": "gender",
+      "type": "STRING"
+    },
+    {
+      "fields": [
+        {
+          "name": "status",
+          "type": "STRING"
+        },
+        {
+          "name": "street",
+          "type": "STRING"
+        },
+        {
+          "name": "city",
+          "type": "STRING"
+        },
+        {
+          "name": "state",
+          "type": "STRING"
+        },
+        {
+          "name": "zip_code",
+          "type": "INTEGER"
+        },
+        {
+          "name": "WKT",
+          "type": "GEOGRAPHY"
+        },
+        {
+          "name": "modify_date",
+          "type": "INTEGER"
+        }
+      ],
+      "mode": "REPEATED",
+      "name": "address_with_history",
+      "type": "RECORD"
+    },
+    {
+      "fields": [
+        {
+          "name": "primary",
+          "type": "STRING"
+        },
+        {
+          "name": "secondary",
+          "type": "INTEGER"
+        },
+        {
+          "name": "modify_date",
+          "type": "INTEGER"
+        }
+      ],
+      "mode": "REPEATED",
+      "name": "phone_num",
+      "type": "RECORD"
+    },
+    {
+      "fields": [
+        {
+          "name": "status",
+          "type": "STRING"
+        },
+        {
+          "name": "primary",
+          "type": "STRING"
+        },
+        {
+          "name": "secondary",
+          "type": "INTEGER"
+        },
+        {
+          "name": "modify_date",
+          "type": "INTEGER"
+        }
+      ],
+      "mode": "REPEATED",
+      "name": "email",
+      "type": "RECORD"
+    },
+    {
+      "name": "ingest_date",
+      "type": "DATE"
+    }
+  ]

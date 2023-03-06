@@ -1,0 +1,6 @@
+data_exchange_platform : "Analytics Hub"
+data_exchange_url : "<a href=\"https://console.cloud.google.com/bigquery(analyticshub:projects/250654544192/locations/us/dataExchanges/marsbank_exchange_internal_18141e363ad/listings/credit_card_transactions_181445a71fd)\">Data Exchange URL</a>"
+access_instructions : "Use Bigquery to subscribe and consume the data in your own subscriber project"
+publish_date: derived
+last_modified_by: derived 
+last_modified_date: derived
