@@ -10,7 +10,7 @@ Dataplex provides the following two options to validate data quality:
 
 High-level data quality framework architecture
 
-![dq-arch](/lab6-data-quality/resources/imgs/dq-tech-architecture.png)
+![dq-arch](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq-tech-architecture.png)
 
 ### 1.1. Prerequisites 
 Successful completion of lab1, lab2 and lab4
@@ -56,7 +56,7 @@ Auto Data Quality will be added in future
 
  - Validate the entites are already discovered and registered in Dataplex 
 
-    ![dataproduct-entities](/lab6-data-quality/resources/imgs/customer-dp-entities.png)
+    ![dataproduct-entities](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/customer-dp-entities.png)
 
 #### 2.1.2  Review the Yaml specification file
 
@@ -111,7 +111,7 @@ By appending " --summary_to_stdout" flag to your data quality jobs, you can easi
     jsonPayload.message =~ "complex_rule_validation_errors_count\": [^null]" OR jsonPayload.message =~ "failed_count\": [^0|null]" 
     ```
 - Click on "Create Alert" to create an incident based on dq failures. 
-        ![dq-log-alert](/lab6-data-quality/resources/imgs/dq-log-alert.png)
+        ![dq-log-alert](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq-log-alert.png)
 
 - Provide the below info in the "Create logs-based alert policy" screen
     - **Alert policy name**: dq-failure-alert 
@@ -122,13 +122,13 @@ By appending " --summary_to_stdout" flag to your data quality jobs, you can easi
     - **Who should be notified?**
     - Click on **Notification Channel** and then Click on **Manage Notification channel**: 
         - Under Email -> Click add your corp email
-                ![notification-channel](/lab6-data-quality/resources/imgs/notification_channel.png)
+                ![notification-channel](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/notification_channel.png)
     - Comeback to Logging screen -> Click on **Notification Channel** -> Click Refresh -> Choose the email id 
-            - ![noti-email](/lab6-data-quality/resources/imgs/noti-email.png)
+            - ![noti-email](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/noti-email.png)
     - Click "Save" 
     - Sample Alert 
 
-              ![samplealert](/lab6-data-quality/resources/imgs/alert.png)
+              ![samplealert](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/alert.png)
 
 #### 2.1.5  Execute the Data Quality task 
 
@@ -182,7 +182,7 @@ By appending " --summary_to_stdout" flag to your data quality jobs, you can easi
 #### 2.1.7  Review the Data quality metrics 
 - Navigate to BigQuery->SQL Workspace and open the central_dq_results. Review the table and views created in this dataset. 
 - Click on the dq_results table to preview the data quality results. Check the rows which shows the data quality metrics for the rules defined in the yaml configuration file 
-    ![dq_results](/lab6-data-quality/resources/imgs/dq_results.png)
+    ![dq_results](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq_results.png)
 - To examine the rules that failed, run the following query. The failed record query's query can be used to learn more about the specific rows for which it failed.
 
     ```bash 
@@ -196,11 +196,11 @@ To build a sample cloudDQ dashboard in Looker Studio, please follow the steps be
     https://lookerstudio.google.com/u/0/reporting/f728e29c-a2fb-4029-a4c6-cfeee1ca32fa/page/x16FC<br>
 
 2.  Make a copy of the dashboard by click on the details link next to the **Share** button
-        ![dashboard Copy ](/lab6-data-quality/resources/imgs/dq_copy_ui.png)
+        ![dashboard Copy ](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq_copy_ui.png)
 
 3.  Setup your Looker studio account, if requested 
 4.  Leave the New Data Source's defaultsettings(we will set this up later) 
-        ![copy-report](/lab6-data-quality/resources/imgs/copy-report.png)
+        ![copy-report](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/copy-report.png)
     This will make a copy of the report and have it available in edit mode
 5.  Select the **Resource** menu and choose **Manage added data sources** option.
     - Click the **Edit** button under **Action** 
@@ -215,7 +215,7 @@ To build a sample cloudDQ dashboard in Looker Studio, please follow the steps be
     - Click the **Done** button(right top corner) 
     - Click the **Close** button and then click the **View** button
     - Change the date range if needed and select drill down parameters to refresh the Dashboard. <br>
-        ![dq-dashboard](/lab6-data-quality/resources/imgs/dq-dashboard.png)
+        ![dq-dashboard](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq-dashboard.png)
 
 
 #### 2.1.8  Create a Data Quality Score Tag  in the Catalog 
@@ -239,7 +239,7 @@ Once we have the DQ results available, using a custom utility which will automat
 - Monitor the job. Go to Dataplex -> Process tab --> Custom spark --> "customer-dp-dq-tag" job. Refresh the page if you don't see your job. 
 - Validate the result. Go to Dataplex -> Search under Discover ->  type "tag:data_product_quality" into the search bar  
 - The customer data product should be tagged with the data quality information as show below:
-    ![dq-tag-search](/lab6-data-quality/resources/imgs/dq-tag-search.png)
+    ![dq-tag-search](/data-mesh-banking-labs/lab6-data-quality/resources/imgs/dq-tag-search.png)
 
 #### 2.1.9   Use Composer to orchestrate the Data Quality Task 
 

@@ -31,7 +31,7 @@ An entity represents metadata for structured and semi-structured data (table) an
 ### 1.4. Scope of this lab
  In this lab you will learn how to configure the customer domain oriented lakes, zones and assets as per the diagram below. Terraform based setup takes care of setting it up for the rest of the domains - merchants, transactions, etc..
 
-![Customer Domain Mapping](/lab1-data-organization/resources/imgs/Customer-domain-mapping.png)
+![Customer Domain Mapping](/data-mesh-banking-labs/lab1-data-organization/resources/imgs/Customer-domain-mapping.png)
 
 ### 1.5. Note
 This lab currently does not configure a Metastore. 
@@ -122,7 +122,7 @@ gcloud dataplex zones create "customer-data-product-zone" \
 
 ### 2.4. Create the zones within the lakes
 Go to Dataplex UI -> Go to Manage -> Click on "Customer Domain" lake -? validate the 3 Zones are created as per the screenshot here
-![Customer zones](/lab1-data-organization/resources/imgs/Customer-zones.png)
+![Customer zones](/data-mesh-banking-labs/lab1-data-organization/resources/imgs/Customer-zones.png)
 
 ### 2.5. Attach the assets to the zones
 
@@ -190,7 +190,7 @@ The discovery jobs takes a few minutes to run and register the entities. Verify 
 - Click on the "ENTITIES" tab 
 - The entities should list atleast 2 of the these - **customer_data** and **cc_customer_data** 
 
-    ![Entities](/lab1-data-organization/resources/imgs/Entities.png)
+    ![Entities](/data-mesh-banking-labs/lab1-data-organization/resources/imgs/Entities.png)
 
 This validates the discovery job ran successfully 
 
@@ -207,7 +207,7 @@ This validates the discovery job ran successfully
 - Scroll down and and look for **Discover data** and then  click on **customer-raw-zone** hyperlink
 - This will route you to the catalog search tab where you can further browse the tables to look at their technical metadata - Configuratio, Entry details, schema and columns and partition details
 
-    ![Customer Catalog](/lab1-data-organization/resources/imgs/Customer_Catalog.png)
+    ![Customer Catalog](/data-mesh-banking-labs/lab1-data-organization/resources/imgs/Customer_Catalog.png)
 
 This hows how Dataplex was able to harvest technical medata from Google Cloud Storgae bucket. 
 

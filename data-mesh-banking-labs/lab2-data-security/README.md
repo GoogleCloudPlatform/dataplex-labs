@@ -16,7 +16,7 @@ tbd
 
 ### 1.4. Scope of this lab
 
-![Lab flow](/lab2-data-security/resources/imgs/Lab-2-flow.png)
+![Lab flow](/data-mesh-banking-labs/lab2-data-security/resources/imgs/Lab-2-flow.png)
 
 While most part of data security policy application is already taken care as part of terraform setup, in this lab,  
  - you will grant data roles to the "customer-sa" service accounts created by terraform to own and manage the customer domain data
@@ -26,7 +26,7 @@ While most part of data security policy application is already taken care as par
 
 **Service Accounts and Access Overview**
 
-![Dataplex Security](/lab2-data-security/resources/imgs/dataplex-security-lab.png)
+![Dataplex Security](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-lab.png)
 
 ### 1.5. Note
 Attribute store which allows you to set column-level, row-level and table-level policies is a preview feature and is on the roadmap to be part of this lab. 
@@ -101,7 +101,7 @@ Here you will grant "customer-sa@" service account the data owner role for custo
     "Content-Type: application.json"  https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT_ID}/datasets/customer_refined_data/tables?maxResults=10
     ```
     Sample output: 
-    ![permission denied](/lab2-data-security/resources/imgs/permission-dnied.png)
+    ![permission denied](/data-mesh-banking-labs/lab2-data-security/resources/imgs/permission-dnied.png)
 
 - **Step 2:** Security policy application <br>
 
@@ -125,11 +125,11 @@ Here you will grant "customer-sa@" service account the data owner role for custo
     - **Method 1:** Using Dataplex UI 
 
         - Go to Dataplex -> Manage sub menu -> Go to "Consumer Banking - Customer Domain" lake --> Click on "Customer Raw Zone" --> Click on the Customer Raw Data Asset
-            ![Dataplex Verify Image](/lab2-data-security/resources/imgs/dataplex-security-status-ui.png)
+            ![Dataplex Verify Image](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-status-ui.png)
 
             You can also look at the Asset Status section at the lake level. 
 
-            ![dataplex security status lake](/lab2-data-security/resources/imgs/dataplex-security-status-lake.png)
+            ![dataplex security status lake](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-status-lake.png)
 
     -  **Method 2:** Using Dataplex APIs
 
@@ -143,13 +143,13 @@ Here you will grant "customer-sa@" service account the data owner role for custo
             /zones/customer-raw-zone/assets/customer-raw-data
             ```
             
-            ![Dataplex Verify Image](/lab2-data-security/resources/imgs/dataplex-security-status-api.png)
+            ![Dataplex Verify Image](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-status-api.png)
 
     - **Method 3:** Check the permissions of the underlying asset
 
         - Here is an example of the policy for underlying GCS bucket 
 
-            ![Dataplex Verify Image](/lab2-data-security/resources/imgs/dataplex-security-status-underlying-assets.png)
+            ![Dataplex Verify Image](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-status-underlying-assets.png)
 
 
 - **Step 4**: Post-Validation<br>
@@ -170,7 +170,7 @@ Here you will grant "customer-sa@" service account the data owner role for custo
 
     Sample Output:
 
-    ![successful output](/lab2-data-security/resources/imgs/dataplex-security-result.png)
+    ![successful output](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-result.png)
 
 <br>
 
