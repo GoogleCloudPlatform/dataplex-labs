@@ -8,7 +8,7 @@ This repository features self-contained, hands-on-labs with detailed and step-by
 | # | Category | Lab | Lab summary | Author |
 | -- | :-- | :--- | :--- |:--- |
 | 1. |Product-centric | [Dataplex Quickstart Labs](dataplex-quickstart-labs)| Lab series showcasing Dataplex features for a learning experience. <br><br>*If you dont know Dataplex and want to learn the product, with step by step instructions for every feature, as and when they are released* <br><br>| Anagha Khanolkar|
-| 2. |Solution-centric | Dataplex Data Mesh Lab 1 - Banking| Lab series showcasing Data Mesh architecture powered by Dataplex based on a Banking usecase. <br><br> *If you know Dataplex already and want to learn how to architect a Data Mesh* <br><br>| Mansi Maharana |
+| 2. |Solution-centric | [Dataplex Data Mesh Lab 1 - Banking](data-mesh-banking-labs) | Lab series showcasing Data Mesh architecture powered by Dataplex based on a Banking usecase. <br><br> *A L300 lab for architecting and implementing Data mesh using Dataplex and other core GCP services* <br><br>| Mansi Maharana |
 
 
 ## Contributing
@@ -28,3 +28,5 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | # | Release Summary | Date |  Contributor |
 | -- | :--- | :--- |:--- |
 | 1. |Initial release of quickstart labs series | 20230303 | Anagha Khanolkar|
+| 2. |Initial release of data mesh banking labs| 20230306 | Mansi Maharana|
+
