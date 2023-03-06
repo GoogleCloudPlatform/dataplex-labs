@@ -1,4 +1,4 @@
-# Cloud Dataplex Self-service labs
+# Cloud Dataplex Self-service Labs - Data mesh Banking Usecase
 
 ## 1. About
 Google Cloud Dataplex is an intelligent data fabric that helps you unify distributed data and automate data management and governance across that data to power analytics at scale.
@@ -7,7 +7,7 @@ In this self-service lab, you will discover how to build and maintain an end-to-
 
 
 ### 1.2. Process Flow 
-![process flow](/data-mesh-banking-labs/setup//Process-flow1.png)
+![process flow](/data-mesh-banking-labs/setup/resources/imgs/Process-flow1.png)
 
 ### 1.3. Data Flow 
 ![data flow](/data-mesh-banking-labs/setup/resources/imgs/Data-flow.png)
