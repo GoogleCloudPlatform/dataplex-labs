@@ -31,7 +31,7 @@ While most part of data security policy application is already taken care as par
 ### 1.5. Note
 Attribute store which allows you to set column-level, row-level and table-level policies is a preview feature and is on the roadmap to be part of this lab. 
 
-    Note: ADD "Service Account User Role" for active account principle before proceeeding
+    Note: ADD "Service Account Token Creator" for active account principle before proceeeding
 
 ### 1.6. Documentation
 [Secure your lake](https://cloud.google.com/dataplex/docs/lake-security)
@@ -75,8 +75,7 @@ Cloud logging sink to capture the audit data which we can later query to run and
     curl -X \
     POST -H \
     "Authorization: Bearer $(gcloud auth print-access-token)" -H \
-    "Content-Type: application.json" https://dataplex.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/lakes/central-operations--domain \
-    /zones/operations-data-product-zone/assets/audit-data:setIamPolicy -d "{\"policy\":{\"bindings\":[{\"role\":\"roles/dataplex.dataOwner\",\"members\":[\"serviceAccount:$LOGGING_GMSA\"]}]}}" 
+    "Content-Type: application.json" https://dataplex.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/lakes/central-operations--domain/zones/operations-data-product-zone/assets/audit-data:setIamPolicy -d "{\"policy\":{\"bindings\":[{\"role\":\"roles/dataplex.dataOwner\",\"members\":[\"serviceAccount:$LOGGING_GMSA\"]}]}}" 
     ```
 
 <hr>
@@ -139,8 +138,7 @@ Here you will grant "customer-sa@" service account the data owner role for custo
              curl -X \
             GET -H \
             "Authorization: Bearer $(gcloud auth print-access-token)" -H \
-            "Content-Type: application.json" https://dataplex.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/lakes/consumer-banking--customer--domain \
-            /zones/customer-raw-zone/assets/customer-raw-data
+            "Content-Type: application.json" https://dataplex.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/lakes/consumer-banking--customer--domain/zones/customer-raw-zone/assets/customer-raw-data
             ```
             
             ![Dataplex Verify Image](/data-mesh-banking-labs/lab2-data-security/resources/imgs/dataplex-security-status-api.png)
@@ -163,8 +161,7 @@ Here you will grant "customer-sa@" service account the data owner role for custo
 
     curl -X \
     GET -H \
-    "Authorization: Bearer $(gcloud auth print-access-token --impersonate \
-    -service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com)" -H \
+    "Authorization: Bearer $(gcloud auth print-access-token --impersonate-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com)" -H \
     "Content-Type: application.json"  https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT_ID}/datasets/customer_refined_data/tables?maxResults=10
     ```
 

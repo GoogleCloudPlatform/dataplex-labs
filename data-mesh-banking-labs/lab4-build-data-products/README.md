@@ -61,7 +61,7 @@ Use Dataproc template to move the data from raw/curated zone to refine zone in B
             --partitionField=ingest_date,\
             --partitionType=DAY,\
             --targetTableName=customers_data,\
-            --customSqlGcsPath=gs://${PROJECT_ID}_dataplex_process/customer-source-configs/customercustom.sql"
+            --customSqlGcsPath=gs://${PROJECT_ID}_dataplex_process/code/customer-source-configs/customercustom.sql"
     ```
     Sample Output: 
     ```Create request issued for: [cust-curated-refined]
@@ -128,7 +128,7 @@ Use Dataproc template to move the data from raw/curated zone to refine zone in B
         --partitionField=ingest_date,\
         --partitionType=DAY,\
         --targetTableName=cc_customers_data,\
-      --customSqlGcsPath=gs://${PROJECT_ID}_dataplex_process/customer-source-configs/customercustom.sql"
+      --customSqlGcsPath=gs://${PROJECT_ID}_dataplex_process/code/customer-source-configs/customercustom.sql"
     ```
 
 - **Step5**: Monitor the job using the instructions specified in step#2

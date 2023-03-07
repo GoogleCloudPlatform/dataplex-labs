@@ -16,9 +16,6 @@ tbd
 ### 1.4. Scope of this lab
 As part of this lab we will curate the Customer Data using Dataplex's Curation Task 
 
-    Note: ADD "Service Account User Role" for active UI User before proceeeding
-
-
 ### 1.5. Note
 This lab is optional
 
@@ -124,7 +121,7 @@ In this lab, you learned how to use the built-in one-click templatized Dataplex 
 
 <hr>
 
-This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](../lab4-data-products/README.md) you will use build the data products i.e move from refined to data product layer. 
+This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](../lab4-build-data-products/README.md) you will use build the data products i.e move from refined to data product layer. 
 
 <hr>
 
