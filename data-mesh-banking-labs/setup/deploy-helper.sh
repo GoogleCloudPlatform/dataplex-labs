@@ -20,7 +20,7 @@ GCP_ENV=$3
 # privileges to set organization policies
 # Organ policies setup is skipped for non-argolis accounts
 
-if [ GCP_ENV == "argolis" ]; then 
+if [ ${GCP_ENV} == "argolis" ]; then 
     echo "${GCP_PROJECT_ID}"
     cd ~/dataplex-labs/data-mesh-banking-labs/setup/org_policy
     gcloud config set project ${GCP_PROJECT_ID}

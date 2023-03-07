@@ -66,7 +66,7 @@ gcloud dataplex lakes create ${LAKE_NM} \
  --project=${PROJECT_ID} \
  --location=${LOCATION} \
  --labels=domain_type=source \
- --display-name="Customer Domain" \
+ --display-name="Customer Domain"
 ```
 
 This takes about ~90 seconds<br>
@@ -120,7 +120,7 @@ gcloud dataplex zones create "customer-data-product-zone" \
 --labels=data_product_category=master_data
 ```
 
-### 2.4. Create the zones within the lakes
+### 2.4. Validate lakes and zones
 Go to Dataplex UI -> Go to Manage -> Click on "Customer Domain" lake -? validate the 3 Zones are created as per the screenshot here
 ![Customer zones](/data-mesh-banking-labs/lab1-data-organization/resources/imgs/Customer-zones.png)
 
