@@ -97,7 +97,7 @@ sleep 1m
 #curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application.json" https://dataplex.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/lakes/central-operations--domain/zones/operations-data-product-zone/assets/audit-data:setIamPolicy -d "{\"policy\":{\"bindings\":[{\"role\":\"roles/dataplex.dataOwner\",\"members\":[\"serviceAccount:$LOGGING_GMSA\"]}]}}" 
 
 
-export PROJECT_NBR=$(gcloud projects list --filter="${PROJECT_ID}" --format="value(PROJECT_NUMBER)")
+export PROJECT_NBR=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
 echo $PROJECT_NBR
 
 curl --request POST \
