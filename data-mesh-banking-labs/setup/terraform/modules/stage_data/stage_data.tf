@@ -309,6 +309,9 @@ resource "google_bigquery_dataset" "bigquery_datasets" {
 resource "random_integer" "jobid" {
   min     = 10
   max     = 19999
+    keepers = {
+    first = "${timestamp()}"
+  }
 }
 
 resource "google_bigquery_job" "job" {
