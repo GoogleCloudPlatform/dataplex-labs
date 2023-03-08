@@ -165,7 +165,7 @@ By appending " --summary_to_stdout" flag to your data quality jobs, you can easi
         --location="${REGION_ID}" \
         --lake="${LAKE_NAME}" \
         --trigger-type=ON_DEMAND \
-        --vpc-sub-network-name="default" \
+        --vpc-sub-network-name="dataplex-default" \
         --execution-service-account="$SERVICE_ACCOUNT" \
         --spark-python-script-file="gs://${PUBLIC_GCS_BUCKET_NAME}/clouddq_pyspark_driver.py" \
         --spark-file-uris="gs://${PUBLIC_GCS_BUCKET_NAME}/clouddq-executable.zip","gs://${PUBLIC_GCS_BUCKET_NAME}/clouddq-executable.zip.hashsum","${YAML_CONFIGS_GCS_PATH}" \
@@ -227,7 +227,7 @@ Once we have the DQ results available, using a custom utility which will automat
         gcloud dataplex tasks create customer-dp-dq-tag \
         --project=${PROJECT_ID} \
         --location=us-central1 \
-        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/default \
+        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/dataplex-default \
         --lake=consumer-banking--customer--domain \
         --trigger-type=ON_DEMAND \
         --execution-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com \

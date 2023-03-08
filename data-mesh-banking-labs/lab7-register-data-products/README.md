@@ -117,7 +117,7 @@ gsutil cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp/
 gcloud dataplex tasks create customer-tag-job \
         --project=${PROJECT_ID} \
         --location=us-central1 \
-        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/default \
+        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/dataplex-default \
         --lake='consumer-banking--customer--domain' \
         --trigger-type=ON_DEMAND \
         --execution-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com \
@@ -176,7 +176,7 @@ gsutil cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp
 gcloud dataplex tasks create customer-tag-job-2 \
         --project=${PROJECT_ID} \
         --location=us-central1 \
-        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/default \
+        --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/dataplex-default \
         --lake='consumer-banking--customer--domain' \
         --trigger-type=ON_DEMAND \
         --execution-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com \
