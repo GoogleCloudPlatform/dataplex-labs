@@ -111,7 +111,7 @@ Use Dataproc template to move the data from raw/curated zone to refine zone in B
     gcloud dataplex tasks create cc-cust-curated-refined \
     --project=${PROJECT_ID} \
     --location=us-central1 \
-    --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/default \
+    --vpc-sub-network-name=projects/${PROJECT_ID}/regions/us-central1/subnetworks/dataplex-default \
     --lake=consumer-banking--customer--domain \
     --trigger-type=ON_DEMAND \
     --execution-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com \
