@@ -67,6 +67,7 @@ resource "null_resource" "setup_code" {
     command = <<-EOT
       cd ../resources/
       gsutil -u ${var.project_id} cp gs://dataplex-dataproc-templates-artifacts/* ./common/.
+      wget -P ./common/ https://github.com/mansim07/dataplex-labs/raw/main/setup/resources/code_artifacts/libs/tagmanager-1.0-SNAPSHOT.jar
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_information
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_classification
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_quality
