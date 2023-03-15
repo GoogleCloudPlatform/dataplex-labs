@@ -574,12 +574,12 @@ resource "google_storage_bucket_object" "upload_to_gcs_datasets_raw" {
     time_sleep.sleep_after_bucket_creation
   ]
 }
-
+ 
 variable "sensitive_csv_datasets_to_upload" {
   type = map(string)
   default = {
-    "../datasets/banking/customers_raw/credit_card_customers/date=2022-05-01/credit_card_customers.csv"="banking/customers_raw/credit_card_customers/date=2022-05-01/credit_card_customers.csv",
-    "../datasets/banking/customers_raw/customers/date=2022-05-01/customers.csv"="banking/customers_raw/customers/date=2022-05-01/customers.csv",
+    "../datasets/banking/customers_raw/credit_card_customers/date=2022-05-01/credit_card_customers.csv"="credit_card_customers/date=2022-05-01/credit_card_customers.csv",
+    "../datasets/banking/customers_raw/customers/date=2022-05-01/customers.csv"="customers/date=2022-05-01/customers.csv",
     }
 }
 
