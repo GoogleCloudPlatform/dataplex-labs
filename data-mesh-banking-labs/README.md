@@ -100,18 +100,24 @@ To get the currently logged in email address, run: 'gcloud auth list as' below:
    ```
 
 #### 2.2.7. Trigger the terraform script to setup the lab environment 
-For Argolis: <br>
+
+
+If you are not already in home folder, execute the below command,
 
 ```
 cp -r dataplex-labs ~/
+```
+
+For Argolis or account with access to set up organization policies-<br>
+```
 cd ~/dataplex-labs/data-mesh-banking-labs/setup/
 source ~/.profile
 bash deploy-helper.sh ${PROJECT_ID} ${USERNAME} argolis
  ```
 
-For Non-Argolis or external: <br>
+For non-argolis or external or account without the access to update organization policy- <br>
+
 ``` 
-cp -r dataplex-labs ~/
 cd ~/dataplex-labs/data-mesh-banking-labs/setup/
 source ~/.profile
 bash deploy-helper.sh ${PROJECT_ID} ${USERNAME}  external
@@ -159,15 +165,15 @@ We have a series of labs designed to get hands-on-experience with Dataplex conce
 
 | Lab# |  Title | Description | 
 | ------------------ | ------------------- | ------------- | 
-| [Lab1](/lab1-data-organization/README.md )  | Data Organization  | Organize the Customer specific data assets into lakes and zones and map the underlying buckets and datasets assets| 
-| [Lab2](/lab2-data-security/README.md)  | Manage Data Security using Dataplex  | Managing Data Security is the main goal of this lab. You will learn how to design and manage security policies using Dataplex's UI and REST API as part of the lab. The purpose of the lab is to learn how to handle distributed data security more effectively across data domains|   |
-| [Lab3](/lab3-data-curation/README.md)  | Standardize data using Dataplex built in task | You will discover how to leverage common Dataplex templates to curate raw data and translate it into standardized formats like parquet and Avro in the Data Curation lane. This demonstrates how domain teams may quickly process data in a serverless manner and begin consuming it for testing purposes.|[  |
-|  [Lab4](/lab4-build-data-products/README.md)   | Build Data Products | Serverless Dataplex tasks offer with open, simple APIs that make it easier to integrate them with already-existing Data pipelines, which makes them complementary in nature. In this lab, you will discover how to integrate Dataplex functionalities with your data product engineering pipeline.  We will use  [Configuration-driven Serverless Dataproc Templates](https://github.com/GoogleCloudPlatform/dataproc-templates) for incremental data using from GCS to BQ, incorporate a Dataplex's data quality task to verify the raw data and then transform data use for building data products. | |
-| [Lab5](/lab5-data-classification/README.md) | Data Classification using DLP | You will use DLP Data Profiler in this lab so that it can automatically classify the BQ data, which will then be used by a Dataplex for building data classification tags. |  |
-| [Lab6](/lab6-data-quality/README.mde) | Data Quality |  in this lab you will learn how to execute an end-to-end data quality process, including how to define **DQ rules**, assess and **analyze** DQ findings, build an dq analysis **dashboard**, manage DQ **incidents**, and finally publish DQ score **tags** to the catalog.  | 
-|[Lab7](/lab7-register-data-products/README.md) | Tag template and bulk tagging | In this lab, you will learn how to create business metadata tags on the Dataplex Data Product entity at scale across domains using custom utilities and Composer. | 
-| [Lab8](/lab8-data-discovery-lineage/README.md) | Data catalog Search and Data Lineage| You will learn how to find data using the logical structure, perform advanced data discovery, provide additional(wiki-style) product overview and look at Data lineage |  
-| [Lab9](/lab9-data-profiling/README.md) | Data profiling| You will learn how to run data profiling tasks on BigQuery tables to better understand data for cleansing, and analyzing | 
+| [Lab1](/data-mesh-banking-labs/lab1-data-organization/README.md )  | Data Organization  | Organize the Customer specific data assets into lakes and zones and map the underlying buckets and datasets assets| 
+| [Lab2](/data-mesh-banking-labs/lab2-data-security/README.md)  | Manage Data Security using Dataplex  | Managing Data Security is the main goal of this lab. You will learn how to design and manage security policies using Dataplex's UI and REST API as part of the lab. The purpose of the lab is to learn how to handle distributed data security more effectively across data domains|   |
+| [Lab3](/data-mesh-banking-labs/lab3-data-curation/README.md)  | Standardize data using Dataplex built in task | You will discover how to leverage common Dataplex templates to curate raw data and translate it into standardized formats like parquet and Avro in the Data Curation lane. This demonstrates how domain teams may quickly process data in a serverless manner and begin consuming it for testing purposes.|[  |
+|  [Lab4](/data-mesh-banking-labs/lab4-build-data-products/README.md)   | Build Data Products | Serverless Dataplex tasks offer with open, simple APIs that make it easier to integrate them with already-existing Data pipelines, which makes them complementary in nature. In this lab, you will discover how to integrate Dataplex functionalities with your data product engineering pipeline.  We will use  [Configuration-driven Serverless Dataproc Templates](https://github.com/GoogleCloudPlatform/dataproc-templates) for incremental data using from GCS to BQ, incorporate a Dataplex's data quality task to verify the raw data and then transform data use for building data products. | |
+| [Lab5](/data-mesh-banking-labs/lab5-data-classification/README.md) | Data Classification using DLP | You will use DLP Data Profiler in this lab so that it can automatically classify the BQ data, which will then be used by a Dataplex for building data classification tags. |  |
+| [Lab6](/data-mesh-banking-labs/lab6-data-quality/README.mde) | Data Quality |  in this lab you will learn how to execute an end-to-end data quality process, including how to define **DQ rules**, assess and **analyze** DQ findings, build an dq analysis **dashboard**, manage DQ **incidents**, and finally publish DQ score **tags** to the catalog.  | 
+|[Lab7](/data-mesh-banking-labs/lab7-register-data-products/README.md) | Tag template and bulk tagging | In this lab, you will learn how to create business metadata tags on the Dataplex Data Product entity at scale across domains using custom utilities and Composer. | 
+| [Lab8](/data-mesh-banking-labs/lab8-data-discovery-lineage/README.md) | Data catalog Search and Data Lineage| You will learn how to find data using the logical structure, perform advanced data discovery, provide additional(wiki-style) product overview and look at Data lineage |  
+| [Lab9](/data-mesh-banking-labs/lab9-data-profiling/README.md) | Data profiling| You will learn how to run data profiling tasks on BigQuery tables to better understand data for cleansing, and analyzing | 
 
 
 ## 4. Contributing

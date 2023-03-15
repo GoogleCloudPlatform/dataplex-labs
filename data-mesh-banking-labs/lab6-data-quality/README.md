@@ -253,6 +253,6 @@ To-be-added in future
 
 <hr>
 
-This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](.../lab7-register-data-products) where you will learn to add additional business context to your data products
+This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](../lab7-register-data-products) where you will learn to add additional business context to your data products
 
 <hr>
