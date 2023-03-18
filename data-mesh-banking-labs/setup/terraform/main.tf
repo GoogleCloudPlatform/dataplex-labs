@@ -122,6 +122,19 @@ module "organize_data" {
 
 
 ####################################################################################
+# Create Analytics Hub Data Exchange and listings
+####################################################################################
+
+module "analyticshub" {
+  # Run this as the currently logged in user or the service account (assuming DevOps)
+  source                        = "./modules/analyticshub"
+  project_id                    = var.project_id
+  location                      = var.location
+  depends_on = [module.organize_data]
+}
+
+
+####################################################################################
 # Register the Data Assets in Dataplex
 ####################################################################################
 module "register_assets" {
@@ -140,7 +153,7 @@ module "register_assets" {
   transactions_curated_bucket_name      = local._transactions_curated_bucket_name
   datastore_project_id                  = var.project_id
  
-  depends_on = [module.organize_data]
+  depends_on = [module.analyticshub]
 
 }
 
