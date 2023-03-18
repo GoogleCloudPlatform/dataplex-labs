@@ -50,6 +50,7 @@ module "activate_service_apis" {
     "datapipelines.googleapis.com",
     "cloudscheduler.googleapis.com",
     "datalineage.googleapis.com",
+    "analyticshub.googleapis.com",
     "metastore.googleapis.com"
     ]
 
