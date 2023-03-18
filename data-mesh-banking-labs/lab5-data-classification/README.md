@@ -89,6 +89,6 @@ In a later lab, we will use these results to annotate the Data products with the
 
 <hr>
 
-This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](.../lab6-data-quality) where you will learn to implement data quality using Dataplex. 
+This concludes the lab module. Either proceed to the [main menu](../README.md) or to the [next module](../lab6-data-quality) where you will learn to implement data quality using Dataplex. 
 
 <hr>
