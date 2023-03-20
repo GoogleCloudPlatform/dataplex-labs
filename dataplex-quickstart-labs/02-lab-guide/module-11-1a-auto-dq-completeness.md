@@ -124,12 +124,6 @@ Lets check all the fields for quality scan and click on "run now".
 
 <hr>
 
-This concludes the module. Proceed to the next module.
-=======
-
-
-<hr>
-
 This concludes the module. Proceed to the [next module](module-11-1b-auto-dq-validity.md).
 
 
