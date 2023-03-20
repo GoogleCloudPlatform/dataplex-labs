@@ -2,7 +2,7 @@
 
 Dataplex offers a data profiling and this lab showcases the same.
 
-### Terminilogy Levelset
+### Terminology Levelset
 
 Data profiling is the analytical process of capturing useful statistics of data. The results can provide actionable insights into data quality, trends and risks, for proactive remediation to eliminate any adverse impact.
 
@@ -202,9 +202,14 @@ We will choose this as it has email addresses, phone nubers etc that are great f
 
 
 Familiarize yourself with the data in the BQ UI via this SQL-
+
 ```
+
 SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date='2022-05-01' LIMIT 5
+
 ```
+
+
 
 ![ADQ-4](../01-images/module-11-1-04.png)   
 <br><br>
@@ -215,13 +220,35 @@ SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date=
 ### 3.2. Create BigQuery managed table with Customer Master Data
 
 In the BQ UI, run the SQL below-
+
 ```
-CREATE OR REPLACE TABLE oda_dq_scratch_ds.customer_master AS
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date='2022-05-01'
+CREATE OR REPLACE TABLE oda_dq_scratch_ds.customer_master
+PARTITION BY date AS
+SELECT distinct client_id, 
+  ssn,
+  first_name,
+  last_name,
+  gender,
+  street,
+  city,
+  state,
+  zip,
+  latitude,
+  longitude,
+  city_pop,
+  job,
+  dob, 
+  email, 
+  phonenum,
+  profile, 
+  current_date() as date
+ FROM `oda_raw_sensitive_zone.customers` 
+ WHERE date='2022-05-01'
+```
 
 ![ADQ-5](../01-images/module-10-1-03.png)   
 <br><br>
-```
+
 
 Run a quick query to test if the table is created and also review the columns-
 ```
@@ -269,10 +296,10 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$UMSA
 Dataplex has a service account it auto-creates when you enable the Dataplex API. This API needs BigQuery read permissions. Lets grant it the same.
 
 ```
-DATAPLEX_GMSA_FQN = "service-$PROJECT_NBR@gcp-sa-dataplex.iam.gserviceaccount.com"
+DATAPLEX_GMSA_FQN="service-$PROJECT_NBR@gcp-sa-dataplex.iam.gserviceaccount.com"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$DATAPLEX_GMSA_FQN \
---role="roles/roles/bigquery.dataViewer"
+--role="roles/bigquery.dataViewer"
 
 ```
 
@@ -347,5 +374,7 @@ The one below is of integer data type-
 
 
 <hr>
-This concludes the lab module.
+
+This concludes the lab module. Proceed to the[next module](module-11-1a-auto-dq-completeness.md).
+
 <hr>
