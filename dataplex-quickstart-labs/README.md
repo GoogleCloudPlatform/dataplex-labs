@@ -84,8 +84,6 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 25 | Quality | [Auto Data Quality for validity - volume checks with SQL aggregate function](02-lab-guide/module-11-1f-auto-dq-sql-aggregates.md) | 15  |
 | 26 | Quality | [Auto Data Quality for validity - data freshness checks with SQL aggregate function](02-lab-guide/module-11-1g-auto-dq-freshness-check.md) | 15  |
 | 27 | Quality | [Auto Data Quality challenge lab](02-lab-guide/module-11-1h-auto-dq-challenge-lab.md) | 15  |
-| 28 | Quality | [Data Quality Task - YAML authoring - Part 1](02-lab-guide/module-12-1a-dq-task-rule-authoring-1.md) | 15  |
-| 29 | Quality | [Data Quality Task - YAML authoring - Part 2](02-lab-guide/module-12-1b-dq-task-rule-authoring-2.md) | 15  |
 
 
 <hr>
