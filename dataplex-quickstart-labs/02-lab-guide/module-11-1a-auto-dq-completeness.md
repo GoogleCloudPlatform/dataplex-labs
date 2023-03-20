@@ -119,7 +119,7 @@ Lets check all the fields for quality scan and click on "run now".
 ![ADQ-3](../01-images/module-11-1-26.png)   
 <br><br>
 
-<<<<<<< HEAD
+
 <hr>
 
 <hr>
