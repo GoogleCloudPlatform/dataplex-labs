@@ -471,7 +471,7 @@ with models.DAG(
                 "execution_spec": {
                     "service_account": IMPERSONATION_CHAIN,
                     "args": {
-                        "TASK_ARGS": f"""--template=DATAPLEXGCSTOBQ,--templateProperty=project.id={PROJECT_ID_DG},--templateProperty=dataplex.gcs.bq.target.dataset=customer_refined_data,--templateProperty=gcs.bigquery.temp.bucket.name={PROJECT_ID_DG}_dataplex_temp,--templateProperty=dataplex.gcs.bq.save.mode=append,--templateProperty=dataplex.gcs.bq.incremental.partition.copy=yes,--dataplexEntity=projects/{PROJECT_ID_DG}/locations/us-central1/lakes/consumer-banking--customer--domain/zones/customer-raw-zone/entities/customers_data,--partitionField=ingest_date,--partitionType=DAY,--targetTableName=customers_data,--customSqlGcsPath=gs://{PROJECT_ID_DG}_dataplex_process/customer-source-configs/customercustom.sql
+                        "TASK_ARGS": f"""--template=DATAPLEXGCSTOBQ,--templateProperty=project.id={PROJECT_ID_DG},--templateProperty=dataplex.gcs.bq.target.dataset=customer_refined_data,--templateProperty=gcs.bigquery.temp.bucket.name={PROJECT_ID_DG}_dataplex_temp,--templateProperty=dataplex.gcs.bq.save.mode=append,--templateProperty=dataplex.gcs.bq.incremental.partition.copy=yes,--dataplexEntity=projects/{PROJECT_ID_DG}/locations/us-central1/lakes/consumer-banking--customer--domain/zones/customer-raw-zone/entities/customers_data,--partitionField=ingest_date,--partitionType=DAY,--targetTableName=customers_data,--customSqlGcsPath=gs://{PROJECT_ID_DG}_dataplex_process/code/customer-source-configs/customercustom.sql
                     """
                     }
                 },
