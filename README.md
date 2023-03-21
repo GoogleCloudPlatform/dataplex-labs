@@ -29,5 +29,5 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | -- | :--- | :--- |:--- |
 | 1. |Initial release of quickstart labs series | 20230303 | Anagha Khanolkar|
 | 2. |Initial release of data mesh banking labs| 20230306 | Mansi Maharana|
-| 3. |Additional modules to quickstart labs series | 20230320 | Anagha Khanolkar|
-
+| 3. |Additional modules (AutoDQ) to quickstart labs series | 20230320 | Anagha Khanolkar|
+| 4. |Additional modules (DQ tasks) to quickstart labs series | 20230321 | Anagha Khanolkar|

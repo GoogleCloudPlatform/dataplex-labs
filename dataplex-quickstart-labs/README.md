@@ -84,6 +84,11 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 25 | Quality | [Auto Data Quality for validity - volume checks with SQL aggregate function](02-lab-guide/module-11-1f-auto-dq-sql-aggregates.md) | 15  |
 | 26 | Quality | [Auto Data Quality for validity - data freshness checks with SQL aggregate function](02-lab-guide/module-11-1g-auto-dq-freshness-check.md) | 15  |
 | 27 | Quality | [Auto Data Quality challenge lab](02-lab-guide/module-11-1h-auto-dq-challenge-lab.md) | 15  |
+| 28 | Quality | [Data Quality Task - YAML authoring primer -1](02-lab-guide/module-12-1a-dq-task-rule-authoring-1.md) | 30  |
+| 29 | Quality | [Data Quality Task - YAML authoring primer -2](02-lab-guide/module-12-1b-dq-task-rule-authoring-2.md) | 10  |
+| 30 | Quality | [Data Quality Incident Management](02-lab-guide/module-12-1c-dq-incident-mgmt.md) | 10  |
+| 31 | Quality | [Data Quality Dashboard](02-lab-guide/module-12-1d-dq-task-dq-dashboard.md) | 10  |
+| 32 | Quality | [Data Quality Score Tags in Dataplex Catalog tags](02-lab-guide/module-12-1e-dq-task-dq-tags.md) | 15  |
 
 
 <hr>
@@ -97,7 +102,7 @@ Shut down/delete resources when done to avoid unnecessary billing.
 | # | Google Cloud Collaborators | Contribution  | 
 | -- | :--- | :--- |
 | 1. | Anagha Khanolkar | Creator |
-| 2. | Mansi Maharana | Some aspects of Data Quality Task modules are inspired by/evolved from Mansi's datamesh labs  |
+| 2. | Mansi Maharana | Co-creator - data, aspects of Data Quality Task modules are inspired by/evolved from Mansi's datamesh labs  |
 
 <hr>
 
@@ -116,6 +121,7 @@ If you have any questions or if you found any problems with this repository, ple
 | -- | :--- | 
 | 20230227 |  Initial release |
 | 20230320 |  Added modules for Dataplex Auto Data Quality|
+| 20230321 |  Added modules for Dataplex Data Quality Tasks|
 
 
 
