@@ -298,7 +298,7 @@ DQ_SCRIPTS_BUCKET="oda-dq-bucket"
 DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME="dataplex-clouddq-artifacts-${LOCATION}"
 
 # Location of user defined DQ YAML Specifications file
-DQ_YAML_CONFIG_GCS_PATH="gs://$DQ_SCRIPTS_BUCKET/YAML/customer_master_dq.yaml"
+DQ_YAML_CONFIG_GCS_PATH="gs://$DQ_SCRIPTS_BUCKET/dq-yaml/customer_master_dq.yaml"
 
 # The Dataplex lake
 LAKE_ID="oda-lake"
