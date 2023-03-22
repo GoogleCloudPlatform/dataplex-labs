@@ -47,12 +47,11 @@ Paste in cloud shell-
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
 UMSA_FQN="lab-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-LOCATION="us-central1"
-LOCATION_MULTI="US"
+DATAPLEX_LOCATION="us-central1"
 LAKE_ID="oda-lake"
 DATA_QUALITY_ZONE_ID="oda-dq-zone"
 DQ_BQ_SCRATCH_DATASET="oda_dq_scratch_ds"
-DQ_MISC_BUCKET="oda-dq-bucket"
+DQ_MISC_BUCKET="oda-dq-bucket-$PROJECT_NBR"
 
 cd ~
 mkdir -p tmp/dataplex-quickstart-labs/dq
@@ -63,6 +62,7 @@ cd ~/tmp/dataplex-quickstart-labs/dq
 
 ```
 cd ~/tmp/dataplex-quickstart-labs/dq
+rm -rf tagmanager-1.0-SNAPSHOT.jar
 wget https://github.com/mansim07/dataplex-labs/raw/main/setup/resources/code_artifacts/libs/tagmanager-1.0-SNAPSHOT.jar
 ```
 
@@ -71,7 +71,8 @@ We will use Dataplex tasks to populate tags with Data Quality scores and this fe
 
 ```
 cd ~/tmp/dataplex-quickstart-labs/dq
-gsutil cp tagmanager-1.0-SNAPSHOT.jar gs://$DQ_MISC_BUCKET/
+TAG_MANAGER_UTIL_JAR_FQP=gs://$DQ_MISC_BUCKET/dq-utils/tagmanager-1.0-SNAPSHOT.jar
+gsutil cp tagmanager-1.0-SNAPSHOT.jar $TAG_MANAGER_UTIL_JAR_FQP
 ```
 
 <hr>
@@ -83,7 +84,7 @@ gsutil cp tagmanager-1.0-SNAPSHOT.jar gs://$DQ_MISC_BUCKET/
 The command below will create a pre-defined tag template for Data Quality Scores in Dataplex Catalog in the project and location specified-
 ```
 cd ~/tmp/dataplex-quickstart-labs/dq
-java -cp tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates $PROJECT_ID $LOCATION data_product_quality
+java -cp tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates $PROJECT_ID $DATAPLEX_LOCATION data_product_quality
 ```
 
 ![ADQ-3](../01-images/m12-1e-dqtags-00.png)   
@@ -139,7 +140,8 @@ cat data-quality-scores-tag.yaml
 ### 3.2. Upload to the Data Quality Cloud Storage bucket from previous modules
 
 ```
-gsutil cp data-quality-scores-tag.yaml gs://$DQ_MISC_BUCKET/
+TAG_POPULATION_YAML_FILE_FQP=gs://$DQ_MISC_BUCKET/dq-tag-population-yaml/data-quality-scores-tag.yaml
+gsutil cp data-quality-scores-tag.yaml $TAG_POPULATION_YAML_FILE_FQP
 ```
 
 <hr>
@@ -148,15 +150,15 @@ gsutil cp data-quality-scores-tag.yaml gs://$DQ_MISC_BUCKET/
 
 ```
 gcloud dataplex tasks create \
---location="${LOCATION}" \
+--location="${DATAPLEX_LOCATION}" \
 --lake="${LAKE_ID}" \
 --trigger-type=ON_DEMAND \
 --vpc-sub-network-name="lab-snet" \
 --execution-service-account=$UMSA_FQN \
 --spark-main-class="com.google.cloud.dataplex.templates.dataquality.DataProductQuality" \
---spark-file-uris="gs://$DQ_MISC_BUCKET/data-quality-scores-tag.yaml" \
---container-image-java-jars="gs://$DQ_MISC_BUCKET/tagmanager-1.0-SNAPSHOT.jar" \
---execution-args=^::^TASK_ARGS="--tag_template_id=projects/${PROJECT_ID}/locations/${LOCATION}/tagTemplates/data_product_quality, --project_id=${PROJECT_ID},--location=${LOCATION},--lake_id=$LAKE_ID,--zone_id=$DATA_QUALITY_ZONE_ID,--entity_id=customer_master,--input_file=data-quality-scores-tag.yaml" \
+--spark-file-uris="$TAG_POPULATION_YAML_FILE_FQP" \
+--container-image-java-jars="$TAG_MANAGER_UTIL_JAR_FQP" \
+--execution-args=^::^TASK_ARGS="--tag_template_id=projects/${PROJECT_ID}/locations/${DATAPLEX_LOCATION}/tagTemplates/data_product_quality, --project_id=${PROJECT_ID},--location=${DATAPLEX_LOCATION},--lake_id=$LAKE_ID,--zone_id=$DATA_QUALITY_ZONE_ID,--entity_id=customer_master,--input_file=data-quality-scores-tag.yaml" \
 "customer-master-populate-tags-$RANDOM"
 ```
 

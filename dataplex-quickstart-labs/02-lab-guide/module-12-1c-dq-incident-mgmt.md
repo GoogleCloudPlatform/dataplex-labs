@@ -35,29 +35,26 @@ By appending ```, --summary_to_stdout``` flag to your data quality jobs, the Dat
 
 Study the commands below and run in Cloud Shell-
 ```
+
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
 UMSA_FQN="lab-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-LOCATION="us-central1"
-LOCATION_MULTI="US"
+DATAPLEX_LOCATION="us-central1"
+BQ_LOCATION="US"
 LAKE_ID="oda-lake"
 DATA_QUALITY_ZONE_ID="oda-dq-zone"
-DQ_SCRIPTS_BUCKET="oda-dq-bucket"
+DQ_SCRIPTS_BUCKET="oda-dq-bucket-$PROJECT_NBR"
 
-
-PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
-PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
-LOCATION="us-central1"
-LOCATION_MULTI="US"
-DATA_QUALITY_ZONE_ID="oda-dq-zone"
-DQ_SCRIPTS_BUCKET="oda-dq-bucket"
+cd ~
+mkdir -p tmp/dataplex-quickstart-labs/dq
+cd ~/tmp/dataplex-quickstart-labs/dq
 
 # Public Cloud Storage bucket containing the prebuilt Dataplex data quality executable artifact.
 # There is one bucket for each Google Cloud region. DO NOT ALTER THE CONSTRUCT BELOW
-DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME="dataplex-clouddq-artifacts-${LOCATION}"
+DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME="dataplex-clouddq-artifacts-${DATAPLEX_LOCATION}"
 
 # Location of user defined DQ YAML Specifications file
-DQ_YAML_CONFIG_GCS_PATH="gs://$DQ_SCRIPTS_BUCKET/YAML/customer_master_dq.yaml"
+DQ_YAML_CONFIG_GCS_PATH="gs://$DQ_SCRIPTS_BUCKET/dq-yaml/customer_master_dq.yaml"
 
 # The Dataplex lake
 LAKE_ID="oda-lake"
@@ -75,16 +72,15 @@ DQ_TASK_ID="customer-dq"
 USER_MANAGED_SERVICE_ACCOUNT_FQN="lab-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud dataplex tasks create \
-    --location="${LOCATION}" \
+    --location="${DATAPLEX_LOCATION}" \
     --lake="${LAKE_ID}" \
     --trigger-type=ON_DEMAND \
     --vpc-sub-network-name="lab-snet" \
     --execution-service-account="$USER_MANAGED_SERVICE_ACCOUNT_FQN" \
     --spark-python-script-file="gs://${DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME}/clouddq_pyspark_driver.py" \
     --spark-file-uris="gs://${DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME}/clouddq-executable.zip","gs://${DATAPLEX_CLOUD_DQ_GCS_BUCKET_NAME}/clouddq-executable.zip.hashsum","${DQ_YAML_CONFIG_GCS_PATH}" \
-    --execution-args=^::^TASK_ARGS="clouddq-executable.zip, ALL, ${DQ_YAML_CONFIG_GCS_PATH}, --gcp_project_id=${PROJECT_ID}, --gcp_region_id='${LOCATION_MULTI}', --gcp_bq_dataset_id='${TARGET_BQ_DATASET}', --target_bigquery_summary_table='${TARGET_BQ_TABLE}', --summary_to_stdout " \
+    --execution-args=^::^TASK_ARGS="clouddq-executable.zip, ALL, ${DQ_YAML_CONFIG_GCS_PATH}, --gcp_project_id=${PROJECT_ID}, --gcp_region_id='${BQ_LOCATION}', --gcp_bq_dataset_id='${TARGET_BQ_DATASET}', --target_bigquery_summary_table='${TARGET_BQ_TABLE}', --summary_to_stdout " \
     "$DQ_TASK_ID-$RANDOM"
-
 
 ```
 
