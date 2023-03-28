@@ -89,6 +89,8 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 30 | Quality | [Data Quality Incident Management](02-lab-guide/module-12-1c-dq-incident-mgmt.md) | 10  |
 | 31 | Quality | [Data Quality Dashboard](02-lab-guide/module-12-1d-dq-task-dq-dashboard.md) | 10  |
 | 32 | Quality | [Data Quality Score Tags in Dataplex Catalog tags](02-lab-guide/module-12-1e-dq-task-dq-tags.md) | 15  |
+| 33 | Quality | [Data Quality process automation with Apache Airflow on Cloud Composer](02-lab-guide/module-12-1f-dq-automation.md) | 15  |
+| 34 | Quality | [Data Quality operationalization end to end](02-lab-guide/module-12-1g-dq-complete-automation.md) | 15  |
 
 
 <hr>
@@ -102,7 +104,7 @@ Shut down/delete resources when done to avoid unnecessary billing.
 | # | Google Cloud Collaborators | Contribution  | 
 | -- | :--- | :--- |
 | 1. | Anagha Khanolkar | Creator |
-| 2. | Mansi Maharana | Data, aspects of Data Quality Task modules are inspired by/evolved from Mansi's datamesh labs  |
+| 2. | Mansi Maharana | Aspects of Data Quality Task modules are inspired by/evolved from Mansi's banking datamesh labs  |
 
 <hr>
 
@@ -122,6 +124,7 @@ If you have any questions or if you found any problems with this repository, ple
 | 20230227 |  Initial release |
 | 20230320 |  Added modules for Dataplex Auto Data Quality|
 | 20230321 |  Added modules for Dataplex Data Quality Tasks|
+| 20230328 |  Added additional modules for Dataplex Data Quality Tasks|
 
 
 

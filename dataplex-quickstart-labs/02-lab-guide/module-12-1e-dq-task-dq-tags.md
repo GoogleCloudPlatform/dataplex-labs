@@ -191,6 +191,6 @@ Search for ```tag:data_product_quality``` and review the scores.
 <hr>
 <hr>
 
-This concludes the lab module. Proceed to the next lab module.
+This concludes the lab module. Proceed to the [next lab module](module-12-1f-dq-automation.md).
 
 <hr>
