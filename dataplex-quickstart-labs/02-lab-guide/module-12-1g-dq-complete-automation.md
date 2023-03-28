@@ -11,7 +11,7 @@ For Data Quality tagging, we will use a Spark application that we will run via D
 
 ### Learning goals
 
-We have learned how to author Dataplex DQ YAML, run from command line and automate with Airflow on Cloud Composer. Separately, we learned how to tag Data Quality scores to our Catalog entry. We also learned how to set up incident management for our DQ tasks. In this lab module, we bring it all together and how you how to operationalize Data Quality validation.
+We have learned how to author Dataplex DQ YAML, run from command line and automate with Airflow on Cloud Composer. Separately, we learned how to tag Data Quality scores to our Catalog entry. We also learned how to set up incident management for our DQ tasks. In this lab module, we bring it all together and show you how to operationalize Data Quality validation.
 
 ### Prerequisites
 
