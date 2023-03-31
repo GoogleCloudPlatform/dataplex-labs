@@ -143,8 +143,9 @@ jsonPayload.message =~ "complex_rule_validation_errors_count\": [^null]"
 ```
 ### 4.3. Consolidated quality issue filter we will apply 
 
+```
 jsonPayload.message =~ "complex_rule_validation_errors_count\": [^null]" OR jsonPayload.message =~ "failed_count\": [^0|null]" 
-
+```
 <hr>
 
 
