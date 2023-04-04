@@ -276,18 +276,17 @@ resource "google_storage_bucket_object" "gcs_transaction_refdata_objects" {
 
 ####################################################################################
 # Create BigQuery Datasets
+# #Removed auth_data_product, customer_data_product, merchants_data_product dataset creation as it will be created as part of analytics hub data exchange and listing
+
 ####################################################################################
 
 resource "google_bigquery_dataset" "bigquery_datasets" {
   for_each = toset([ 
-    "auth_data_product",
     "auth_ref_data",
     "cc_analytics_data_product",
-    "customer_data_product",
     "customer_private",
     "customer_ref_data",
     "customer_refined_data",
-    "merchants_data_product",
     "merchants_ref_data",
     "merchants_refined_data",
     "pos_auth_refined_data"

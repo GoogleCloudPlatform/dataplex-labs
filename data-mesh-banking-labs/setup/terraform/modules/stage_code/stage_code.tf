@@ -90,6 +90,13 @@ resource "null_resource" "setup_code" {
       sed -i s/_project_datagov_/${var.project_id}/g code/customer-source-configs/data-product-quality-tag-auto.yaml
       sed -i s/_project_datagov_/${var.project_id}/g code/transactions-source-configs/data-product-quality-tag-auto.yaml
       sed -i s/_project_datagov_/${var.project_id}/g code/transactions-consumer-configs/data-product-quality-tag-auto.yaml
+      sed -i s/_project_datagov_/${var.project_id}/g code/transactions-consumer-configs/data-product-exchange-tag-manual.yaml
+      sed -i s/_project_datagov_/${var.project_id}/g code/customer-source-configs/data-product-exchange-tag-manual.yaml
+      sed -i s/_project_datagov_/${var.project_id}/g code/merchant-source-configs/data-product-exchange-tag-manual.yaml
+      sed -i s/_locations_/${var.location}/g code/transactions-source-configs/data-product-exchange-tag-manual.yaml 
+      sed -i s/_locations_/${var.location}/g code/transactions-consumer-configs/data-product-exchange-tag-manual.yaml
+      sed -i s/_locations_/${var.location}/g code/customer-source-configs/data-product-exchange-tag-manual.yaml
+      sed -i s/_locations_/${var.location}/g code/merchant-source-configs/data-product-exchange-tag-manual.yaml
       gsutil -m cp -r * gs://${var.dataplex_process_bucket_name}
     EOT
     }
