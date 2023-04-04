@@ -203,3 +203,5 @@ Share you feedback, ideas, by logging [issues](https://github.com/mansim07/datap
 | 20220108 | Initial Script - Terraform, Lab1-8|  Mansi Maharana|
 | 20220122 | Lab 9 Data Profiling| Anagha Khanolkar|
 | 20220126 | 1. Extended it for external implementation.<br> 2. Added addditional documentation <br> 3. Fixed the networking issue with "default" <br> 4. Added a new lab on Data Organization  | Mansi Maharana|
+| 20230403 |Added Analytic Hub modules  |  Jitendra Yadav|
+| 20230404 |Added Custom Lineage  |  Mansi Maharana|
