@@ -104,7 +104,7 @@ Shut down/delete resources when done to avoid unnecessary billing.
 | # | Google Cloud Collaborators | Contribution  | 
 | -- | :--- | :--- |
 | 1. | Anagha Khanolkar | Creator |
-| 2. | Mansi Maharana | Aspects of Data Quality Task modules are inspired by/evolved from Mansi's banking datamesh labs  |
+| 2. | Mansi Maharana | Data Quality Task labs are evolved from Banking Data Mesh labs  |
 
 <hr>
 
