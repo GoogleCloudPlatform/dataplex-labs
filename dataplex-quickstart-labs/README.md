@@ -98,6 +98,7 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 32 | Quality | [Data Quality Score Tags in Dataplex Catalog tags](02-lab-guide/module-12-1e-dq-task-dq-tags.md) | 15  |
 | 33 | Quality | [Data Quality process automation with Apache Airflow on Cloud Composer](02-lab-guide/module-12-1f-dq-automation.md) | 15  |
 | 34 | Quality | [Data Quality operationalization end to end](02-lab-guide/module-12-1g-dq-complete-automation.md) | 15  |
+| 35 | BigLake | [Upgrading external tables to BigLake and performance acceleration](module-13-1a-big-lake-basics.md) |
 
 <hr>
 
@@ -132,7 +133,4 @@ If you have any questions or if you found any problems with this repository, ple
 | 20230320 |  Added modules for Dataplex Auto Data Quality|
 | 20230321 |  Added modules for Dataplex Data Quality Tasks|
 | 20230328 |  Added additional modules for Dataplex Data Quality Tasks|
-
-
-
-
+| 20230411 |  Added BigLake module|
