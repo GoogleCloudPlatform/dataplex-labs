@@ -1,12 +1,9 @@
 # M10-1: Data Profiling
 
-Dataplex offers a data profiling and this lab showcases the same.
+Dataplex offers a data profiling feature and this lab showcases the same.
 
-<<<<<<< HEAD
-### Terminilogy Levelset
-=======
 ### Terminology Levelset
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
+
 
 Data profiling is the analytical process of capturing useful statistics of data. The results can provide actionable insights into data quality, trends and risks, for proactive remediation to eliminate any adverse impact.
 
