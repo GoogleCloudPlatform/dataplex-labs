@@ -578,6 +578,6 @@ Add green taxi data into section 2 to demonstrate BigLake query acceleration mor
 
 <hr>
 
-This concludes the module. Proceed to the next module.
+This concludes the module. More modules to come soon that cover Attribute Store.
 
 <hr>
