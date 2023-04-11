@@ -243,11 +243,7 @@ gcloud dataplex assets create banking-datasets \
 --resource-type=STORAGE_BUCKET \
 --resource-name=projects/$PROJECT_ID/buckets/raw-data-sensitive-$PROJECT_NBR \
 --discovery-enabled \
-<<<<<<< HEAD
 --discovery-schedule="0 * * * *" \
-=======
---discovery-schedule="15 * * * *" \
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 --csv-delimiter="|" \
 --display-name 'Banking Datasets'
 ```
