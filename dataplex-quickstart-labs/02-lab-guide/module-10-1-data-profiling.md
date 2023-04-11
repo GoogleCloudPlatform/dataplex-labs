@@ -203,22 +203,11 @@ We will choose this as it has email addresses, phone nubers etc that are great f
 
 
 Familiarize yourself with the data in the BQ UI via this SQL-
-<<<<<<< HEAD
-```
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date='2022-05-01' LIMIT 5
-```
-
-=======
 
 ```
-
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date='2022-05-01' LIMIT 5
-
+SELECT * FROM oda_raw_sensitive_zone.customers WHERE date='2022-05-01' LIMIT 5
 ```
 
-
-
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 ![ADQ-4](../01-images/module-11-1-04.png)   
 <br><br>
 
@@ -228,15 +217,8 @@ SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date=
 ### 3.2. Create BigQuery managed table with Customer Master Data
 
 In the BQ UI, run the SQL below-
-<<<<<<< HEAD
-```
-CREATE OR REPLACE TABLE oda_dq_scratch_ds.customer_master AS
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE date='2022-05-01'
 
-![ADQ-5](../01-images/module-10-1-03.png)   
-<br><br>
-```
-=======
+
 
 ```
 CREATE OR REPLACE TABLE oda_dq_scratch_ds.customer_master
@@ -266,7 +248,6 @@ SELECT distinct client_id,
 ![ADQ-5](../01-images/module-10-1-03.png)   
 <br><br>
 
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 
 Run a quick query to test if the table is created and also review the columns-
 ```
@@ -314,17 +295,14 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$UMSA
 Dataplex has a service account it auto-creates when you enable the Dataplex API. This API needs BigQuery read permissions. Lets grant it the same.
 
 ```
-<<<<<<< HEAD
+
 DATAPLEX_GMSA_FQN = "service-$PROJECT_NBR@gcp-sa-dataplex.iam.gserviceaccount.com"
 
-gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$DATAPLEX_GMSA_FQN \
---role="roles/roles/bigquery.dataViewer"
-=======
-DATAPLEX_GMSA_FQN="service-$PROJECT_NBR@gcp-sa-dataplex.iam.gserviceaccount.com"
+
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$DATAPLEX_GMSA_FQN \
 --role="roles/bigquery.dataViewer"
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
+
 
 ```
 
@@ -399,11 +377,9 @@ The one below is of integer data type-
 
 
 <hr>
-<<<<<<< HEAD
-This concludes the lab module.
-=======
+
 
 This concludes the lab module. Proceed to the[next module](module-11-1a-auto-dq-completeness.md).
 
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
+
 <hr>
