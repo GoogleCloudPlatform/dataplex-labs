@@ -24,15 +24,6 @@ Successful completion of prior modules
 2. Practical knowledge of running Auto Data Quality - value set checks feature
 
 <hr>
-<<<<<<< HEAD
-=======
-
-### Lab flow
-
-![LF](../01-images/m11-1c-landing-flow.png)   
-<br><br>
-
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 <hr>
 
 # LAB
@@ -112,18 +103,12 @@ Lets check all the fields for quality scan and click on "run now".
 ![ADQ-3](../01-images/module-11-1c-09.png)   
 <br><br>
 
-<<<<<<< HEAD
 
 <hr>
 
 <hr>
 
 This concludes the module. Proceed to the next module.
-=======
-<hr>
-
-This concludes the module. Proceed to the [next module](module-11-1d-auto-dq-duplicates.md).
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 
 <hr>
 

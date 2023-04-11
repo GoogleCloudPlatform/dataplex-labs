@@ -17,12 +17,15 @@ Successful completion of prior modules
 
 Practical knowledge of running Auto Data Quality - validity checks
 
+<<<<<<< HEAD
+=======
 ### Lab flow
 
 
 ![LF-3](../01-images/m11-1b-landing-flow.png)   
 <br><br>
 
+>>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 <hr>
 <hr>
 
@@ -114,9 +117,15 @@ Follow the step by step instructions detailed in the screenshots below.
 
 
 <hr>
+<<<<<<< HEAD
+<hr>
+
+This concludes the module. Proceed to the next module.
+=======
 
 
 This concludes the module. Proceed to the [next module](module-11-1c-auto-dq-value-set.md).
+>>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 
 <hr>
 

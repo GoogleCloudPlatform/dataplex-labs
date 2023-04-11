@@ -73,6 +73,13 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 14 | Lineage | [Out of the box lineage capture for BigQuery objects](02-lab-guide/module-09-1-data-lineage-with-bigquery.md) | 15  |
 | 15 | Lineage | [BigQuery lineage with Apache Airflow on Cloud Composer for orchestration ](02-lab-guide/module-09-2-data-lineage-with-cloud-composer-bq.md) | 15  |
 | 16 | Lineage | [Custom lineage for Apache Spark applications on Cloud Dataproc with Apache Airflow on Cloud Composer pipelines ](02-lab-guide/module-09-3-data-lineage-with-cloud-composer-spark.md) | 30  |
+| 17 | Lineage | [Custom lineage for custom entries in Catalog & managing lineage with Dataplex Lineage API](02-lab-guide/module-09-4-custom-lineage.md) | 15  |
+| 17 | Profiling | [Data profiling by example](02-lab-guide/module-10-1-data-profiling.md) | 15  |
+| 18 | Quality | [Auto Data Quality for completeness - null checks](02-lab-guide/module-11-1a-auto-dq-completeness.md) | 15  |
+| 19 | Quality | [Auto Data Quality for validity - pattern checks](02-lab-guide/module-11-1b-auto-dq-validity.md) | 15  |
+| 20 | Quality | [Auto Data Quality for validity - allowed values checks](02-lab-guide/module-11-1c-auto-dq-value-set.md) | 15  |
+| 21 | Quality | [Auto Data Quality for uniqueness - cell value checks](02-lab-guide/module-11-1d-auto-dq-uniqueness.md) | 15  |
+| 22 | Quality | [Auto Data Quality for validity - date checks with SQL row function](02-lab-guide/module-11-1e-auto-dq-sql-row-date.md) | 15  |
 | 17 | Lineage | [Custom lineage for custom entries in Catalog with Dataplex Lineage API](02-lab-guide/module-09-4-custom-lineage.md) | 15  |
 | 18 | Lineage | [Managing lineage with Dataplex Lineage API](02-lab-guide/module-09-5-manage-lineage.md) | 15  |
 | 19 | Quality | [Data profiling by example](02-lab-guide/module-10-1-data-profiling.md) | 15  |
@@ -92,7 +99,6 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 33 | Quality | [Data Quality process automation with Apache Airflow on Cloud Composer](02-lab-guide/module-12-1f-dq-automation.md) | 15  |
 | 34 | Quality | [Data Quality operationalization end to end](02-lab-guide/module-12-1g-dq-complete-automation.md) | 15  |
 
-
 <hr>
 
 ## 10. Dont forget to 
@@ -105,6 +111,7 @@ Shut down/delete resources when done to avoid unnecessary billing.
 | -- | :--- | :--- |
 | 1. | Anagha Khanolkar | Creator |
 | 2. | Mansi Maharana | Data Quality Task labs are evolved from [Banking Data Mesh labs](https://github.com/GoogleCloudPlatform/dataplex-labs/tree/main/data-mesh-banking-labs/lab6-data-quality)  |
+
 
 <hr>
 
@@ -125,6 +132,7 @@ If you have any questions or if you found any problems with this repository, ple
 | 20230320 |  Added modules for Dataplex Auto Data Quality|
 | 20230321 |  Added modules for Dataplex Data Quality Tasks|
 | 20230328 |  Added additional modules for Dataplex Data Quality Tasks|
+
 
 
 
