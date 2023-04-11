@@ -191,7 +191,7 @@ Expect a delay of a few minutes.
 
 <hr>
 
-This concludes the lab module.
+This concludes the lab module. Proceed to the [next module](module-13-1a-big-lake-basics.md).
 
 <hr>
 
