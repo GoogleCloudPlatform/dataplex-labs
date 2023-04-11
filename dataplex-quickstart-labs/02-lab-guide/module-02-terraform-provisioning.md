@@ -25,7 +25,7 @@ Approximately 45 minutes
 Run in Cloud Shell-
 ```
 cd ~
-git clone https://github.com/anagha-google/dataplex-labs.git
+git clone https://github.com/GoogleCloudPlatform/dataplex-labs.git
 ```
 
 ### 1.2. Set up working directory
