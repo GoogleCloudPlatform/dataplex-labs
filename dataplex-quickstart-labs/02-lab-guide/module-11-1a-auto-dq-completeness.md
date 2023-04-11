@@ -3,11 +3,8 @@
 
 Dataplex provides the following two options to validate data quality:
 
-<<<<<<< HEAD
-**Auto data quality** (Public Preview) provides an automated experience for getting quality insights about your data. Auto data quality automates and simplifies quality definition with recommendations and UI-driven workflows. It standardizes on insights with built-in reports and drives actions through alerting and troubleshooting.
-=======
+
 **Dataplex auto data quality** (Public Preview) provides an automated experience for getting quality insights about your data. Auto data quality automates and simplifies quality definition with recommendations and UI-driven workflows. It standardizes on insights with built-in reports and drives actions through alerting and troubleshooting.
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 
 **Dataplex data quality task** (Generally Available) offers a highly customizable experience to manage your own rule repository and customize execution and results, using Dataplex for managed / serverless execution. Dataplex data quality task uses an open source component, CloudDQ, that can also open up choices for customers who want to enhance the code to their needs.
 
@@ -33,15 +30,11 @@ Successful completion of prior modules
 1. Understand options for data quality in Dataplex
 2. Practical knowledge of running Auto Data Quality - completeness checks feature
 
-<<<<<<< HEAD
-=======
 ### Lab flow
-
 
 ![LF-3](../01-images/m11-1-landing-flow.png)   
 <br><br>
 
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
 <hr>
 <hr>
 
@@ -126,25 +119,14 @@ Lets check all the fields for quality scan and click on "run now".
 ![ADQ-3](../01-images/module-11-1-26.png)   
 <br><br>
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
-<hr>
 
-<hr>
-
-This concludes the module. Proceed to the next module.
-<<<<<<< HEAD
-=======
-=======
 
 
 <hr>
 
 This concludes the module. Proceed to the [next module](module-11-1b-auto-dq-validity.md).
 
->>>>>>> 2e4b20f5af9186f55ed3161631a360f6dfe253b8
+
 
 <hr>
 
