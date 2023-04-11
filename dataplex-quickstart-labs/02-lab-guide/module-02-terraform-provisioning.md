@@ -25,14 +25,14 @@ Approximately 45 minutes
 Run in Cloud Shell-
 ```
 cd ~
-git clone https://github.com/anagha-google/dataplex-labs-ak.git
+git clone https://github.com/anagha-google/dataplex-labs.git
 ```
 
 ### 1.2. Set up working directory
 
 Run in Cloud Shell-
 ```
-cp -r dataplex-labs-ak/dataplex-quickstart-labs ~/
+cp -r dataplex-labs/dataplex-quickstart-labs ~/
 ```
 
 <hr>
