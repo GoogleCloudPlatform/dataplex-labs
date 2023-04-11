@@ -1,4 +1,4 @@
-# M13-1: BigLake basics
+# M13-1: Upgrading external tables to BigLake tables & performance acceleration
 
 In this lab module, we will learn how to upgrade a Dataplex external table based off of objects in Cloud Storage to BigLake, enable query acceleration and compare the performance. In the next module, we will learn how to use Dataplex for attribute based access control.
 
