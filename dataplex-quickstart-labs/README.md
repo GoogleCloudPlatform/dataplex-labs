@@ -98,7 +98,7 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 32 | Quality | [Data Quality Score Tags in Dataplex Catalog tags](02-lab-guide/module-12-1e-dq-task-dq-tags.md) | 15  |
 | 33 | Quality | [Data Quality process automation with Apache Airflow on Cloud Composer](02-lab-guide/module-12-1f-dq-automation.md) | 15  |
 | 34 | Quality | [Data Quality operationalization end to end](02-lab-guide/module-12-1g-dq-complete-automation.md) | 15  |
-| 35 | BigLake | [Upgrading external tables to BigLake and performance acceleration](module-13-1a-big-lake-basics.md) |
+| 35 | BigLake | [Upgrading external tables to BigLake and performance acceleration](02-lab-guide/module-13-1a-big-lake-basics.md) |
 
 <hr>
 
