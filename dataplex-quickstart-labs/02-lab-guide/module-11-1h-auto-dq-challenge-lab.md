@@ -4,7 +4,7 @@ This is an optional lab module. Based on your learning of Auto Data Quality, cre
 
 <hr>
 
-This concludes the module, more labs will be published shortly.
+This concludes the module, proceed to the [next module](module-12-1a-dq-task-rule-authoring-1.md).
 
 <hr>
 
