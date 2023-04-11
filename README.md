@@ -32,3 +32,5 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | 3. |Additional modules (AutoDQ) to quickstart labs series | 20230320 | Anagha Khanolkar|
 | 4. |Additional modules (DQ tasks) to quickstart labs series | 20230321 | Anagha Khanolkar|
 | 5. |Additional modules (DQ tasks) to quickstart labs series | 20230328 | Anagha Khanolkar|
+| 6. |Module on Biglake | 20230411 | Anagha Khanolkar|
+
