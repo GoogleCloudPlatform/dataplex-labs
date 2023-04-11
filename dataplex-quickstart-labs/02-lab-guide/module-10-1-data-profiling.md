@@ -379,7 +379,7 @@ The one below is of integer data type-
 <hr>
 
 
-This concludes the lab module. Proceed to the[next module](module-11-1a-auto-dq-completeness.md).
+This concludes the lab module. Proceed to the [next module](module-11-1a-auto-dq-completeness.md).
 
 
 <hr>
