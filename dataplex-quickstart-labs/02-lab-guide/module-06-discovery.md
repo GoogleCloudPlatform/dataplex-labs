@@ -250,7 +250,7 @@ SELECT * FROM oda_raw_sensitive_zone.customers WHERE DATE='2022-05-01' LIMIT 2
 ### 2.4. Query a Curated Zone (BigQuery external) table in BigQuery UI
 
 ```
-SELECT * FROM `dataplex-quickstart-labs.oda_curated_zone.retail_transactions_anomaly_detection` LIMIT 2
+SELECT * FROM `oda_curated_zone.retail_transactions_anomaly_detection` LIMIT 2
 ```
 
 ![DISC-1](../01-images/M06-banking-Dataplex-20.png)    
