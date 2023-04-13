@@ -239,7 +239,7 @@ SELECT * FROM oda_curated_zone.retail_transactions_anomaly_detection LIMIT 2
 ### 2.3. Query a Raw Sensitive Zone (BigQuery external) table in BigQuery UI
 
 ```
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers WHERE DATE='2022-05-01' LIMIT 2
+SELECT * FROM oda_raw_sensitive_zone.customers WHERE DATE='2022-05-01' LIMIT 2
 ```
 
 ![DISC-1](../01-images/M06-banking-Dataplex-19.png)    
