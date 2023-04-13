@@ -327,7 +327,7 @@ SHOW tables in 	oda_raw_sensitive_zone;
 #### 3.3.2. Query a table in Dataplex Explore Spark SQL editor
 
 ```
-SELECT * FROM oda_raw_sensitive_zone.banking_customers_raw_customers LIMIT 2;
+SELECT * FROM oda_raw_sensitive_zone.customers LIMIT 2;
 ```
 
 ![DISC-00-7](../01-images/06-00-exp-07.png)   
