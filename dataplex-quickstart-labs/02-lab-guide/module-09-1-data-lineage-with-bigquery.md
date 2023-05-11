@@ -181,7 +181,20 @@ Note that we persist the results in the consumption zone. From an access perspec
 
 <hr>
 
-### 2.8. The lineage graph
+### 8. Create a view
+
+```
+CREATE OR REPLACE VIEW
+  oda_product_zone.chicago_crimes_by_hour_vw AS
+SELECT
+  *
+FROM
+  oda_product_zone.chicago_crimes_by_hour;
+```
+
+<hr>
+
+### 9. The lineage graph
 
 BigQuery lineage is captured by default, without the need for any orhcetsration tool. However, it is not instantaneous. <br>
 Here is the author's lineage graph from clicking on the curated crimes table.
