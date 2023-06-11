@@ -67,7 +67,7 @@ As part of the setup we have already defined a yaml file and stored in the gcs b
 ```bash
 export PROJECT_ID=$(gcloud config get-value project)
 
-gsutil cat gs://${PROJECT_ID}_dataplex_process/customer-source-configs/dq_customer_data_product.yaml
+gsutil cat gs://${PROJECT_ID}_dataplex_process/code/customer-source-configs/dq_customer_data_product.yaml
 ```
 
 Here we have performing 3 key DQ rules: 
@@ -144,7 +144,7 @@ By appending " --summary_to_stdout" flag to your data quality jobs, you can easi
     export PUBLIC_GCS_BUCKET_NAME="dataplex-clouddq-artifacts-${REGION_ID}"
 
     # Location of DQ YAML Specifications file
-    export YAML_CONFIGS_GCS_PATH="gs://${PROJECT_ID}_dataplex_process/customer-source-configs/dq_customer_data_product.yaml"
+    export YAML_CONFIGS_GCS_PATH="gs://${PROJECT_ID}_dataplex_process/code/customer-source-configs/dq_customer_data_product.yaml"
 
     # The Dataplex lake where your task is created.
     export LAKE_NAME="consumer-banking--customer--domain"
