@@ -59,6 +59,6 @@ Where:
     with the current term, with each term separated by a comma (`,`)
 
 In the case where a list of items inside a field contains the delimiter value
-comma (,) the field has to be escaped by using double quotes (" "). e.g. term 1,
+comma (,) the field has to be escaped by using double quotes (" "). e.g. `term 1,
 "Term 1, a description", "Data Steward1<steward1@example.com>, Data
-teward2<steward2@example.com>",,,
+teward2<steward2@example.com>",,,`
