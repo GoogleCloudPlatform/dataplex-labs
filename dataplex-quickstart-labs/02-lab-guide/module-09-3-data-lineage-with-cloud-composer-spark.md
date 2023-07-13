@@ -1,4 +1,4 @@
-# M9-3: Lineage for Apache Spark pipelines orchestrated by Apache Airflow on Cloud Composer
+# M9-3: Lineage for Apache Spark pipelines orchestrated by Apache Airflow on Cloud Composer - Dataproc Serverless
 
 In this lab module, we will repeat what we did with lineage of BigQuery based Airflow DAG, except, we will use Apache Spark on Dataproc Serverless instead. Note that Dataproc Serverless is not a natively supported service with Dataplex automated lineage capture. So, we will have use custom lineage feature in Cloud Composer.
 
