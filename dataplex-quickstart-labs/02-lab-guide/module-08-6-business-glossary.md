@@ -23,9 +23,9 @@ Successful completion of prior modules
 
 10 minutes or less to complete
 
-### Pictorial overview
+### Pictorial overview of the lab flow
 
-![CE](../01-images/m086-00.png)   
+![CE](../01-images/m086-00-a.png)   
 <br><br>
 
 ### Documentation
