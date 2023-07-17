@@ -12,6 +12,8 @@ You can use Dataplex business glossary to do the following:
 6. Search for data entries tagged by a particular term.
 7. Display related terms for a given data entry.
 
+At the time of authoring of this lab (July 2023), the feature is in preview and needs explicity allow-listing.
+
 
 ### Prerequisites for the lab
 
