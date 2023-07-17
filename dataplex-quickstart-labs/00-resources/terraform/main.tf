@@ -200,7 +200,8 @@ module "umsa_role_grants" {
     "roles/viewer",
     "roles/composer.worker",
     "roles/composer.admin",
-    "roles/serviceusage.serviceUsageConsumer"
+    "roles/serviceusage.serviceUsageConsumer",
+    "roles/datacatalog.glossaryOwner"
   ]
   depends_on = [
     module.umsa_creation
