@@ -120,18 +120,41 @@ https://data.cityofchicago.org/Public-Safety/Crimes-2022/9hwr-2zxp/data
 <br><br>
 
 
-![CE](../01-images/m086-bg-05.png)   
-<br><br>
+
 
 <hr>
 
-## 2.2. Add terms to the Business Glossary
+## 2.2. Add terms to the Business Glossary, and attach to entries, manually
 
 
 ### 2.2.1. Add terms to the Business Glossary manually
 
+A CSV containing glossary terms for Chicago Crimes is available at:<br>
+[https://github.com/GoogleCloudPlatform/dataplex-labs/blob/main/dataplex-quickstart-labs/00-resources/datasets/chicago-crimes/business_glossary/chicago_crimes_glossary.csv](https://github.com/GoogleCloudPlatform/dataplex-labs/blob/main/dataplex-quickstart-labs/00-resources/datasets/chicago-crimes/business_glossary/chicago_crimes_glossary.csv)<br>
 
-### 2.2.2. Bulk upload CSV spreadsheet with terms into the Business Glossart manually
+Follow the steps below to add a couple terms. We are going to learn what the experience is and then delete and bulk upload from a CSV as shown in section 2.2.2.<br>
+
+![CE](../01-images/m086-bg-05.png)   
+<br><br>
+
+![CE](../01-images/m086-bg-06.png)   
+<br><br>
+
+![CE](../01-images/m086-bg-07.png)   
+<br><br>
+
+![CE](../01-images/m086-bg-08.png)   
+<br><br>
+
+<hr>
+
+### 2.2.2. Attach terms in the Business Glossary manually to Catalog entries manually
+
+
+
+
+
+### 2.2.3. Bulk upload CSV spreadsheet with terms into the Business Glossart manually
 
 
 
