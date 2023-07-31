@@ -24,7 +24,7 @@ Successful completion of prior modules
 
 ### Pictorial overview of the lab flow
 
-![CE](../01-images/m086-00-a.png)   
+![CE](../01-images/m086-bg-00.png)   
 <br><br>
 
 ### Documentation
@@ -69,6 +69,7 @@ To get the permissions that you need to create and manage glossaries, ask your a
 - Full access to glossaries and terms: DataCatalog Glossary Owner (roles/datacatalog.glossaryOwner)
 - Read glossaries and terms, create attachments between terms, and create attachments between terms and data entries: DataCatalog Glossary User (roles/datacatalog.glossaryUser)
 - Read-only access to glossaries and terms: DataCatalog Entry Viewer (roles/datacatalog.entryViewer)
+- You also need to have the role that permits creation of entry groups (roles/datacatalog.entryGroupCreator)
 
 <hr>
 
@@ -85,15 +86,42 @@ Paste the below in Cloud Shell-
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 YOUR_GCP_ACCOUNT_NAME=`gcloud auth list --filter=status:ACTIVE --format="value(account)"`
 
+gcloud projects add-iam-policy-binding $PROJECT_ID --member user:$YOUR_GCP_ACCOUNT_NAME --role roles/datacatalog.entryGroupCreator
 gcloud projects add-iam-policy-binding $PROJECT_ID --member user:$YOUR_GCP_ACCOUNT_NAME --role roles/datacatalog.glossaryOwner
-gcloud projects add-iam-policy-binding $PROJECT_ID --member user:$YOUR_GCP_ACCOUNT_NAME --role roles/datacatalog.glossaryUser
-
 ```
 <hr>
 
 ### 2.1.2. Create a Business Glossary manually
 
+Navigate to Dataplex Glossary UI and follow the screenshots below to create a glossary.<br>
+The following is the text entered by the author into the Glossary named "Chicago Crimes Business Glossary" -<br>
+```
+**Chicago Crimes**
+State of Illinois, City of Chicago has published Chicago crimes as a public dataset.
+It includes records from the Crimes - 2001 to Present dataset for the indicated year.
 
+ The dataset is available for download at:
+https://data.cityofchicago.org/Public-Safety/Crimes-2022/9hwr-2zxp/data
+```
+
+![CE](../01-images/m086-bg-01.png)   
+<br><br>
+
+
+![CE](../01-images/m086-bg-02.png)   
+<br><br>
+
+
+![CE](../01-images/m086-bg-03.png)   
+<br><br>
+
+
+![CE](../01-images/m086-bg-04.png)   
+<br><br>
+
+
+![CE](../01-images/m086-bg-05.png)   
+<br><br>
 
 <hr>
 
