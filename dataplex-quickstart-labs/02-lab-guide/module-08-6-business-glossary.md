@@ -1,4 +1,4 @@
-# M8-5: Business Glossary the Dataplex Catalog for a Catalog Entry
+# M8-6: Business Glossary the Dataplex Catalog for a Catalog Entry
 
 A business glossary is a collection of business terminology with description/definitions that organizations can standardize on. Dataplex offers a Business Glossary feature. In this module we will learn how to create a business glossary and enters items into it.
 
@@ -13,7 +13,6 @@ You can use Dataplex business glossary to do the following:
 7. Display related terms for a given data entry.
 
 At the time of authoring of this lab (July 2023), the feature is in preview and needs explicity allow-listing.
-
 
 ### Prerequisites for the lab
 
@@ -72,14 +71,46 @@ To get the permissions that you need to create and manage glossaries, ask your a
 - Read-only access to glossaries and terms: DataCatalog Entry Viewer (roles/datacatalog.entryViewer)
 
 <hr>
+
+
+# 2. Lab
+
+## 2.1. Create a Business Glossary
+
+### 2.1.1. Grant yourself IAM permissions to create/work with a Business Glossary manually
+
+Paste the below in Cloud Shell-
+```
+
+PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
+YOUR_GCP_ACCOUNT_NAME=`gcloud auth list --filter=status:ACTIVE --format="value(account)"`
+
+gcloud projects add-iam-policy-binding $PROJECT_ID --member user:$YOUR_GCP_ACCOUNT_NAME --role roles/datacatalog.glossaryOwner
+gcloud projects add-iam-policy-binding $PROJECT_ID --member user:$YOUR_GCP_ACCOUNT_NAME --role roles/datacatalog.glossaryUser
+
+```
 <hr>
 
-## 2. Lab
+### 2.1.2. Create a Business Glossary manually
 
 
-### 2.1. Grant IAM permissions to work with Business Glossary feature
 
 <hr>
+
+## 2.2. Add terms to the Business Glossary
+
+
+### 2.2.1. Add terms to the Business Glossary manually
+
+
+### 2.2.2. Bulk upload CSV spreadsheet with terms into the Business Glossart manually
+
+
+
+
+<hr>
+
+
 
 This concludes the lab module. You can proceed to the [next module](module-09-1-data-lineage-with-bigquery.md).
 
