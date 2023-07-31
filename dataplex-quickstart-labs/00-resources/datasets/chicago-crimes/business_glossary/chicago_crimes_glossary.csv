@@ -3,7 +3,7 @@
 "Date", "Date when the incident occurred. this is sometimes a best estimate.",,,,
 "Block", "The partially redacted address where the incident occurred, placing it on the same block as the actual address.",,,,
 "IUCR", "The Illinois Unifrom Crime Reporting code. This is directly linked to the Primary Type and Description. See the list of IUCR codes at https://data.cityofchicago.org/d/c7ck-438e.",,,,
-"Primary Type", "The primary description of the IUCR code.",,,,,"IUCR"
+"Primary Type", "The primary description of the IUCR code.",,,,"IUCR"
 "Description", "The secondary description of the IUCR code, a subcategory of the primary description.",,,,"IUCR"
 "Location Description", "Description of the location where the incident occurred.",,,,
 "Arrest", "Indicates whether an arrest was made.",,,,
