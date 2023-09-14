@@ -90,9 +90,9 @@ def fnMain(logger, args):
     try:
 
         # 3. Drop table if exists
-        logger.info('....drop table if exists')
-        spark.sql(f"DROP TABLE IF EXISTS {reportTableFQN}").show(truncate=False)
-        logger.info('....===================================')
+        #logger.info('....drop table if exists')
+        #spark.sql(f"DROP TABLE IF EXISTS {reportTableFQN}").show(truncate=False)
+        #logger.info('....===================================')
 
         # 4. Create dataframe off of the SQL & drop duplicates
         logger.info('....creating dataframe')
