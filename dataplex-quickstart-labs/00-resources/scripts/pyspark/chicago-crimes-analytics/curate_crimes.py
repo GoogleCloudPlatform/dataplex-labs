@@ -97,9 +97,9 @@ def fnMain(logger, args):
     
     try:
         # 4. Drop table if exists
-        logger.info('....Dropping table if it exists')
-        spark.sql(f"DROP TABLE IF EXISTS {tableFQN}").show(truncate=False)
-        logger.info('....===================================')
+        #logger.info('....Dropping table if it exists')
+        #spark.sql(f"DROP TABLE IF EXISTS {tableFQN}").show(truncate=False)
+        #logger.info('....===================================')
         
         # 5. Curate crimes
         logger.info('....Creating dataframe')
