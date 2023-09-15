@@ -1,6 +1,6 @@
 # M9-6: Out of the box lineage for Spark jobs on Dataproc
 
-In this lab module, we will repeat what we did with lineage of BigQuery based Airflow DAG, except, we will use Apache Spark on Dataproc on GCE instead. 
+In this lab module, we will repeat what we did with lineage of BigQuery based Airflow DAG, except, we will use Apache Spark on Dataproc on GCE instead. Dataproc on GCE reports lineage to Dataplex if lineage is enabled at cluster or Spark job level.
 
 
 ### Prerequisites
