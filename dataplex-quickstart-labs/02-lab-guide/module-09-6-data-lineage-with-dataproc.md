@@ -57,7 +57,17 @@ SPARK_BUCKET_FQN=gs://$SPARK_BUCKET
 DPMS_NM=lab-dpms-$PROJECT_NBR
 ```
 
-### 1.2. Create a Dataproc log bucket
+### 1.2. Grant the User Managed Service Account "Lineage Admin" role
+
+Paste the below in Cloud Shell-
+```
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member=serviceAccount:${UMSA_FQN} \
+    --role=roles/datalineage.admin
+```
+
+
+### 1.3. Create a Dataproc log bucket
 
 Paste the below in Cloud Shell-
 ```
@@ -66,7 +76,7 @@ gsutil mb -p $PROJECT_ID -c STANDARD -l $LOCATION -b on $SPARK_BUCKET_FQN
 
 <hr>
 
-### 1.3. Create a Dataproc on GCE cluster with lineage enabled
+### 1.4. Create a Dataproc on GCE cluster with lineage enabled
 
 Paste the below in Cloud Shell-
 ```
@@ -88,19 +98,11 @@ gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
    --optional-components JUPYTER \
    --dataproc-metastore projects/$PROJECT_ID/locations/$LOCATION/services/$DPMS_NM \
    --properties 'dataproc:dataproc.lineage.enabled=true' \
-   --initialization-actions gs://dataproc-lineage/init-action/lineage_util.sh \
+   --impersonate-service-account $UMSA_FQN \
    --scopes https://www.googleapis.com/auth/cloud-platform
   
 ```
-
-### 1.4. Grant the User Managed Service Account "Lineage Admin" role
-
-Paste the below in Cloud Shell-
-```
-gcloud projects add-iam-policy-binding ${PROJECT_ID} \
-    --member=serviceAccount:${UMSA_FQN} \
-    --role=roles/datalineage.admin
-```
+This should take 1-2 minutes to complete.
 
 <hr>
 
