@@ -267,20 +267,13 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 Visualize the execution in the Dataproc->Batches UI-
 
-![LIN-5](../01-images/m093-05a.png)   
-<br><br>
 
-<hr>
-
-![LIN-5](../01-images/m093-05b.png)   
-<br><br>
 
 <hr>
 
 Navigate to the Cloud Storage to check for output files-
 
-![LIN-5](../01-images/m093-05c.png)   
-<br><br>
+
 
 <hr>
 
@@ -357,28 +350,7 @@ Navigate to Dataplex UI -> Manage -> ODA-LAKE -> ODA-PRODUCT-ZONE -> Entities.
 
 Navigate and click on each entity-
 
-![LIN-5](../01-images/m093-discovery-dataplex-00.png)   
-<br><br>
 
-<hr>
-
-![LIN-5](../01-images/m093-discovery-dataplex-01.png)   
-<br><br>
-
-<hr>
-
-![LIN-5](../01-images/m093-discovery-dataplex-02.png)   
-<br><br>
-
-<hr>
-
-![LIN-5](../01-images/m093-discovery-dataplex-03.png)   
-<br><br>
-
-<hr>
-
-![LIN-5](../01-images/m093-discovery-dataplex-04.png)   
-<br><br>
 
 <hr>
 
@@ -389,29 +361,22 @@ It takes a few minutes for Dataplex Discovery to complete from the point of comp
 Navigate and query the tables created-
 
 
-![LIN-5](../01-images/m093-discovery-bq-00.png)   
-<br><br>
 
-<hr>
-
-
-![LIN-5](../01-images/m093-discovery-bq-01.png)   
-<br><br>
 
 <hr>
 
 Here are the queries you can try out-
 
 ```
-SELECT * FROM `oda_curated_zone.crimes_curated_spark` LIMIT 5
+SELECT * FROM `oda_curated_zone.crimes_curated_spark_dataproc` LIMIT 5
 
-SELECT * FROM `oda_product_zone.crimes_by_year_spark` LIMIT 5;
+SELECT * FROM `oda_product_zone.crimes_by_year_spark_dataproc` LIMIT 5;
 
-SELECT * FROM `oda_product_zone.crimes_by_month_spark` LIMIT 5
+SELECT * FROM `oda_product_zone.crimes_by_month_spark_dataproc` LIMIT 5
 
-SELECT * FROM `oda_product_zone.crimes_by_day_spark` LIMIT 5
+SELECT * FROM `oda_product_zone.crimes_by_day_spark_dataproc` LIMIT 5
 
-SELECT * FROM `oda_product_zone.crimes_by_hour_spark` LIMIT 5
+SELECT * FROM `oda_product_zone.crimes_by_hour_spark_dataproc` LIMIT 5
 
 ```
 
@@ -423,79 +388,52 @@ SELECT * FROM `oda_product_zone.crimes_by_hour_spark` LIMIT 5
 
 1. Lets navigate to the Cloud Composer UI and launch the Airflow UI
 
-![LIN-5](../01-images/m093-airflow-00.png)   
-<br><br>
+
 
 <hr>
 
 2. Lets click on the Spark DAG
 
-![LIN-5](../01-images/m093-airflow-01.png)   
-<br><br>
+
 
 <hr>
 
 3. The following is the DAG
 
-![LIN-5](../01-images/m093-airflow-02.png)   
-<br><br>
+
 
 <hr>
 
 4. Lets review the code by clicking on the code tab
 
-![LIN-5](../01-images/m093-airflow-03.png)   
-<br><br>
+
 
 <hr>
 
-5. Scroll to look at the "inlet" and "outlet" where we specify lineage for BigQuery external tables.
 
-![LIN-5](../01-images/m093-airflow-04.png)   
-<br><br>
+5. Run the DAG 
 
-<hr>
 
-6. Run the DAG 
-
-![LIN-5](../01-images/m093-airflow-05.png)   
-<br><br>
 
 <hr>
 
-7. Navigate to the Dataproc Batches UI and you should see the completed Dataproc Serverless batch jobs
-
-![LIN-5](../01-images/m093-airflow-06.png)   
-<br><br>
-
-<hr>
-
-## 5. Custom lineage captured from Airflow on Cloud Composer
+6. Navigate to the Dataproc Batches UI and you should see the completed Dataproc Serverless batch jobs
 
 
-1. The lineage captured is custom and BQ external table centric and therefore not visible in the Dataplex UI. The latency of lineage availability is dependent on discovery settings for the asset.
-2. Navigate to the BigQuery UI and click on the external table, oda_curated_zone.crimes_curated_spark table. 
-3. Click on lineage for the table.
-
-
-![LIN-5](../01-images/m93-00-c.png)   
-<br><br>
-
-![LIN-5](../01-images/m93-00-d.png)   
-<br><br>
-
-
-![LIN-5](../01-images/m93-00-e.png)   
-<br><br>
-
-![LIN-5](../01-images/m93-00-f.png)   
-<br><br>
-
-![LIN-5](../01-images/m93-00-g.png)   
-<br><br>
 
 <hr>
 
-This concludes the lab module. Proceed to the [next module](module-09-4-custom-lineage.md).
+## 5. Lineage captured - Dataproc + Composer
+
+
+1. Navigate to the BigQuery UI and click on the external table, oda_curated_zone.crimes_curated_spark_dataproc table. 
+2. Click on lineage for the table.
+
+
+
+
+<hr>
+
+This concludes the lab module. Proceed to the next module.
 
 <hr>
