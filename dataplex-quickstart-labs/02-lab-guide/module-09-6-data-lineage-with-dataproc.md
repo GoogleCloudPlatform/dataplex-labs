@@ -88,6 +88,7 @@ gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
    --optional-components JUPYTER \
    --dataproc-metastore projects/$PROJECT_ID/locations/$LOCATION/services/$DPMS_NM \
    --properties 'dataproc:dataproc.lineage.enabled=true' \
+   --initialization-actions gs://dataproc-lineage/init-action/lineage_util.sh \
    --scopes https://www.googleapis.com/auth/cloud-platform
   
 ```
@@ -139,7 +140,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
 -- --projectID=$PROJECT_ID --tableFQN="oda_curated_zone.crimes_curated_spark_dataproc" --peristencePath="gs://curated-data-$PROJECT_NBR/crimes-curated-spark-dataproc/" 
 ```
 
@@ -173,9 +175,9 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
-
 
 ```
 
@@ -216,7 +218,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 
@@ -253,7 +256,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 
@@ -296,7 +300,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 ```
