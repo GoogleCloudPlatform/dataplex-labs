@@ -133,7 +133,19 @@ In this section we will curate Chicago crimes with PySpark on Dataproc Serverles
 
 Run the command below to curate crimes with PySpark-
 ```
-JOB_ID=chicago-crimes-curate-$RANDOM
+JOB_NM=curate-crimes
+JOB_ID=$JOB_NM-$RANDOM
+PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
+PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
+LOCATION="us-central1"
+SUBNET=lab-snet
+SUBNET_URI="projects/$PROJECT_ID/regions/$LOCATION/subnetworks/$SUBNET"
+UMSA_FQN="lab-sa@$PROJECT_ID.iam.gserviceaccount.com"
+DPGCE_CLUSTER_NM=lineage-enabled-spark-cluster-$PROJECT_NBR
+SPARK_BUCKET=dataproc-lineage-spark-bucket-$PROJECT_NBR
+SPARK_BUCKET_FQN=gs://$SPARK_BUCKET
+DPMS_NM=lab-dpms-$PROJECT_NBR
+
 
 gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago-crimes-analytics/curate_crimes.py \
 --cluster=$DPGCE_CLUSTER_NM \
@@ -142,6 +154,7 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
 --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_NM \
 -- --projectID=$PROJECT_ID --tableFQN="oda_curated_zone.crimes_curated_spark_dataproc" --peristencePath="gs://curated-data-$PROJECT_NBR/crimes-curated-spark-dataproc/" 
 ```
 
@@ -175,8 +188,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
---properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$baseName \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 ```
@@ -218,8 +231,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
---properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$baseName \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 
@@ -256,8 +269,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
---properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$baseName \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 
@@ -293,8 +306,8 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
---properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
+--properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$baseName \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
 
 ```
