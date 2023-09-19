@@ -141,8 +141,7 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --region $LOCATION  \
 --id $JOB_ID  \
 --impersonate-service-account $UMSA_FQN \
---jars=gs://dataproc-lineage/jars/openlineage-spark-0.18.0.jar,gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
---properties=spark.openlineage.transport.type=datacatalog,spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$JOB_ID \
+--jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
 -- --projectID=$PROJECT_ID --tableFQN="oda_curated_zone.crimes_curated_spark_dataproc" --peristencePath="gs://curated-data-$PROJECT_NBR/crimes-curated-spark-dataproc/" 
 ```
 
