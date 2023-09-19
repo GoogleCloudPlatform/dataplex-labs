@@ -338,7 +338,7 @@ Follow the step as shown in the screenshot to run a profile scan-
 
 ## 7. Visualize the Profiling job results
 
-At the time of the authoring of this lab, the results were only available visually. From the Dataplex Profiling UI, visualize the scan results-
+### 7.1 From the Dataplex Profiling UI, visualize the scan results-
 
 ![ADQ-5](../01-images/module-10-1-12.png)   
 <br><br>
@@ -359,6 +359,10 @@ At the time of the authoring of this lab, the results were only available visual
 <br><br>
 
 ![ADQ-5](../01-images/module-10-1-14.png)   
+<br><br>
+
+### 7.2 From the BigQuery UI, visualize the profile results from the 'DATA PROFILE' tab-
+![ADQ-5](../01-images/module-10-1-14a.png)   
 <br><br>
 
 <hr>
