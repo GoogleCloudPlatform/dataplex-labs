@@ -82,7 +82,6 @@ Paste the below in Cloud Shell-
 ```
 
 gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
-   --service-account=$UMSA_FQN \
    --project $PROJECT_ID \
    --subnet $SUBNET \
    --region $LOCATION \
