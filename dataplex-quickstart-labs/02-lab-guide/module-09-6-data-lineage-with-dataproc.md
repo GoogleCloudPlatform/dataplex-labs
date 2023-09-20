@@ -235,9 +235,6 @@ Should take ~2-3 minutes to complete.
 4. Finally check for the external table in BigQuery dataset oda_product_zone.crimes_by_year_spark_dataproc and run a simple query - this is import for BQ external table lineage
 
 
-
-
-
 <hr>
 
 
@@ -354,24 +351,76 @@ Should take ~2-3 minutes to complete.
 
 ## 2. Dataplex Discovery in Action - summary of entities and BQ external tables created
 
+### 2.1. Data created in GCS by the Spark jobs
+
+#### 2.1.1. Curated data
+
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-05.png)   
+<br><br>
+
+#### 2.1.2. Product data
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-10.png)   
+<br><br>
+
+### 2.2. Entities created in Dataplex by Datapelx Discovery
+
+#### 2.2.1. Curated data
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-07.png)   
+<br><br>
+
+#### 2.2.2. Product data
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-11.png)   
+<br><br>
+
+<hr>
+<hr>
+
+## 3. Out of the box Dataproc Linege capture from basic Dataproc Spark job execution
+
+### 3.1. Where to look?
+
+1. Lineage is captured when there is data processing. And the supported sources are BigQuery external tables and BigQuery native tables. 
+2. In our case, we used a BigQuery native table (oda_raw_zone.crimes_raw) as our source and created 4 external Hive tables (in Dataproc Metastore/Hive Metatsore) on it.
+3. We persisted data in Cloud Storage.
+
+Therefore, to find our lineage graph in BigQuery UI, we need to navigate to oda_raw_zone.crimes_raw to see the lineage.
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-12.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-13.png)   
+<br><br>
+
+### 3.2. What about the BQ external tables?
+
+Once you run a query on each BigQuery external table created, if you click on the BQ external table in the BigQuery UI and then on the lineage tab, you shuld see lineage as follows-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-14.png)   
+<br><br>
+
+
+<hr>
+<hr>
+
+## 4. Orchestraing the above jobs with Apache Airflow on Cloud Composer - and associated lineage graph 
 
 
 
-## 3. Dataproc Linege - where to look
 
+<hr>
+<hr>
 
-
-## 4. Building an Apache Airflow pipeline with Cloud Composer (out of the box lineage) for the jobs above
-
-
-
-## 5. Weaving in Apache Airflow lineage capability for further clarity
+## 5. Weaving in Apache Airflow lineage capability for richer lineage visualization
 
 
 
 
 
-
+<hr>
 <hr>
 
 This concludes the lab module. Proceed to the next module.
