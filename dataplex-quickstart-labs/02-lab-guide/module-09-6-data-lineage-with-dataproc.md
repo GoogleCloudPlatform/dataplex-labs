@@ -103,7 +103,7 @@ gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
 ```
 This should take 1-2 minutes (or less) to complete.
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-01)   
+![LIN-5](../01-images/m96-dataproc-oob-lineage-01.png)   
 <br><br>
 
 <hr>
