@@ -163,8 +163,7 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 Visualize the execution in the Dataproc->Jobs UI-
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-01.png)   
-<br><br>
+
 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-02.png)   
 <br><br>
@@ -190,17 +189,17 @@ Navigate to the Dataplex UI and you should see discovery job capture and create 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-07.png)   
 <br><br>
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-08.png)   
-<br><br>
+
 
 Navigate to BigQuery and you should see a BQ external table-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-08.png)   
+<br><br>
 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-09.png)   
 <br><br>
 
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-10.png)   
-<br><br>
 
 <hr>
 
