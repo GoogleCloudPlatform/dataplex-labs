@@ -101,7 +101,10 @@ gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
    --scopes https://www.googleapis.com/auth/cloud-platform
   
 ```
-This should take 1-2 minutes to complete.
+This should take 1-2 minutes (or less) to complete.
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-01)   
+<br><br>
 
 <hr>
 
@@ -160,12 +163,44 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 Visualize the execution in the Dataproc->Jobs UI-
 
+![LIN-5](../01-images/m96-dataproc-oob-lineage-01.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-02.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-03.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-04.png)   
+<br><br>
 
 <hr>
 
 Navigate to the Cloud Storage to check for output files-
 
+![LIN-5](../01-images/m96-dataproc-oob-lineage-05.png)   
+<br><br>
 
+![LIN-5](../01-images/m96-dataproc-oob-lineage-06.png)   
+<br><br>
+
+Navigate to the Dataplex UI and you should see discovery job capture and create an entity-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-07.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-08.png)   
+<br><br>
+
+Navigate to BigQuery and you should see a BQ external table-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-09.png)   
+<br><br>
+
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-10.png)   
+<br><br>
 
 <hr>
 
