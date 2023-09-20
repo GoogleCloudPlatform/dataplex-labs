@@ -225,20 +225,16 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.29.0.jar \
 --properties=spark.openlineage.namespace=$PROJECT_ID,spark.openlineage.appName=$baseName \
 -- --projectNbr=$PROJECT_NBR --projectID=$PROJECT_ID --reportDirGcsURI="$reportDirGcsURI" --reportName="$reportName" --reportSQL="$reportSQL" --reportPartitionCount=$reportPartitionCount --reportTableFQN="$reportTableFQN" --reportTableDDL="$reportTableDDL"
-
 ```
 
-Visualize the execution in the Dataproc->Batches UI-
+Should take ~2-3 minutes to complete.
+
+1. Visualize the execution in the Dataproc->Batches UI
+2. Navigate to GCS and look for the dataset in the bucket - gs://product-data-YOUR_PROJECT_NUMBER/crimes-by-year-spark-dataproc/
+3. Then check for entity creation in Dataplex->Product Zone
+4. Finally check for the external table in BigQuery dataset oda_product_zone.crimes_by_year_spark_dataproc and run a simple query - this is import for BQ external table lineage
 
 
-
-<hr>
-
-
-
-<hr>
-
-Navigate to the Cloud Storage to check for output files-
 
 
 
@@ -272,13 +268,12 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 ```
 
-Visualize the execution in the Dataproc->Batches UI-
+Should take ~2-3 minutes to complete.
 
-
-
-<hr>
-
-Navigate to the Cloud Storage to check for output files-
+1. Visualize the execution in the Dataproc->Batches UI
+2. Navigate to GCS and look for the dataset in the bucket - gs://product-data-YOUR_PROJECT_NUMBER/crimes-by-month-spark-dataproc/
+3. Then check for entity creation in Dataplex->Product Zone
+4. Finally check for the external table in BigQuery dataset oda_product_zone.crimes_by_month_spark_dataproc and run a simple query - this is import for BQ external table lineage
 
 
 
@@ -310,14 +305,12 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 ```
 
-Visualize the execution in the Dataproc->Batches UI-
+Should take ~2-3 minutes to complete.
 
-
-
-<hr>
-
-Navigate to the Cloud Storage to check for output files-
-
+1. Visualize the execution in the Dataproc->Batches UI
+2. Navigate to GCS and look for the dataset in the bucket - gs://product-data-YOUR_PROJECT_NUMBER/crimes-by-day-spark-dataproc/
+3. Then check for entity creation in Dataplex->Product Zone
+4. Finally check for the external table in BigQuery dataset oda_product_zone.crimes_by_day_spark_dataproc and run a simple query - this is import for BQ external table lineage
 
 
 <hr>
@@ -346,133 +339,35 @@ gcloud dataproc jobs submit pyspark gs://raw-code-${PROJECT_NBR}/pyspark/chicago
 
 ```
 
-Visualize the execution in the Dataproc->Batches UI-
+Should take ~2-3 minutes to complete.
+
+1. Visualize the execution in the Dataproc->Batches UI
+2. Navigate to GCS and look for the dataset in the bucket - gs://product-data-YOUR_PROJECT_NUMBER/crimes-by-hour-spark-dataproc/
+3. Then check for entity creation in Dataplex->Product Zone
+4. Finally check for the external table in BigQuery dataset oda_product_zone.crimes_by_hour_spark_dataproc and run a simple query - this is import for BQ external table lineage
 
 
-<hr>
-
-Navigate to the Cloud Storage to check for output files-
-
-
-
-<hr>
-<hr>
-
-
-## 2. Dataplex Discovery of the Cloud Storage objects from the Spark applications run
-
-### Note
-Availability of lineage is contingent on completion of discovery of the Cloud Storage objects. 
-
-### 2.1. Add the cloud storage bucket product-data* as an asset to the product zone
-
-```
-PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
-PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
-LOCATION="us-central1"
-LAKE_NM="oda-lake"
-DATA_PRODUCT_ZONE_NM="oda-product-zone"
-
-
-gcloud dataplex assets create product-assets \
---location=$LOCATION \
---lake=$LAKE_NM \
---zone=$DATA_PRODUCT_ZONE_NM \
---resource-type=STORAGE_BUCKET \
---resource-name=projects/$PROJECT_ID/buckets/product-data-$PROJECT_NBR \
---discovery-enabled \
---discovery-schedule="0 * * * *" \
---display-name 'Product Assets'
-```
-
-### 2.2. Review the assets registered in the Dataplex UI
-
-It takes a few minutes for assets to get discovered and external tables to get created. 
-Navigate to Dataplex UI -> Manage -> ODA-LAKE -> ODA-PRODUCT-ZONE -> Entities.
-
-### 2.3. Review the entities
-
-
-Navigate and click on each entity-
-
-
-
-<hr>
-
-## 3. Dataplex Discovery jobs auto-create BigQuery external tables for the Cloud Storage objects from the Spark applications run
-
-It takes a few minutes for Dataplex Discovery to complete from the point of completion of the Spark jobs above, at the end of which, you should see external tables in BigQuery UI.
-
-Navigate and query the tables created-
-
-
-
-
-<hr>
-
-Here are the queries you can try out-
-
-```
-SELECT * FROM `oda_curated_zone.crimes_curated_spark_dataproc` LIMIT 5
-
-SELECT * FROM `oda_product_zone.crimes_by_year_spark_dataproc` LIMIT 5;
-
-SELECT * FROM `oda_product_zone.crimes_by_month_spark_dataproc` LIMIT 5
-
-SELECT * FROM `oda_product_zone.crimes_by_day_spark_dataproc` LIMIT 5
-
-SELECT * FROM `oda_product_zone.crimes_by_hour_spark_dataproc` LIMIT 5
-
-```
 
 <hr>
 <hr>
 
 
-## 4. The Airflow DAG WITH custom lineage - run on Cloud Composer
-
-1. Lets navigate to the Cloud Composer UI and launch the Airflow UI
+## 2. Dataplex Discovery in Action - summary of entities and BQ external tables created
 
 
 
-<hr>
 
-2. Lets click on the Spark DAG
-
-
-
-<hr>
-
-3. The following is the DAG
+## 3. Dataproc Linege - where to look
 
 
 
-<hr>
-
-4. Lets review the code by clicking on the code tab
+## 4. Building an Apache Airflow pipeline with Cloud Composer (out of the box lineage) for the jobs above
 
 
 
-<hr>
+## 5. Weaving in Apache Airflow lineage capability for further clarity
 
 
-5. Run the DAG 
-
-
-
-<hr>
-
-6. Navigate to the Dataproc Batches UI and you should see the completed Dataproc Serverless batch jobs
-
-
-
-<hr>
-
-## 5. Lineage captured - Dataproc + Composer
-
-
-1. Navigate to the BigQuery UI and click on the external table, oda_curated_zone.crimes_curated_spark_dataproc table. 
-2. Click on lineage for the table.
 
 
 
