@@ -183,34 +183,84 @@ with models.DAG(
         project_id=PROJECT_ID,
         region=REGION,
         job=CURATE_CRIMES_DATAPROC_GCE_JOB_CONFIG,
+        inlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_raw_zone',
+        table_id='crimes_raw',
+        )],
+        outlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_curated_zone',
+        table_id='crimes_curated_spark_dataproc',
+        )]
     )
         
     trend_by_year = DataprocSubmitJobOperator(
         task_id="CRIME_TREND_BY_YEAR",
         project_id=PROJECT_ID,
         region=REGION,
-        job=CRIMES_BY_YEAR_DATAPROC_GCE_JOB_CONFIG
+        job=CRIMES_BY_YEAR_DATAPROC_GCE_JOB_CONFIG,
+        inlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+         dataset_id='oda_curated_zone',
+        table_id='crimes_curated_spark_dataproc',
+        )],
+        outlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_product_zone',
+        table_id='crimes_by_year_spark_dataproc',
+        )]
     )
 
     trend_by_month =  DataprocSubmitJobOperator(
         task_id="CRIME_TREND_BY_MONTH",
         project_id=PROJECT_ID,
         region=REGION,
-        job=CRIMES_BY_MONTH_DATAPROC_GCE_JOB_CONFIG
+        job=CRIMES_BY_MONTH_DATAPROC_GCE_JOB_CONFIG,
+        inlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_curated_zone',
+        table_id='crimes_curated_spark',
+        )],
+        outlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_product_zone',
+        table_id='crimes_by_month_spark_dataproc',
+        )]
     )
 
     trend_by_day = DataprocSubmitJobOperator(
         task_id="CRIME_TREND_BY_DAY",
         project_id=PROJECT_ID,
         region=REGION,
-        job=CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG
+        job=CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG,
+        inlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_curated_zone',
+        table_id='crimes_curated_spark',
+        )],
+        outlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_product_zone',
+        table_id='crimes_by_day_spark',
+        )]
     )
 
     trend_by_hour =  DataprocSubmitJobOperator(
         task_id="CRIME_TREND_BY_HOUR",
         project_id=PROJECT_ID,
         region=REGION,
-        job=CRIMES_BY_HOUR_DATAPROC_GCE_JOB_CONFIG
+        job=CRIMES_BY_HOUR_DATAPROC_GCE_JOB_CONFIG,
+        inlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_curated_zone',
+        table_id='crimes_curated_spark',
+        )],
+        outlets=[BigQueryTable(
+        project_id=PROJECT_ID,
+        dataset_id='oda_product_zone',
+        table_id='crimes_by_hour_spark',
+        )]
     )
 
     end = dummy_operator.DummyOperator(
