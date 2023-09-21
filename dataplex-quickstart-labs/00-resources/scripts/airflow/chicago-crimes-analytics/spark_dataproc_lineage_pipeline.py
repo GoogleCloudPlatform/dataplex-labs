@@ -8,13 +8,16 @@ import os
 from airflow.models import Variable
 from datetime import datetime
 from airflow import models
-from airflow.providers.google.cloud.operators.dataproc import (DataprocCreateBatchOperator,DataprocGetBatchOperator)
+from airflow.providers.google.cloud.operators.dataproc import (
+    DataprocSubmitJobOperator,
+)
+from airflow.utils.dates import days_ago
+from airflow.operators import dummy_operator
+from airflow.utils import trigger_rule
 from datetime import datetime
 from airflow.utils.dates import days_ago
 import string
 import random 
-from airflow.operators import dummy_operator
-from airflow.utils import trigger_rule
 from airflow.composer.data_lineage.entities import BigQueryTable
 from airflow.lineage import AUTO
 
