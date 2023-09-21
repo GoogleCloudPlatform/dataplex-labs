@@ -72,7 +72,7 @@ CURATE_CRIMES_DATAPROC_GCE_JOB_CONFIG = {
     "pyspark_job": {"main_python_file_uri": GCS_URI_CURATE_CRIMES_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
                     "args": CURATE_CRIMES_ARGS_ARRAY,
-                    "properties": {"spark.openlineage.namespace": PROJECT_ID,"spark.openlineage.appName": BASE_NM_CURATE_CRIMES }
+                    "properties": {"spark.openlineage.namespace": f"{PROJECT_ID}","spark.openlineage.appName": f"{BASE_NM_CURATE_CRIMES}" }
                     }
 }
 
