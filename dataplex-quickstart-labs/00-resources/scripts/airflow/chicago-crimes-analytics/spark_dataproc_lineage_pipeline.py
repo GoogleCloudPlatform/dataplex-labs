@@ -66,7 +66,7 @@ CURATE_CRIMES_ARGS_ARRAY = [
 
 # 1b. Curate Crimes Spark application conf
 CURATE_CRIMES_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_YEAR + "-JOB_ID","project_id": PROJECT_ID},
+    "reference": {"job_id": REPORT_BASE_NM_CRIMES_YEAR + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CURATE_CRIMES_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
@@ -87,7 +87,7 @@ CRIMES_BY_YEAR_ARGS_ARRAY = [f"--projectNbr={PROJECT_NBR} ",  \
 
 # 2b. Crimes By Year Spark application conf
 CRIMES_BY_YEAR_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_YEAR + "-JOB_ID","project_id": PROJECT_ID},
+    "reference": {"job_id": REPORT_BASE_NM_CRIMES_YEAR + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
@@ -108,7 +108,7 @@ CRIMES_BY_MONTH_ARGS_ARRAY = [f"--projectNbr={PROJECT_NBR} " ,  \
 
 # 3b. Crimes By Month Spark application conf
 CRIMES_BY_MONTH_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_MONTH + "-JOB_ID","project_id": PROJECT_ID},
+    "reference": {"job_id": REPORT_BASE_NM_CRIMES_MONTH + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
@@ -129,7 +129,7 @@ CRIMES_BY_DAY_ARGS_ARRAY = [f"--projectNbr={PROJECT_NBR} " ,   \
 
 # 4b. Crimes By Day Spark application conf
 CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_DAY + "-JOB_ID","project_id": PROJECT_ID},
+    "reference": {"job_id": REPORT_BASE_NM_CRIMES_DAY + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
@@ -150,7 +150,7 @@ CRIMES_BY_HOUR_ARGS_ARRAY = [f"--projectNbr={PROJECT_NBR} " ,   \
 
 # 5b. Crimes By Hour Spark application conf
 CRIMES_BY_HOUR_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_HOUR + "-JOB_ID","project_id": PROJECT_ID},
+    "reference": {"job_id": REPORT_BASE_NM_CRIMES_HOUR + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
