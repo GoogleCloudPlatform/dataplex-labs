@@ -439,13 +439,42 @@ gsutil cp spark_dataproc_lineage_pipeline.py $DAG_DIR/
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-17.png)   
 <br><br>
 
+### 4.5. The Lineage Process
+
+- Is denoted by a Dataproc icon
+- Click on the icon to see the lineage process ID
+
+### 4.6. The Lineage Process Runs
+
+For each execution of a Dataproc Spark job reporting lineage, you should see a "RUN"
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-18.png)   
+<br><br>
+
+
+Click on a "RUN" (where it says "MORE") to see specifc details of the Dataproc Spark job
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-19.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-20.png)   
+<br><br>
+
+View the job execution details in the Dataproc GUI
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-21.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-22.png)   
+<br><br>
+
 <hr>
 <hr>
 
 ## 5. Nuances
 
-Note that running the Spark jobs via Airflow on Cloud Composer did not change the lineage graph. This is because Cloud Composer only reports lineage for Dataproc GCE - SparkSQL and HiveQL jobs  at the moment.
-
+Note that running the Spark jobs via Airflow on Cloud Composer did not enrich the lineage graph with Airflow task metadata. <br>
+This is because Cloud Composer currently, only reports lineage for Dataproc GCE - SparkSQL and HiveQL jobs  at the moment. <br>
 
 <hr>
 <hr>
