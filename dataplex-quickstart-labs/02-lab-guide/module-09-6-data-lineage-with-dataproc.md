@@ -428,17 +428,23 @@ gsutil cp spark_dataproc_lineage_pipeline.py $DAG_DIR/
 
 ### 4.3. Run the DAG
 
+![LIN-5](../01-images/m96-dataproc-oob-lineage-15.png)   
+<br><br>
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-16.png)   
+<br><br>
 
 ### 4.4. Visualize the lineage in the BigQuery UI
 
-
+![LIN-5](../01-images/m96-dataproc-oob-lineage-17.png)   
+<br><br>
 
 <hr>
 <hr>
 
 ## 5. Nuances
 
-
+Note that running the Spark jobs via Airflow on Cloud Composer did not change the lineage graph.
 
 
 
