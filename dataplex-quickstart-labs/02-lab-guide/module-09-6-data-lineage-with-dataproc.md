@@ -397,7 +397,7 @@ Therefore, to find our lineage graph in BigQuery UI, we need to navigate to oda_
 
 ### 3.2. What about the BQ external tables?
 
-Once you run a query on each BigQuery external table created, if you click on the BQ external table in the BigQuery UI and then on the lineage tab, you shuld see lineage as follows-
+Once you run a query on each BigQuery external table created, if you click on the BQ external table in the BigQuery UI and then on the lineage tab, you should see lineage as follows-
 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-14.png)   
 <br><br>
@@ -406,7 +406,7 @@ Once you run a query on each BigQuery external table created, if you click on th
 <hr>
 <hr>
 
-## 4. Orchestraing the above jobs with Apache Airflow on Cloud Composer - and associated lineage graph 
+## 4. Orchestrating the above jobs with Apache Airflow on Cloud Composer - and associated lineage graph 
 
 
 
@@ -414,7 +414,7 @@ Once you run a query on each BigQuery external table created, if you click on th
 <hr>
 <hr>
 
-## 5. Weaving in Apache Airflow lineage capability for richer lineage visualization
+## 5. Weaving in Apache Airflow lineage capability for even more richer lineage visualization
 
 
 
