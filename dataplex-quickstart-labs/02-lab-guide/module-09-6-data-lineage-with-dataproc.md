@@ -426,11 +426,17 @@ cd ~/dataplex-quickstart-labs/00-resources/scripts/airflow/chicago-crimes-analyt
 gsutil cp spark_dataproc_lineage_pipeline.py $DAG_DIR/
 ```
 
+### 4.3. Run the DAG
+
+
+### 4.4. Visualize the lineage in the BigQuery UI
+
+
 
 <hr>
 <hr>
 
-## 5. Weaving in Apache Airflow lineage capability for even more richer lineage visualization
+## 5. Nuances
 
 
 
