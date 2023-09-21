@@ -444,8 +444,7 @@ gsutil cp spark_dataproc_lineage_pipeline.py $DAG_DIR/
 
 ## 5. Nuances
 
-Note that running the Spark jobs via Airflow on Cloud Composer did not change the lineage graph.
-
+Note that running the Spark jobs via Airflow on Cloud Composer did not change the lineage graph. This is because Cloud Composer only reports lineage for Dataproc GCE - SparkSQL and HiveQL jobs  at the moment.
 
 
 <hr>
