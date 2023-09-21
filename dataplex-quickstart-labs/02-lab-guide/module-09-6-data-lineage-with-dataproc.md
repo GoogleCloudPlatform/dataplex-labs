@@ -364,7 +364,7 @@ Should take ~2-3 minutes to complete.
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-10.png)   
 <br><br>
 
-### 2.2. Entities created in Dataplex by Datapelx Discovery
+### 2.2. Entities created in Dataplex by Dataplex Discovery
 
 #### 2.2.1. Curated data
 
