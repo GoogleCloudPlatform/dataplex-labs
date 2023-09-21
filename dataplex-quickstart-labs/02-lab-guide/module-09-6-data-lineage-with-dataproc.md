@@ -475,7 +475,7 @@ In the Spark job command below, we added properties for lineage-
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-23.png)   
 <br><br>
 
-Here is what it manifests-
+Here is where it manifests-
 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-24.png)   
 <br><br>
