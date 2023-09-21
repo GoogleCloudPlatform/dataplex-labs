@@ -66,7 +66,7 @@ CURATE_CRIMES_ARGS_ARRAY = [
 
 # 1b. Curate Crimes Spark application conf
 CURATE_CRIMES_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": REPORT_BASE_NM_CRIMES_YEAR + f"-{JOB_ID}","project_id": PROJECT_ID},
+    "reference": {"job_id": "curate-crimes-spark-dataproc" + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CURATE_CRIMES_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
