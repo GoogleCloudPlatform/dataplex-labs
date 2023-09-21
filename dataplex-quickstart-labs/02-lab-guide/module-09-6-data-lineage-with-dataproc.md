@@ -312,7 +312,7 @@ Should take ~2-3 minutes to complete.
 
 <hr>
 
-## 1.3.5. Chicago Crimes by Hour of Day Report
+#### 1.3.5. Chicago Crimes by Hour of Day Report
 
 ```
 baseName="crimes-by-hour-spark-dataproc"
