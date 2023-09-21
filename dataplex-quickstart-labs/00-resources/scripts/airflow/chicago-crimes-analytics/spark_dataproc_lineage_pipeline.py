@@ -94,7 +94,7 @@ CRIMES_BY_YEAR_DATAPROC_GCE_JOB_CONFIG = {
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
                     "args": CRIMES_BY_YEAR_ARGS_ARRAY,
-                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_YEAR}"
+                    "properties": {"spark.openlineage.namespace": {PROJECT_ID},"spark.openlineage.appName": {REPORT_BASE_NM_CRIMES_YEAR} }
                     }
 }
 
@@ -116,7 +116,7 @@ CRIMES_BY_MONTH_DATAPROC_GCE_JOB_CONFIG = {
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
                     "args": CRIMES_BY_MONTH_ARGS_ARRAY,
-                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_MONTH}"
+                    "properties": {"spark.openlineage.namespace": {PROJECT_ID},"spark.openlineage.appName": {REPORT_BASE_NM_CRIMES_MONTH} }
                     }
 }
 
@@ -138,7 +138,7 @@ CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG = {
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
                     "args": CRIMES_BY_DAY_ARGS_ARRAY,
-                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_DAY}"
+                    "properties": {"spark.openlineage.namespace": {PROJECT_ID},"spark.openlineage.appName": {REPORT_BASE_NM_CRIMES_DAY} }
                     }
 }
 
@@ -160,7 +160,7 @@ CRIMES_BY_HOUR_DATAPROC_GCE_JOB_CONFIG = {
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
                     "args": CRIMES_BY_HOUR_ARGS_ARRAY,
-                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_HOUR}"
+                    "properties": {"spark.openlineage.namespace": {PROJECT_ID},"spark.openlineage.appName": {REPORT_BASE_NM_CRIMES_HOUR} }
                     }
 }
 
@@ -217,7 +217,6 @@ with models.DAG(
         task_id='end',
         trigger_rule='all_done'
     )
-
 
 start >> curate_chicago_crimes >> [trend_by_year, trend_by_month, trend_by_day, trend_by_hour] >> end
 
