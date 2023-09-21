@@ -197,7 +197,7 @@ with models.DAG(
         job=CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG
     )
 
-    trend_by_hour = = DataprocSubmitJobOperator(
+    trend_by_hour =  DataprocSubmitJobOperator(
         task_id="CRIME_TREND_BY_HOUR",
         project_id=PROJECT_ID,
         region=REGION,
