@@ -408,7 +408,23 @@ Once you run a query on each BigQuery external table created, if you click on th
 
 ## 4. Orchestrating the above jobs with Apache Airflow on Cloud Composer - and associated lineage graph 
 
+### 4.1. Review the Airflow DAG 
 
+Review the DAG specification at dataplex-quickstart-labs/00-resources/scripts/airflow/chicago-crimes-analytics/spark_dataproc_lineage_pipeline.py.
+
+### 4.2. Upload it to the Airflow DAG bucket
+
+Run the below in Cloud Shell-
+```
+PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
+PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
+LOCATION="us-central1"
+COMPOSER_ENVIRONMENT_NAME=`gcloud composer environments list --locations $LOCATION | grep NAME | cut -d':' -f2`
+DAG_DIR=`gcloud composer environments describe $COMPOSER_ENVIRONMENT_NAME --location $LOCATION | grep dagGcsPrefix | cut -d' ' -f4`/chicago-crimes-analytics
+
+cd ~/dataplex-quickstart-labs/00-resources/scripts/airflow/chicago-crimes-analytics
+gsutil cp spark_dataproc_lineage_pipeline.py $DAG_DIR/
+```
 
 
 <hr>
