@@ -27,7 +27,7 @@ SUBNET  = models.Variable.get("subnet")
 
 UMSA_FQN=UMSA+"@"+PROJECT_ID+".iam.gserviceaccount.com"
 SUBNET_URI=f"projects/{PROJECT_ID}/regions/{REGION}/subnetworks/{SUBNET}"
-DPGCE_CLUSTER_NM=f"{lineage-enabled-spark-cluster-PROJECT_NBR}"
+DPGCE_CLUSTER_NM=f"lineage-enabled-spark-cluster-{PROJECT_NBR}"
 
 # PySpark script files in GCS, of the individual Spark applications in the pipeline
 GCS_URI_CURATE_CRIMES_PYSPARK= f"gs://raw-code-{PROJECT_NBR}/pyspark/chicago-crimes-analytics/curate_crimes.py"
