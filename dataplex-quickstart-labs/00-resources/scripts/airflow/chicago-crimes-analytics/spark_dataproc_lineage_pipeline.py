@@ -220,7 +220,7 @@ with models.DAG(
         inlets=[BigQueryTable(
         project_id=PROJECT_ID,
         dataset_id='oda_curated_zone',
-        table_id='crimes_curated_spark',
+        table_id='crimes_curated_spark_dataproc',
         )],
         outlets=[BigQueryTable(
         project_id=PROJECT_ID,
@@ -237,12 +237,12 @@ with models.DAG(
         inlets=[BigQueryTable(
         project_id=PROJECT_ID,
         dataset_id='oda_curated_zone',
-        table_id='crimes_curated_spark',
+        table_id='crimes_curated_spark_dataproc',
         )],
         outlets=[BigQueryTable(
         project_id=PROJECT_ID,
         dataset_id='oda_product_zone',
-        table_id='crimes_by_day_spark',
+        table_id='crimes_by_day_spark_dataproc',
         )]
     )
 
@@ -254,12 +254,12 @@ with models.DAG(
         inlets=[BigQueryTable(
         project_id=PROJECT_ID,
         dataset_id='oda_curated_zone',
-        table_id='crimes_curated_spark',
+        table_id='crimes_curated_spark_dataproc',
         )],
         outlets=[BigQueryTable(
         project_id=PROJECT_ID,
         dataset_id='oda_product_zone',
-        table_id='crimes_by_hour_spark',
+        table_id='crimes_by_hour_spark_dataproc',
         )]
     )
 
