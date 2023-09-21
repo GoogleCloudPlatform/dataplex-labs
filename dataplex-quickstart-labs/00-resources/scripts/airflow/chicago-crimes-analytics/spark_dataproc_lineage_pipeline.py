@@ -46,7 +46,8 @@ dag_name= "Chicago_Crime_Trends_From_Spark_With_Dataproc_OOB_Lineage"
 randomizerCharLength = 10 
 JOB_ID = ''.join(random.choices(string.digits, k = randomizerCharLength))
 
-# Report bases
+# Bases
+BASE_NM_CURATE_CRIMES="curate-crimes-spark-dataproc"
 REPORT_BASE_NM_CRIMES_YEAR="crimes-by-year-spark-dataproc"
 REPORT_BASE_NM_CRIMES_MONTH="crimes-by-month-spark-dataproc"
 REPORT_BASE_NM_CRIMES_DAY="crimes-by-day-spark-dataproc"
@@ -66,11 +67,12 @@ CURATE_CRIMES_ARGS_ARRAY = [
 
 # 1b. Curate Crimes Spark application conf
 CURATE_CRIMES_DATAPROC_GCE_JOB_CONFIG = {
-    "reference": {"job_id": "curate-crimes-spark-dataproc" + f"-{JOB_ID}","project_id": PROJECT_ID},
+    "reference": {"job_id": BASE_NM_CURATE_CRIMES + f"-{JOB_ID}","project_id": PROJECT_ID},
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CURATE_CRIMES_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
-                    "args": CURATE_CRIMES_ARGS_ARRAY
+                    "args": CURATE_CRIMES_ARGS_ARRAY,
+                    
                     }
 }
 
@@ -91,7 +93,8 @@ CRIMES_BY_YEAR_DATAPROC_GCE_JOB_CONFIG = {
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
-                    "args": CRIMES_BY_YEAR_ARGS_ARRAY
+                    "args": CRIMES_BY_YEAR_ARGS_ARRAY,
+                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_YEAR}"
                     }
 }
 
@@ -112,7 +115,8 @@ CRIMES_BY_MONTH_DATAPROC_GCE_JOB_CONFIG = {
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
-                    "args": CRIMES_BY_MONTH_ARGS_ARRAY
+                    "args": CRIMES_BY_MONTH_ARGS_ARRAY,
+                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_MONTH}"
                     }
 }
 
@@ -133,7 +137,8 @@ CRIMES_BY_DAY_DATAPROC_GCE_JOB_CONFIG = {
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
-                    "args": CRIMES_BY_DAY_ARGS_ARRAY
+                    "args": CRIMES_BY_DAY_ARGS_ARRAY,
+                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_DAY}"
                     }
 }
 
@@ -154,7 +159,8 @@ CRIMES_BY_HOUR_DATAPROC_GCE_JOB_CONFIG = {
     "placement": {"cluster_name": DPGCE_CLUSTER_NM},
     "pyspark_job": {"main_python_file_uri": GCS_URI_CRIME_TRENDS_REPORT_PYSPARK,
                     "jar_file_uris": [ "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"],
-                    "args": CRIMES_BY_HOUR_ARGS_ARRAY
+                    "args": CRIMES_BY_HOUR_ARGS_ARRAY,
+                    "properties": f"spark.openlineage.namespace={PROJECT_ID},spark.openlineage.appName={REPORT_BASE_NM_CRIMES_HOUR}"
                     }
 }
 
