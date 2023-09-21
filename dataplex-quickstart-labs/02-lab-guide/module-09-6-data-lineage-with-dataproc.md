@@ -468,13 +468,44 @@ View the job execution details in the Dataproc GUI
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-22.png)   
 <br><br>
 
+### 4.7. The Lineage Namespace
+
+In the Spark job command below, we added properties for lineage-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-23.png)   
+<br><br>
+
+Here is what it manifests-
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-24.png)   
+<br><br>
+
+### 4.8. Considerations
+
+Its important to have a unique ```spark.openlineage.appName``` value for a Dataproc Spark process, but not for Dataproc Spark process runs. If you have unique values per run, there will be an explosion of Dataproc process icons, one for each run.
+
 <hr>
 <hr>
 
 ## 5. Nuances
 
-Note that running the Spark jobs via Airflow on Cloud Composer did not enrich the lineage graph with Airflow task metadata. <br>
+1. Running the Spark jobs via Airflow on Cloud Composer did not enrich the lineage graph with Airflow task metadata. <br>
 This is because Cloud Composer currently, only reports lineage for Dataproc GCE - SparkSQL and HiveQL jobs  at the moment. <br>
+
+2. Its important to have a unique ```spark.openlineage.appName``` value for a Dataproc Spark process, but not for Dataproc Spark process runs. If you have unique values per run, there will be an explosion of Dataproc process icons, one for each run.
+
+## 6. Remove unwanted lineage
+
+Cleaning up lineage can be done by removing process runs, and then lienage process using the Lineage API.
+
+E.g.
+```
+# Delete process run ac9682e0-3934-409e-866b-45c3799d766c
+curl  -X DELETE -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application.json" https://datalineage.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/YOUR_PROJECT_LOCATION/processes/cf61a4a1-89f8-0da2-2ba9-846ad44f2bfe/runs/ac9682e0-3934-409e-866b-45c3799d766c
+
+# Delete process cf61a4a1-89f8-0da2-2ba9-846ad44f2bfe
+curl  -X DELETE -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application.json" https://datalineage.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/YOUR_PROJECT_LOCATION/processes/cf61a4a1-89f8-0da2-2ba9-846ad44f2bfe
+```
 
 <hr>
 <hr>
