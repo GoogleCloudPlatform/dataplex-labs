@@ -136,7 +136,7 @@ In this section we will curate Chicago crimes with PySpark on Dataproc Serverles
 
 Run the command below to curate crimes with PySpark-
 ```
-JOB_NM=curate-crimes
+JOB_NM=curate-crimes-spark-dataproc
 JOB_ID=$JOB_NM-$RANDOM
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
