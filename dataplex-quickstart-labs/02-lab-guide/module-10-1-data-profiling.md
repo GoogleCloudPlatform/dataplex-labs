@@ -311,6 +311,17 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$DATA
 
 ## 5. Create a Data Profile Scan
 
+You can create a profile scan directly in the BigQuery UI or the Dataplex UI
+
+### 5.1 Create a profile scan in the BigQuery UI-
+
+Follow the step as shown in the screenshot to create a profile scan-
+![ADQ-5](../01-images/module-10-1-07a.png)   
+<br><br>
+
+
+## 5.2 Create a profile scan in the Dataplex UI-
+
 Follow the steps as shown in the screenshots to create a profile scan-
 
 ![ADQ-5](../01-images/module-10-1-07.png)   
@@ -338,7 +349,7 @@ Follow the step as shown in the screenshot to run a profile scan-
 
 ## 7. Visualize the Profiling job results
 
-At the time of the authoring of this lab, the results were only available visually. From the Dataplex Profiling UI, visualize the scan results-
+### 7.1 From the Dataplex Profiling UI, visualize the scan results-
 
 ![ADQ-5](../01-images/module-10-1-12.png)   
 <br><br>
@@ -359,6 +370,10 @@ At the time of the authoring of this lab, the results were only available visual
 <br><br>
 
 ![ADQ-5](../01-images/module-10-1-14.png)   
+<br><br>
+
+### 7.2 From the BigQuery UI, visualize the profile results from the 'DATA PROFILE' tab-
+![ADQ-5](../01-images/module-10-1-14a.png)   
 <br><br>
 
 <hr>

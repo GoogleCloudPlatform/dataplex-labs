@@ -63,6 +63,7 @@ You need to provide the process ID for lineage management.<br>
 
 Lets write all the processes to a file
 ```
+mkdir -p ~/temp-lineage
 cd ~/temp-lineage
 rm -rf *
 
