@@ -7,12 +7,48 @@ In this lab module, we will repeat what we did with lineage of BigQuery based Ai
 Successful completion of prior lab modules
 
 ### Duration
-~60 minutes
+~20 minutes
 
 ### Learning Units
 
 [1. Concepts](module-08-data-lineage-with-bigquery.md#concepts-data-lineage-information-model) <br>
 [2. Lab](module-09-6-data-lineage-with-dataproc.md#LAB)
+
+### Lineage support for Dataproc
+
+Once you enable the lineage feature in your Dataproc cluster or Dataproc Spark job, the jobs capture lineage events and publish them to the Dataplex Data Lineage API. Dataproc integrates with the Data Lineage API through OpenLineage, using the OpenLineage Spark plugin.<br>
+
+Dependencies are: Data Lineage API and Data Catalog API <br>
+
+Required roles are detailed at: https://cloud.google.com/dataproc/docs/guides/lineage#required-roles <br>
+
+#### Enabling lineage in Dataproc
+
+To report lineage, the Dataproc cluster must have must have [GCP OAuth scope](https://www.googleapis.com/auth/cloud-platform).  <br>
+
+#### Options and considerations for enabling lineage
+
+1. Cluster level at creation time
+- All jobs automatically report lineage unless we explicitly disable at job level.<br>
+- To disable specific jobs from reporting lineage, include the Spark property  ```spark.extraListener``` with value of null.<br>
+- Once enabled, cannot be disabled; Delete and recreate cluster should you need to
+ 
+2. At job level at submission time
+Set the property ```spark.extraListener``` with value ```io.openlineage.spark.agent.OpenLineageSparkListener``` at job submission time. 
+
+#### What's supported & not
+
+Supported:
+- Data lineage is available for all Dataproc Spark jobs except SparkR 
+- Dataproc Compute Engine 2.0.74+ and 2.1.22+ images
+- Lineage is available for BigQuery and Cloud Storage data sources. <br>
+
+Not supported:
+Spark Structured Streaming
+
+### Lineage support for Dataproc with Airflow on Cloud Composer
+
+At the moment, Cloud Composer reports lineage for Spark SQL and Hive QL jobs. 
 
 ### Solution Architecture
 
@@ -37,20 +73,6 @@ Successful completion of prior lab modules
 5. We will review the lineage graph with Cloud Composer in the mix
 6. And understand the nuances
 7. Finally, we will learn how to clean up/delete lineage using the lineage API
-
-### Lineage support for Dataproc
-
-Data lineage is available for all Dataproc Spark jobs except SparkR, with Dataproc Compute Engine 2.0.74+ and 2.1.22+ images. Lineage is available for BigQuery and Cloud Storage data sources. <br>
-
-Once you enable the feature in your Dataproc cluster, Dataproc Spark jobs capture lineage events and publish them to the Dataplex Data Lineage API. Dataproc integrates with the Data Lineage API through OpenLineage, using the OpenLineage Spark plugin.<br>
-
-Dependencies are: Data Lineage API and Data Catalog API <br>
-
-Required roles are detailed at: https://cloud.google.com/dataproc/docs/guides/lineage#required-roles <br>
-
-
-
-
 
 <hr>
 
