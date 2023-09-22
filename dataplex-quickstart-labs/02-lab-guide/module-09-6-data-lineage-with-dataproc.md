@@ -49,12 +49,13 @@ Set the property ```spark.extraListener``` with value ```io.openlineage.spark.ag
 #### What's supported & not
 
 Supported:
-- Data lineage is available for all Dataproc Spark jobs except SparkR 
+- Data lineage is available for all Dataproc Spark jobs 
 - Dataproc Compute Engine 2.0.74+ and 2.1.22+ images
 - Lineage is available for BigQuery and Cloud Storage data sources. <br>
 
 Not supported:
-Spark Structured Streaming
+- SparkR
+- Spark Structured Streaming
 
 ### Lineage support for Dataproc with Airflow on Cloud Composer
 
