@@ -24,9 +24,13 @@ Successful completion of prior lab modules
 
 Dataproc on GCE supports that can be enabled at a cluster lebel or at a job level. Once you enable the lineage feature in your Dataproc cluster or Dataproc Spark job, the jobs capture lineage events and publish them to the Dataplex Data Lineage API. Dataproc integrates with the Data Lineage API through OpenLineage, using the OpenLineage Spark plugin.<br>
 
-API dependencies are: Data Lineage API and Data Catalog API <br>
+#### API dependencies 
 
-Required roles are detailed at: https://cloud.google.com/dataproc/docs/guides/lineage#required-roles <br>
+Data Lineage API and Data Catalog API <br>
+
+#### Required roles
+
+https://cloud.google.com/dataproc/docs/guides/lineage#required-roles <br>
 
 #### Enabling lineage in Dataproc
 
