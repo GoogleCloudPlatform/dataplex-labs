@@ -132,7 +132,6 @@ If you have any questions or if you found any problems with this repository, ple
 | 20230328 |  Added additional modules for Dataplex Data Quality Tasks|Anagha Khanolkar|
 | 20230411 |  Added BigLake module| Anagha Khanolkar|
 | 20230921 |  Module on Data Profiling redone from BQ UI | Jay O' Leary| Anagha Khanolkar|
-| 20230921 |  Module on AutoDQ redone from BQ UI |  Jay O' Leary|
 | 20230921 |  New module for Dataproc Lineage | Anagha Khanolkar|
 | 20230921 |  Removed references to Explore |  Anagha Khanolkar|
 
