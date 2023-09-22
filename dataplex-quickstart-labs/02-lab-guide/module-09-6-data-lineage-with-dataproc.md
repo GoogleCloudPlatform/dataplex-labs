@@ -11,7 +11,7 @@ Successful completion of prior lab modules
 
 ### Learning Units
 
-[1. Concepts](module-08-data-lineage-with-bigquery.md#concepts-data-lineage-information-model) <br>
+[1. Concepts](module-09-1-data-lineage-with-bigquery.md#concepts-data-lineage-information-model) <br>
 [2. Lab](module-09-6-data-lineage-with-dataproc.md#LAB)
 
 ### Lineage support for Dataproc
