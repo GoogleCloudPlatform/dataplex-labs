@@ -24,14 +24,14 @@ Required roles are detailed at: https://cloud.google.com/dataproc/docs/guides/li
 
 #### Enabling lineage in Dataproc
 
-To report lineage, the Dataproc cluster must have must have [GCP OAuth scope](https://www.googleapis.com/auth/cloud-platform).  <br>
+To report lineage, the Dataproc cluster must have [GCP OAuth scope](https://www.googleapis.com/auth/cloud-platform).  <br>
 
 #### Options and considerations for enabling lineage
 
 1. Cluster level at creation time
 - All jobs automatically report lineage unless we explicitly disable at job level.<br>
 - To disable specific jobs from reporting lineage, include the Spark property  ```spark.extraListener``` with value of null.<br>
-- Once enabled, cannot be disabled; Delete and recreate cluster should you need to
+- Once enabled, lineage cannot be disabled; Delete and recreate cluster should you need to
  
 2. At job level at submission time
 Set the property ```spark.extraListener``` with value ```io.openlineage.spark.agent.OpenLineageSparkListener``` at job submission time. 
