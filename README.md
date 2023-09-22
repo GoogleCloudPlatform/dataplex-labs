@@ -34,7 +34,6 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | 5. |[Quickstart Labs] Additional modules (DQ tasks) to quickstart labs series | 20230328 | Anagha Khanolkar|
 | 6. |[Quickstart Labs] Module on Biglake | 20230411 | Anagha Khanolkar|
 | 7. |[Quickstart Labs] Module on Data Profiling redone from BQ UI | 20230921 | Jay O' Leary|
-| 8. |[Quickstart Labs] Module on AutoDQ redone from BQ UI | 20230921 | Jay O' Leary|
-| 9. |[Quickstart Labs] New module for Dataproc Lineage | 20230921 | Anagha Khanolkar|
-| 10. |[Quickstart Labs] Removed references to Explore | 20230921 | Anagha Khanolkar|
+| 8. |[Quickstart Labs] New module for Dataproc Lineage | 20230921 | Anagha Khanolkar|
+| 9. |[Quickstart Labs] Removed references to Explore | 20230921 | Anagha Khanolkar|
 
