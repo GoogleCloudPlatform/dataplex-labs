@@ -6,13 +6,19 @@ In this lab module, we will repeat what we did with lineage of BigQuery based Ai
 
 Successful completion of prior lab modules
 
+
+
 ### Duration
 ~20 minutes
+
+<hr>
 
 ### Learning Units
 
 [1. Concepts](module-09-1-data-lineage-with-bigquery.md#concepts-data-lineage-information-model) <br>
 [2. Lab](module-09-6-data-lineage-with-dataproc.md#LAB)
+
+<hr>
 
 ### Lineage support for Dataproc
 
@@ -50,19 +56,26 @@ Spark Structured Streaming
 
 At the moment, Cloud Composer reports lineage for Spark SQL and Hive QL jobs. 
 
-### Solution Architecture
+<hr>
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-00-2.png)   
+### Solution Architecture 
+
+![LIN-5](../01-images/m96-dataproc-oob-lineage-00-2.png)  
+
+<hr>
 
 
 ### Pictorial overview of the lab module
 
-![LIN-5](../01-images/m96-dataproc-oob-lineage-00-1.png)   
+![LIN-5](../01-images/m96-dataproc-oob-lineage-00-1.png)  
+
+<hr>
 
 ### Lake layout
 
 ![LIN-5](../01-images/m96-dataproc-oob-lineage-00-3.png)   
 
+<hr>
 
 ### Learning goals
 
