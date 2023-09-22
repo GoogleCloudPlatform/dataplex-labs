@@ -534,7 +534,7 @@ This is because Cloud Composer currently, only reports lineage for Dataproc GCE 
 
 ## 6. Remove unwanted lineage
 
-Cleaning up lineage can be done by removing process runs, and then lienage process using the Lineage API.
+Cleaning up lineage can be done by removing process runs, and then lineage process using the Lineage API.
 
 E.g.
 ```
