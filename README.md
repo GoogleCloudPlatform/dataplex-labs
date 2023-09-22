@@ -29,12 +29,12 @@ Share you feedback, ideas, by logging [issues](../../issues).
 | -- | :--- | :--- |:--- |
 | 1. |Initial release of quickstart labs series | 20230303 | Anagha Khanolkar|
 | 2. |Initial release of data mesh banking labs| 20230306 | Mansi Maharana|
-| 3. |Additional modules (AutoDQ) to quickstart labs series | 20230320 | Anagha Khanolkar|
-| 4. |Additional modules (DQ tasks) to quickstart labs series | 20230321 | Anagha Khanolkar|
-| 5. |Additional modules (DQ tasks) to quickstart labs series | 20230328 | Anagha Khanolkar|
-| 6. |Module on Biglake | 20230411 | Anagha Khanolkar|
-| 7. |Module on Data Profiling redone from BQ UI | 20230921 | Jay O' Leary|
-| 8. |Module on AutoDQ redone from BQ UI | 20230921 | Jay O' Leary|
-| 9. |New module for Dataproc Lineage | 20230921 | Anagha Khanolkar|
-| 10. |Removed references to Explore | 20230921 | Anagha Khanolkar|
+| 3. |[Quickstart Labs] Additional modules (AutoDQ) to quickstart labs series | 20230320 | Anagha Khanolkar|
+| 4. |[Quickstart Labs] Additional modules (DQ tasks) to quickstart labs series | 20230321 | Anagha Khanolkar|
+| 5. |[Quickstart Labs] Additional modules (DQ tasks) to quickstart labs series | 20230328 | Anagha Khanolkar|
+| 6. |[Quickstart Labs] Module on Biglake | 20230411 | Anagha Khanolkar|
+| 7. |[Quickstart Labs] Module on Data Profiling redone from BQ UI | 20230921 | Jay O' Leary|
+| 8. |[Quickstart Labs] Module on AutoDQ redone from BQ UI | 20230921 | Jay O' Leary|
+| 9. |[Quickstart Labs] New module for Dataproc Lineage | 20230921 | Anagha Khanolkar|
+| 10. |[Quickstart Labs] Removed references to Explore | 20230921 | Anagha Khanolkar|
 
