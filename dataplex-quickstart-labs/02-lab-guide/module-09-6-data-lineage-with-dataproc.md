@@ -84,13 +84,13 @@ At the moment, Cloud Composer reports lineage for Spark SQL and Hive QL jobs.
 
 ### Learning goals
 
-1. We will create a Dataproc on GCE cluster with lineage enabled
-2. We will run pre-created PySpark scripts that curate Chicago crimes, and then generate Crime trend reports
-3. We will review the lineage graph
-4. Next, we will run an Airflow DAG on Cloud Composer to orchestrate the Spark jobs on the existing Dataproc Spark GCE cluster
-5. We will review the lineage graph with Cloud Composer in the mix
-6. And understand the nuances
-7. Finally, we will learn how to clean up/delete lineage using the lineage API
+1. Create a Dataproc on GCE cluster with lineage enabled
+2. Run pre-created PySpark scripts that curate Chicago crimes, and then generate Crime trend reports
+3. Review the lineage graph
+4. Run an Airflow DAG on Cloud Composer to orchestrate the Spark jobs on the existing Dataproc Spark GCE cluster
+5. Review the lineage graph with Cloud Composer in the mix
+6. Understand the nuances
+7. Learn how to clean up/delete lineage using the lineage API
 
 <hr>
 
