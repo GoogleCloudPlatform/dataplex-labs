@@ -6,6 +6,7 @@ import os
 import sys
 
 import error
+import import_mode as import_mode_lib
 import logging_utils
 
 
@@ -41,6 +42,16 @@ def get_arguments() -> argparse.Namespace:
   return parser.parse_args()
 
 
+def get_import_mode(args: argparse.Namespace) -> import_mode_lib.ImportMode:
+  modes = [mode.value for mode in import_mode_lib.ImportMode]
+  import_mode = vars(args).get("import_mode")
+
+  if import_mode and import_mode.lower() in modes:
+    return import_mode_lib.ImportMode(import_mode.lower())
+
+  return import_mode_lib.ImportMode.STRICT
+
+
 def end_program_execution() -> None:
   logger.warning("Program execution finished ahead of time due to errors.")
   sys.exit(1)
@@ -53,9 +64,10 @@ def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
     parser: argparse.ArgumentParser().
   """
   parser.add_argument(
-      "csv",
-      help="Path to the CSV file containing the data to import.",
-      metavar="[CSV file]",
+      "terms_csv_legacy",
+      help="Path to the CSV file containing the terms data to import.",
+      metavar="[Terms CSV file (legacy)]",
+      nargs="?",
       type=str,
   )
   parser.add_argument(
@@ -93,13 +105,25 @@ def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
       required=True,
   )
   parser.add_argument(
+      "--categories-csv",
+      help="Path to the CSV file containing the categories data to import.",
+      metavar="[Categories CSV file]",
+      type=str,
+  )
+  parser.add_argument(
+      "--terms-csv",
+      help="Path to the CSV file containing the terms data to import.",
+      metavar="[Terms CSV file]",
+      type=str,
+  )
+  parser.add_argument(
       "--import-mode",
       choices=["strict", "clear"],
       default="strict",
       type=str,
       help=(
           "Sets level of permissiviness with which the data is imported into"
-          " Data Catalog. The default value is \"strict\".:\n"
+          ' Data Catalog. The default value is "strict".:\n'
           "strict\tCheck if the target glossary does not contain any entries,"
           " and if it does, stops executing the program.\n"
           "clear\tRemove all the pre-existing entries in the target glossary"
@@ -112,10 +136,61 @@ def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
           "If set, the program will finish its execution if there are any"
           " parsing errors without importing any terms."
       ),
-      action="store_true"
+      action="store_true",
   )
 
 
 def display_parsing_errors(errors: list[error.ParseError]) -> None:
   for err in errors:
     logger.error(err.to_string())
+
+
+def validate_args(args: argparse.Namespace) -> None:
+  """Validates script run arguments.
+
+  Args:
+    args: script run arguments
+  """
+
+  # Verify access token is available
+  if not access_token_exists():
+    logger.error("Environment variable GCLOUD_ACCESS_TOKEN doesn't exist.")
+    sys.exit(1)
+
+  # Verify that at least one csv parameter is provided
+  if (
+      not args.terms_csv_legacy
+      and not args.categories_csv
+      and not args.terms_csv
+  ):
+    logger.error("At least one csv filepath parameter must be provided.")
+    sys.exit(1)
+
+  # Verify only one terms csv is provided:
+  if args.terms_csv and args.terms_csv_legacy:
+    logger.error(
+        "At most one of --terms-csv and terms-csv_legacy should be provided."
+    )
+    exit(1)
+
+  _verify_csv_file_existence(args, "terms_csv_legacy")
+  _verify_csv_file_existence(args, "terms_csv", prefix="--")
+  _verify_csv_file_existence(args, "categories_csv", prefix="--")
+
+
+def _verify_csv_file_existence(
+    args: argparse.Namespace, arg_name: str, prefix: str = ""
+):
+  """Logs an error if the provided CSV file path doesn't exist.
+
+  Args:
+    args: script run arguments
+    arg_name: CSV path argument
+    prefix: argument prefix e.g. for --terms_csv prefix="--"
+  """
+  file_path = vars(args).get(arg_name)
+  if file_path and not csv_file_exists(file_path):
+    logger.error(
+        f"The provided {prefix}{arg_name} CSV file path doesn't exist."
+    )
+    sys.exit(1)

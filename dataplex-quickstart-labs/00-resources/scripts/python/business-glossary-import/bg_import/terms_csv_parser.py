@@ -1,39 +1,35 @@
 """Provides functionality of reading business glossary terms from a CSV file.
 
 Typical usage example:
-  terms, errors, lines = read_glossary_csv(glossary_path)
+  terms, errors, lines_read = read_glossary_csv()
 """
 
 import csv
 import dataclasses
-from typing import Any, Callable, TypeVar
+from typing import Any
 
+import entry_type
 import error
 import parse_utils
+import parser_types
 import term as bg_term
 
-
-_Terms = list[Any]
-_ParseErrors = list[error.ParseError]
-_ParserOutput = dict[int, bg_term.Term]  # Dictionary mapping lines to terms
-_T = TypeVar("_T")
-_ParseResult = tuple[_T, _ParseErrors]
-_ParseFn = Callable[[str], _ParseResult[_T]]
-_LinesRead = int
 
 """Each attribute parser is represented as a tuple consisting of:
   field_name: Name of the field to parse.
   parser_function: Pointer to a parsing function for the field.
   is_optional_field: Boolean representing if the field is optional.
 """
-_ATTRIBUTE_PARSERS: list[tuple[str, _ParseFn[Any], bool]] = [
-    ("display_name", parse_utils.parse_str, False),
-    ("description", parse_utils.parse_str, False),
-    ("data_stewards", parse_utils.parse_data_stewards, True),
+_ATTRIBUTE_PARSERS: list[tuple[str, parser_types._ParseFn[Any], bool]] = [
+    ("display_name", parse_utils.parse_term_str, False),
+    ("description", parse_utils.parse_term_str, False),
+    ("data_stewards", parse_utils.parse_term_data_stewards, True),
     ("tagged_assets", parse_utils.parse_list, True),
     ("synonyms", parse_utils.parse_list, True),
     ("relations", parse_utils.parse_list, True),
+    ("belongs_to_category", parse_utils.parse_term_str, True),
 ]
+
 
 _MAX_DISPLAY_NAME_LENGTH = 200
 _NON_ALLOWED_DISPLAY_NAME_CHARACTERS = ("\n",)
@@ -51,15 +47,15 @@ class TermEntry:
 
 def parse_glossary_csv(
     path: str,
-) -> tuple[_ParserOutput, _ParseErrors, _LinesRead]:
+) -> parser_types._ParserReturnType:
   """Reads CSV file containing business glossary terms.
 
   Args:
     path: Path of a CSV file to read.
 
   Returns:
-    A tuple of list of successfully parsed terms, a list of errors and the
-    number of lines we read in the CSV.
+    _ParserReturnType - a tuple of list of successfully parsed terms,
+    a list of errors and the number of lines we read in the CSV.
   """
 
   terms = {}
@@ -84,14 +80,18 @@ def parse_glossary_csv(
           terms[line_idx + 1] = term
         lines_read += 1
   except FileNotFoundError:
-    errors.append(error.ParseError(message=f"{path} could not be found."))
+    errors.append(
+        error.ParseError(
+            entry_type.EntryType.TERM, message=f"{path} could not be found."
+        )
+    )
 
   return terms, errors, lines_read
 
 
 def _validate_term(
     term: bg_term.Term, tracked_terms: set[str]
-) -> _ParseErrors:
+) -> parser_types._ParseErrors:
   """Validates a business glossary term.
 
   Performs the following tests:
@@ -111,14 +111,16 @@ def _validate_term(
   # If the term display name is empty we record an error
   if not term.display_name:
     err = error.ParseError(
+        entry_type.EntryType.TERM,
         message="The display name for the term is empty.",
-        column=1
+        column=1,
     )
     errors.append(err)
 
   # If the term description is empty we record an error
   if not term.description:
     err = error.ParseError(
+        entry_type.EntryType.TERM,
         message="The description for the term is empty.",
         column=2,
     )
@@ -128,6 +130,7 @@ def _validate_term(
     # If the term has appeared before in the CSV we record an error.
     if term.display_name.lower() in tracked_terms:
       err = error.ParseError(
+          entry_type.EntryType.TERM,
           message="The term is duplicated in the CSV.",
           column=1,
           resources=[term.display_name],
@@ -136,6 +139,7 @@ def _validate_term(
 
     if len(term.display_name) > _MAX_DISPLAY_NAME_LENGTH:
       err = error.ParseError(
+          entry_type.EntryType.TERM,
           message="The term's display name is too big.",
           column=1,
           resources=[term.display_name],
@@ -145,6 +149,7 @@ def _validate_term(
     for character in _NON_ALLOWED_DISPLAY_NAME_CHARACTERS:
       if character in term.display_name:
         err = error.ParseError(
+            entry_type.EntryType.TERM,
             message="Unallowed character in display name.",
             column=1,
             resources=[term.display_name],
@@ -156,7 +161,7 @@ def _validate_term(
 
 def parse_term(
     line_idx: int, record: list[str], tracked_terms: set[str]
-) -> _ParseResult[bg_term.Term]:
+) -> parser_types._ParseResult[bg_term.Term]:
   """Parses a business glossary term.
 
   Args:
@@ -180,6 +185,7 @@ def parse_term(
       # If the field is not mandatory we can skip creating a ParseError
       if not is_optional_field:
         err = error.ParseError(
+            entry_type.EntryType.TERM,
             message="Missing field",
             line=line_idx + 1,
             column=i + 1,
@@ -204,7 +210,9 @@ def parse_term(
       data_stewards,
       tagged_assets,
       synonyms,
-      related_terms, *_
+      related_terms,
+      belongs_to_category,
+      *_,
   ) = attributes
 
   term = bg_term.Term(
@@ -214,6 +222,7 @@ def parse_term(
       tagged_assets,
       synonyms,
       related_terms,
+      belongs_to_category,
   )
 
   validation_errors = _validate_term(term, tracked_terms)
