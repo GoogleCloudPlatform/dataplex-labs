@@ -1,0 +1,5 @@
+"Crime Metadata","Aggregates categories related to crime such us Location Metadata, Calendar Data, IUCR Data and FBI Data categories, also aggregates some generic terms for crime e.g. case number.","Don Joe<don@example.com>, John Doe<john@example.com>",,
+"Location Data","Aggregates terms related to crime location such as coordinates, address, ward, district, beat and location descritption.","Don Joe<don@example.com>, John Doe<john@example.com>","Crime Metadata",
+"Calendar Data","Aggregates terms related to crime date such as year or exact date.","Don Joe<don@example.com>, John Doe<john@example.com>","Crime Metadata",
+"IUCR Data","Aggregates terms related to Illinois Uniform Crim Reporting such as IUCR, primary type or description.","Don Joe<don@example.com>, John Doe<john@example.com>","Crime Metadata",
+"FBI Data","Aggregates terms related to FBI - e.g. FBI Code',"Don Joe<don@example.com>, John Doe<john@example.com>","Crime Metadata",
