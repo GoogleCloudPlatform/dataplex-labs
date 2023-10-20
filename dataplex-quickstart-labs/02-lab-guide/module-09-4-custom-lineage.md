@@ -249,6 +249,7 @@ curl -H "Authorization: Bearer $(gcloud auth print-access-token)" \
 -H "Content-Type: application.json" \
 https://us-datalineage.googleapis.com/v1/projects/$PROJECT_ID/locations/$LOCATION_MULTI/processes/$CUSTOM_LINEAGE_PROCESS_ID/runs/$CUSTOM_LINEAGE_PROCESS_RUN_ID/lineageEvents >> custom_lineage_events.json
 
+cat custom_lineage_events.json
 ```
 
 Author's output:
