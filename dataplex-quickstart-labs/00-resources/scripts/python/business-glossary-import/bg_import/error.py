@@ -21,10 +21,10 @@ class Error(abc.ABC):
   """Base class for Error.
 
   Attributes:
-    entry_type: An enum containing the type of the record in the CSV (e.g. TERM,
-      CATEGORY).
-    line: An integer containing the line of the record in the CSV.
-    column: An integer containing the column of the error in the CSV.
+    entry_type: An enum containing the type of the record in the CSV file (e.g.
+      TERM, CATEGORY).
+    line: An integer containing the line of the record in the CSV file.
+    column: An integer containing the column of the error in the CSV file.
     resources: A list of the resources (terms, FQNs, entries, etc) that caused
       the error.
     message: An optional string indicating a fix for the error.
@@ -131,7 +131,8 @@ class Error(abc.ABC):
 class ParseError(Error):
   """Initializes an instance of ParseError.
 
-  ParseError objects are populated during the CSV parsing and validation phase.
+  ParseError objects are populated during the CSV file parsing and validation
+  phase.
   """
 
   def __init__(

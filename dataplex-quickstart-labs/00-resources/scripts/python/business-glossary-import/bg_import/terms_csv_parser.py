@@ -55,7 +55,7 @@ def parse_glossary_csv(
 
   Returns:
     _ParserReturnType - a tuple of list of successfully parsed terms,
-    a list of errors and the number of lines we read in the CSV.
+    a list of errors and the number of lines we read in the CSV file.
   """
 
   terms = {}
@@ -95,13 +95,13 @@ def _validate_term(
   """Validates a business glossary term.
 
   Performs the following tests:
-  - The term is unique in the CSV
+  - The term is unique in the CSV file
   - Display name is not empty
   - Description is not empty
 
   Args:
     term: Term
-    tracked_terms: Set of terms seen so far in the CSV
+    tracked_terms: Set of terms seen so far in the CSV file
 
   Returns:
     ParseErrors
@@ -127,11 +127,11 @@ def _validate_term(
     errors.append(err)
 
   if term.display_name:
-    # If the term has appeared before in the CSV we record an error.
+    # If the term has appeared before in the CSV file we record an error.
     if term.display_name.lower() in tracked_terms:
       err = error.ParseError(
           entry_type.EntryType.TERM,
-          message="The term is duplicated in the CSV.",
+          message="The term is duplicated in the CSV file.",
           column=1,
           resources=[term.display_name],
       )
@@ -165,8 +165,9 @@ def parse_term(
   """Parses a business glossary term.
 
   Args:
-    line_idx: Index of the line where the term appears in the CSV.
-    record: A list of term attributes in order conforming to the CSV schema.
+    line_idx: Index of the line where the term appears in the CSV file.
+    record: A list of term attributes in order conforming to the CSV file
+      schema.
     tracked_terms: Set of previously seen display names.
 
   Returns:

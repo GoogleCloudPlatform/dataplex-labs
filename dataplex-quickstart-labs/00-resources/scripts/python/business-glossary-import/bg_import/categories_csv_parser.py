@@ -52,7 +52,7 @@ def parse_glossary_csv(
 
   Returns:
     _ParserReturnType - a tuple of list of successfully parsed categories,
-    a list of errors and the number of lines we read in the CSV.
+    a list of errors and the number of lines we read in the CSV file.
   """
 
   categories = {}
@@ -94,13 +94,13 @@ def _validate_category(
   """Validates a business glossary category.
 
   Performs the following tests:
-  - The category is unique in the CSV
+  - The category is unique in the CSV file
   - Display name is not empty
   - Description is not empty
 
   Args:
     category: Category
-    tracked_categories: Set of categories seen so far in the CSV
+    tracked_categories: Set of categories seen so far in the CSV file
 
   Returns:
     ParseErrors
@@ -126,11 +126,11 @@ def _validate_category(
     errors.append(err)
 
   if category.display_name:
-    # If the category has appeared before in the CSV we record an error.
+    # If the category has appeared before in the CSV file we record an error.
     if category.display_name.lower() in tracked_categories:
       err = error.ParseError(
           entry_type.EntryType.CATEGORY,
-          message="The category is duplicated in the CSV.",
+          message="The category is duplicated in the CSV file.",
           column=1,
           resources=[category.display_name],
       )
@@ -164,8 +164,9 @@ def parse_category(
   """Parses a business glossary category.
 
   Args:
-    line_idx: Index of the line where the category appears in the CSV.
-    record: A list of category attributes in order conforming to the CSV schema.
+    line_idx: Index of the line where the category appears in the CSV file.
+    record: A list of category attributes in order conforming to the CSV file
+      schema.
     tracked_categories: Set of previously seen display names.
 
   Returns:

@@ -150,7 +150,7 @@ def _print_statistics(
     if entry_type in lines_read and entry_type in imported_entries:
       imported_entries_count = len(imported_entries[entry_type])
       parsed_entries_count = lines_read[entry_type]
-      logger.info(f"Statistics of Imported {entries_name}:")
+      logger.info(f"Statistics of imported {entries_name}:")
       logger.info(
           f"{entries_name.capitalize()} successfully created:"
           f" {imported_entries_count}/{parsed_entries_count}."

@@ -21,7 +21,7 @@ def csv_file_exists(path: str) -> bool:
   """Verifies if the provided file path exists.
 
   Args:
-    path: Path of the CSV provided by the user.
+    path: Path of the CSV file provided by the user.
 
   Returns:
     Boolean value indicating whether the file exists in the filesystem.
@@ -130,14 +130,6 @@ def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
           " before proceeding with validation and import.\n"
       )
   )
-  parser.add_argument(
-      "--strict-parsing",
-      help=(
-          "If set, the program will finish its execution if there are any"
-          " parsing errors without importing any terms."
-      ),
-      action="store_true",
-  )
 
 
 def display_parsing_errors(errors: list[error.ParseError]) -> None:
@@ -169,9 +161,17 @@ def validate_args(args: argparse.Namespace) -> None:
   # Verify only one terms csv is provided:
   if args.terms_csv and args.terms_csv_legacy:
     logger.error(
-        "At most one of --terms-csv and terms-csv_legacy should be provided."
+        "Only one of the following can be provided: --terms-csv or"
+        " terms_csv-legacy."
     )
     exit(1)
+
+  # Warn users when legacy terms csv argument is used.
+  if args.terms_csv_legacy:
+    logger.warning(
+        "Terms CSV file was passed in a legacy way. Terms CSV file should be"
+        " passed in --terms-csv argument."
+    )
 
   _verify_csv_file_existence(args, "terms_csv_legacy")
   _verify_csv_file_existence(args, "terms_csv", prefix="--")
@@ -185,12 +185,12 @@ def _verify_csv_file_existence(
 
   Args:
     args: script run arguments
-    arg_name: CSV path argument
+    arg_name: CSV file path argument
     prefix: argument prefix e.g. for --terms_csv prefix="--"
   """
   file_path = vars(args).get(arg_name)
   if file_path and not csv_file_exists(file_path):
     logger.error(
-        f"The provided {prefix}{arg_name} CSV file path doesn't exist."
+        f"The CSV file path provided for {prefix}{arg_name} doesn't exist."
     )
     sys.exit(1)
