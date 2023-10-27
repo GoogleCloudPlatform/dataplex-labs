@@ -93,7 +93,9 @@ Term 1,description2,,,,"""
       self.assertEqual(errors[0].entry_type, entry_type.EntryType.TERM)
       self.assertEqual(errors[0].line, 2)
       self.assertEqual(errors[0].column, 1)
-      self.assertEqual(errors[0].message, "The term is duplicated in the CSV.")
+      self.assertEqual(
+          errors[0].message, "The term is duplicated in the CSV file."
+      )
       self.assertEqual(lines_read, 2)
 
   def test_read_glossary_csv_empty_display_name(self):

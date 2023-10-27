@@ -295,29 +295,29 @@ class Glossary:
         or dst_type != entry_type_lib.EntryType.TERM
     ):
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src_display_name}" and "{dst_display_name}" because'
-          f' "{src_type}" is not a term or "{dst_type}" is not a term.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because "{src_type}"'
+          f' is not a term or "{dst_type}" is not a term.'
       )
       return False, err
     if src_display_name == dst_display_name and src_type == dst_type:
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src_display_name}" and itself.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and itself.'
       )
       return False, err
     if not src_entry:
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src_display_name}" and "{dst_display_name}" because'
-          f' "{src_display_name}" doesn\'t exist in the CSV.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
+          f' "{src_display_name}" doesn\'t exist in the CSV file.'
       )
       return False, err
     elif not dst_entry:
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src_display_name}" and "{dst_display_name}" because'
-          f' "{dst_display_name}" doesn\'t exist in the CSV.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
+          f' "{dst_display_name}" doesn\'t exist in the CSV file.'
       )
       return False, err
     elif (
@@ -325,8 +325,8 @@ class Glossary:
         and dst_type != entry_type_lib.EntryType.CATEGORY
     ):
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src_display_name}" and "{dst_display_name}" because'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
           f' "{dst_display_name}" is not a category.'
       )
       return False, err
@@ -513,7 +513,7 @@ class Glossary:
       return successful_relations, errors
 
     logger.info(
-        f'Adding {relationship_type.value} relations between'
+        f'Adding {relationship_type.value} relation between'
         f' {src_type.value} and {dst_type.value} entries...'
     )
     tasks = [

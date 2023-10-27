@@ -97,7 +97,7 @@ Category 1,description2,,"""
       self.assertEqual(errors[0].line, 2)
       self.assertEqual(errors[0].column, 1)
       self.assertEqual(
-          errors[0].message, "The category is duplicated in the CSV."
+          errors[0].message, "The category is duplicated in the CSV file."
       )
       self.assertEqual(lines_read, 2)
 

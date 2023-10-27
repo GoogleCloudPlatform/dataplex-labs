@@ -39,7 +39,7 @@ def main() -> None:
     utils.end_program_execution()
 
   parsers_results = _parse_all_csv_files(args)
-  _print_parsing_errors(args, parsers_results)
+  _print_parsing_errors(parsers_results)
   if not glossary.is_glossary_empty():
     _handle_non_empty_glossary(import_mode, glossary)
 
@@ -110,7 +110,9 @@ def _import_glossary_entries(
     entries_to_import += "categories and "
   entries_to_import = entries_to_import.removesuffix(" and ")
 
-  logger.info("Importing CSV %s into Business Glossary...", entries_to_import)
+  logger.info(
+      "Importing CSV file %s into Business Glossary...", entries_to_import
+  )
   return glossary.import_glossary(
       terms=parsed_terms, categories=parsed_categories
   )
@@ -150,14 +152,13 @@ def _handle_non_empty_glossary(
 
 
 def _print_parsing_errors(
-    args: argparse.Namespace,
     parsers_results: dict[entry_type_lib.EntryType, parser_types._ParserReturnType],
 ) -> None:
   if any_errors(parsers_results):
     for _, parse_errors, _ in parsers_results.values():
       utils.display_parsing_errors(parse_errors)
-    if args.strict_parsing:
-      utils.end_program_execution()
+    
+    utils.end_program_execution()
 
 
 def _parse_all_csv_files(
@@ -171,20 +172,20 @@ def _parse_all_csv_files(
   Returns:
     dictionary mapping EntryType to _ParserReturnType (a tuple of list of
     successfully parsed terms, a list of errors and the number of lines we read
-    in the CSV).
+    in the CSV file).
   """
   parsers_results = {}
   terms_csv = (
       args.terms_csv if args.terms_csv is not None else args.terms_csv_legacy
   )
   if terms_csv:
-    logger.info("Parsing terms input CSV...")
+    logger.info("Parsing terms input CSV file...")
     parsers_results[entry_type_lib.EntryType.TERM] = (
         terms_csv_parser.parse_glossary_csv(terms_csv)
     )
 
   if args.categories_csv:
-    logger.info("Parsing categories input CSV...")
+    logger.info("Parsing categories input CSV file...")
     parsers_results[entry_type_lib.EntryType.CATEGORY] = (
         categories_csv_parser.parse_glossary_csv(args.categories_csv)
     )
