@@ -582,7 +582,7 @@ class Glossary:
         logger.error(
             'Errors occurred during categories import.%s', error_log_suffix
         )
-        user_report.print_report_for_erronous_categories_import(
+        user_report.print_report_for_erroneous_categories_import(
             imported_categories, categories_import_errors
         )
         utils.end_program_execution()

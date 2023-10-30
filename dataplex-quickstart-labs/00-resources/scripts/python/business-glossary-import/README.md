@@ -44,6 +44,10 @@ export GCLOUD_ACCESS_TOKEN=$(gcloud auth print-access-token)
 
 The source CSV files shall adhere to RFC4180 format.
 
+However, currently, we do not allow a header line and all records should be
+encoded in UTF-8 charset. We expect values to be separated by comma (`,`)
+character.
+
 ### Categories CSV schema
 
 Each record in the categories CSV file represents a single category with the
