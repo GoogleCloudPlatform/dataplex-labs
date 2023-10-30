@@ -13,8 +13,7 @@ entries_name_type_pairs = [
 ]
 
 
-# Typo erronous
-def print_report_for_erronous_categories_import(
+def print_report_for_erroneous_categories_import(
     imported_categories: list[bg_category.Category],
     categories_import_errors: list[error.EntryImportError],
 ) -> None:

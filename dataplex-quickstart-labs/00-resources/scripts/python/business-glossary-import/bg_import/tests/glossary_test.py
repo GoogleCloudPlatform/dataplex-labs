@@ -90,9 +90,9 @@ class GlossaryTest(unittest.TestCase):
             return_value=expected_import_glossary_terms_ret,
         )
     )
-    mock_print_report_for_erronous_categories_import = self.enterContext(
+    mock_print_report_for_erroneous_categories_import = self.enterContext(
         mock.patch.object(
-            user_report, "print_report_for_erronous_categories_import"
+            user_report, "print_report_for_erroneous_categories_import"
         )
     )
     mock_end_program_execution = self.enterContext(
@@ -104,7 +104,7 @@ class GlossaryTest(unittest.TestCase):
     glossary.import_glossary(terms, categories)
 
     mock_import_glossary_categories.assert_called_once_with(categories)
-    mock_print_report_for_erronous_categories_import.assert_called_once_with(
+    mock_print_report_for_erroneous_categories_import.assert_called_once_with(
         expected_imported_categories, expected_categories_import_errors
     )
     mock_end_program_execution.assert_called_once()

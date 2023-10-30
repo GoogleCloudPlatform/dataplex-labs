@@ -110,8 +110,7 @@ def create_error_message(
       or extract_error_code(response_err)
       or base_err_description
   )
-  error_msg = f'{method_name} call to {url} returned: {err_description}'
-  return error_msg
+  return f'{method_name} call to {url} returned: {err_description}'
 
 
 def fetch_api_response(
