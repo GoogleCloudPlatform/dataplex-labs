@@ -65,6 +65,32 @@ class TermTest(unittest.TestCase):
     self.assertEqual(len(term1.data_stewards), 1)
     self.assertEqual(len(term2.data_stewards), 0)
 
+  def test_create_from_json(self):
+    term_entry = {
+        "name": "projects/123/locations/us/entryGroups/glossary_with_terms/entries/pii_data_xyz",
+        "displayName": "PII Data",
+        "coreAspects": {
+            "business_context": {
+                "jsonContent": {
+                    "description": "Personally Identifiable Information Data"
+                }
+            }
+        },
+    }
+    expected_term = bg_term.Term(
+        "PII Data",
+        "Personally Identifiable Information Data",
+        force_term_id="pii_data_xyz",
+    )
+
+    actual_term = bg_term.Term.from_dict(term_entry)
+    self.assertEqual(
+        actual_term.display_name, expected_term.display_name
+    )
+    self.assertEqual(actual_term.description, expected_term.description)
+    self.assertEqual(
+        actual_term.term_id, expected_term.term_id
+    )
 
 if __name__ == "__main__":
   unittest.main()

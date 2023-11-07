@@ -1,8 +1,9 @@
-"""Utility functions to parse each type of field in csv_parser.py."""
+"""Utility functions to parse each type of field in terms_csv_parser.py."""
 
 import re
 from typing import TypeVar
 
+import entry_type as entry_type_lib
 import error
 
 
@@ -11,7 +12,17 @@ _T = TypeVar("_T")
 _ParseResult = tuple[_T, _ParseErrors]
 
 
-def parse_str(s: str) -> _ParseResult[str | None]:
+def parse_category_str(s: str) -> _ParseResult[str | None]:
+  return _parse_str(entry_type_lib.EntryType.CATEGORY, s)
+
+
+def parse_term_str(s: str) -> _ParseResult[str | None]:
+  return _parse_str(entry_type_lib.EntryType.TERM, s)
+
+
+def _parse_str(
+    entry_type: entry_type_lib.EntryType, s: str
+) -> _ParseResult[str | None]:
   """Parses a single string.
 
   The parsed string might optionally be enclosed between double
@@ -19,6 +30,7 @@ def parse_str(s: str) -> _ParseResult[str | None]:
   in the string.
 
   Args:
+    entry_type: enum indicating parsed entry type (e.g. CATEGORY or TERM).
     s: input string.
 
   Returns:
@@ -27,14 +39,25 @@ def parse_str(s: str) -> _ParseResult[str | None]:
   """
   match = re.fullmatch(r'"[^"]*"|[^*]*', s)
   if match is None:
-    return None, [error.ParseError(f"Error parsing field {s}")]
+    return None, [error.ParseError(entry_type, f"Error parsing field {s}")]
   return match.group(0).strip('"').strip(), []
 
 
-def parse_data_stewards(s: str) -> _ParseResult[list[str]]:
+def parse_category_data_stewards(s: str) -> _ParseResult[list[str]]:
+  return _parse_data_stewards(entry_type_lib.EntryType.CATEGORY, s)
+
+
+def parse_term_data_stewards(s: str) -> _ParseResult[list[str]]:
+  return _parse_data_stewards(entry_type_lib.EntryType.TERM, s)
+
+
+def _parse_data_stewards(
+    entry_type: entry_type_lib.EntryType, s: str
+) -> _ParseResult[list[str]]:
   """Parses list of data stewards.
 
   Args:
+    entry_type: enum indicating parsed entry type (e.g. CATEGORY or TERM).
     s: A string to parse.
 
   Returns:
@@ -46,16 +69,18 @@ def parse_data_stewards(s: str) -> _ParseResult[list[str]]:
   for steward in unfiltered:
     if not steward:
       continue
-    data_steward = parse_data_steward(steward)
+    data_steward = _parse_data_steward(steward)
     if data_steward:
       data_stewards.append(data_steward)
     else:
-      errors.append(error.ParseError(f"Error parsing data steward {steward}"))
+      errors.append(
+          error.ParseError(entry_type, f"Error parsing data steward {steward}")
+      )
 
   return data_stewards, errors
 
 
-def parse_data_steward(s: str) -> str | None:
+def _parse_data_steward(s: str) -> str | None:
   """Parses a single data steward.
 
   Data stewards follows the pattern "Name <email>", where the name is optional.

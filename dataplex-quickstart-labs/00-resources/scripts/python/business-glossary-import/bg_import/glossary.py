@@ -1,30 +1,24 @@
 """Functions to get the state of glossary."""
 
-import enum
 import multiprocessing
 import re
 from typing import Any, Iterable, TypeVar
 
 import api_call_utils
+import category as bg_category
+import entry_type as entry_type_lib
 import error
 import glossary_identification
+import import_types
 import logging_utils
+import relation_type
 import requests
 import term as bg_term
+import user_report
+import utils
 
-
-_T = TypeVar('_T')
-_CreatedRelationship = tuple[str, str, _T]
 
 logger = logging_utils.get_logger()
-
-
-class RelationshipType(enum.Enum):
-  """Enum containing the types of relationships between terms.
-  """
-  SYNONYMOUS = 'is_synonymous_to'
-  RELATED = 'is_related_to'
-  DESCRIBED = 'is_described_by'
 
 
 class Glossary:
@@ -37,12 +31,13 @@ class Glossary:
   def __init__(self, config: glossary_identification.GlossaryId):
     self._config = config
     self._glossary_endpoint = Glossary._configure_endpoint_url(self._config)
+    self._category_cache: dict[str, bg_category.Category] = {}
     self._term_cache: dict[str, bg_term.Term] = {}
     self._glossary_uid = None
     # Load UID of the target glossary
     self._load_glossary_uid()
     # Store a mapping from display names to Term entries existing in DC
-    self._populate_term_cache()
+    self._populate_caches()
 
   @classmethod
   def _configure_endpoint_url(
@@ -80,20 +75,30 @@ class Glossary:
   def is_glossary_empty(self) -> bool:
     """Verify if targeted glossary is empty."""
 
-    if not self._term_cache:
+    has_categories = bool(self._category_cache)
+    has_terms = bool(self._term_cache)
+    if not has_categories and not has_terms:
       logger.info(
           f'Glossary with ID: {self._config.glossary_id} does not have any'
-          ' terms.'
+          ' categories nor terms.'
       )
       return True
 
-    logger.info(
-        f'Glossary with ID: {self._config.glossary_id} already has some terms.'
-    )
+    if has_categories:
+      logger.info(
+          f'Glossary with ID: {self._config.glossary_id} already has some'
+          ' categories.'
+      )
+
+    if has_terms:
+      logger.info(
+          f'Glossary with ID: {self._config.glossary_id} already has some'
+          ' terms.'
+      )
     return False
 
-  def _populate_term_cache(self) -> None:
-    """Populates an internal cache of terms existing in the target glossary."""
+  def _populate_caches(self):
+    """Populates internal caches of terms and categories existing in the target glossary."""
     endpoint = f'{self._glossary_endpoint}/entries?view=FULL'
     keep_reading, page_token = True, None
     while keep_reading:
@@ -117,27 +122,53 @@ class Glossary:
       if not page_token:
         keep_reading = False
 
-      # Read terms in the current page
-      for entry in response['json'].get('entries'):
-        if entry['entryType'] != 'glossary_term':
-          continue
-        term = bg_term.Term.from_json(entry)
-        if term:
-          self._term_cache[term.display_name] = term
-        else:
-          logger.warning(f'Could not import term from {entry}')
+      self._populate_term_cache(response)
+      self._populate_category_cache(response)
 
-  def _create_glossary_term(self, term: bg_term.Term) -> dict[str, Any]:
-    """Create new term in target glossary.
+  def _populate_term_cache(self, response: dict[str, Any]) -> None:
+    """Populates an internal cache of terms existing in the target glossary."""
+    for entry in response['json'].get('entries'):
+      if entry['entryType'] != 'glossary_term':
+        continue
+      term = bg_term.Term.from_dict(entry)
+      if term:
+        self._term_cache[term.display_name] = term
+      else:
+        logger.warning(f'Could not import term from {entry}')
+
+  def _populate_category_cache(self, response: dict[str, Any]) -> None:
+    """Populates an internal cache of categories existing in the target glossary."""
+    for entry in response['json'].get('entries'):
+      if entry['entryType'] != 'glossary_category':
+        continue
+      category = bg_category.Category.from_dict(entry)
+      if category:
+        self._category_cache[category.display_name] = category
+      else:
+        logger.warning(f'Could not import category from {entry}')
+
+  def _create_glossary_entry(
+      self, entry: bg_term.Term | bg_category.Category
+  ) -> dict[str, Any]:
+    """Create new entry (term or category) in target glossary.
 
     Args:
-      term: Term data object.
+      entry: entry data object - Term or Category.
 
     Returns:
       Dictionary with response and response code.
     """
+    endpoint = (
+        f'{self._glossary_endpoint}/entries?entry_id={entry.category_id}'
+        if isinstance(entry, bg_category.Category)
+        else f'{self._glossary_endpoint}/entries?entry_id={entry.term_id}'
+    )
 
-    endpoint = f'{self._glossary_endpoint}/entries?entry_id={term.term_id}'
+    entry_type = (
+        'glossary_category'
+        if isinstance(entry, bg_category.Category)
+        else 'glossary_term'
+    )
 
     dest_entry_name = (
         f'{self._glossary_endpoint}/entries/{self._config.glossary_id}'.replace(
@@ -150,14 +181,14 @@ class Glossary:
         endpoint,
         self._config.project_id,
         {
-            'entry_type': 'glossary_term',
-            'display_name': term.display_name,
+            'entry_type': entry_type,
+            'display_name': entry.display_name,
             'core_aspects': {
                 'business_context': {
                     'aspect_type': 'business_context',
                     'json_content': {
-                        'description': term.description,
-                        'contacts': term.data_stewards,
+                        'description': entry.description,
+                        'contacts': entry.data_stewards,
                     },
                 }
             },
@@ -167,6 +198,21 @@ class Glossary:
             },
         },
     )
+
+  def _create_glossary_categories(
+      self, categories: dict[int, bg_category.Category]
+  ) -> Iterable[Any]:
+    """Create new categories in the target glossary.
+
+    Args:
+      categories: Dictionary mapping from lines in the csv to categories
+
+    Returns:
+      Iterable containing errors
+    """
+    tasks = [(category,) for category in categories.values()]
+
+    return Glossary._parallelize(self._create_glossary_entry, tasks)
 
   def _create_glossary_terms(
       self, terms: dict[int, bg_term.Term]
@@ -178,48 +224,110 @@ class Glossary:
 
     Returns:
       Iterable containing errors
-
     """
     tasks = [(term,) for term in terms.values()]
 
-    return Glossary._parallelize(self._create_glossary_term, tasks)
+    return Glossary._parallelize(self._create_glossary_entry, tasks)
+
+  def _get_entry_from_cache(
+      self, display_name: str, entry_type: entry_type_lib.EntryType
+  ) -> bg_term.Term | bg_category.Category | None:
+    """Returns entry (term or category) based on display_name and entry_type.
+
+    Args:
+      display_name: string indicating display_name of the entry
+      entry_type: EntryType enum indicating entry type
+
+    Returns:
+    """
+    if entry_type == entry_type_lib.EntryType.CATEGORY:
+      return self._category_cache.get(display_name)
+    elif entry_type == entry_type_lib.EntryType.TERM:
+      return self._term_cache.get(display_name)
+    return None
+
+  def _get_entry_id_from_cache(
+      self, display_name: str, entry_type: entry_type_lib.EntryType
+  ) -> str | None:
+    entry = self._get_entry_from_cache(display_name, entry_type)
+    if isinstance(entry, bg_term.Term):
+      return entry.term_id
+    elif isinstance(entry, bg_category.Category):
+      return entry.category_id
+    return None
 
   def _is_relationship_valid(
-      self, src: str, dst: str, relationship_type: RelationshipType
+      self,
+      src_display_name: str,
+      src_type: entry_type_lib.EntryType,
+      dst_display_name: str,
+      dst_type: entry_type_lib.EntryType,
+      relationship_type: relation_type.RelationshipType,
   ) -> tuple[bool, str | None]:
     """Check if both terms in a relationship exist in the cache of terms.
 
     Args:
-      src: First term of the relationship.
-      dst: Second term of the relationship.
-      relationship_type: RelationshipType.
+      src_display_name: Display name of the first entry of the relationship.
+      src_type: EntryType of the source entry.
+      dst_display_name: Display name of the second entry of the relationship.
+      dst_type: EntryType of the destination entry.
+      relationship_type: RELATED, SYNONYMOUS, DESCRIBED or BELONGS_TO.
 
     Returns:
       A boolean value specifying if the relationship was created.
       An optional error message containing the reason why the relationship is
         not valid.
     """
-    if src == dst:
-      err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src}" and itself.'
-      )
-      return False, err
+    src_entry = self._get_entry_from_cache(src_display_name, src_type)
+    dst_entry = self._get_entry_from_cache(dst_display_name, dst_type)
+
+    # Described is a relation between asset (not present in the internal cache)
+    # and term. We want to check validity of this special relation as first.
     if (
-        relationship_type != RelationshipType.DESCRIBED
-        and src not in self._term_cache
+        relationship_type == relation_type.RelationshipType.DESCRIBED
+        and src_type == entry_type_lib.EntryType.TERM
+        and dst_type == entry_type_lib.EntryType.TERM
+        and dst_entry
+    ):
+      return True, None
+    if relationship_type == relation_type.RelationshipType.DESCRIBED and (
+        src_type != entry_type_lib.EntryType.TERM
+        or dst_type != entry_type_lib.EntryType.TERM
     ):
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src}" and "{dst}" because "{src}" doesn\'t exist in the'
-          ' CSV.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because "{src_type}"'
+          f' is not a term or "{dst_type}" is not a term.'
       )
       return False, err
-    elif dst not in self._term_cache:
+    if src_display_name == dst_display_name and src_type == dst_type:
       err = (
-          f'Won\'t be able to create a "{relationship_type.value}" relation'
-          f' between "{src}" and "{dst}" because "{dst}" doesn\'t exist in the'
-          ' CSV.'
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and itself.'
+      )
+      return False, err
+    if not src_entry:
+      err = (
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
+          f' "{src_display_name}" doesn\'t exist in the CSV file.'
+      )
+      return False, err
+    elif not dst_entry:
+      err = (
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
+          f' "{dst_display_name}" doesn\'t exist in the CSV file.'
+      )
+      return False, err
+    elif (
+        relationship_type == relation_type.RelationshipType.BELONGS_TO
+        and dst_type != entry_type_lib.EntryType.CATEGORY
+    ):
+      err = (
+          f'Cannot create "{relationship_type.value}" relation between'
+          f' "{src_display_name}" and "{dst_display_name}" because'
+          f' "{dst_display_name}" is not a category.'
       )
       return False, err
     return True, None
@@ -254,43 +362,54 @@ class Glossary:
 
   def _create_relationship(
       self,
-      src: str,
-      dst: str,
-      relationship_type: RelationshipType
-  ) -> error.TermImportError | None:
-    """Create a relationship between two terms in DC Business Glossary.
+      src_display_name: str,
+      src_type: entry_type_lib.EntryType,
+      dst_display_name: str,
+      dst_type: entry_type_lib.EntryType,
+      relationship_type: relation_type.RelationshipType,
+  ) -> error.EntryImportError | None:
+    """Create a relationship between two entries in DC Business Glossary.
 
     Args:
-      src: source end of the relationship.
-      dst: destination end of the relationship.
-      relationship_type: RELATED, SYNONYMOUS or DESCRIBED.
+      src_display_name: display name of the source end of the relationship.
+      src_type: EntryType of the source end.
+      dst_display_name: display name of the destination end of the relationship.
+      dst_type: EntryType of the destination end.
+      relationship_type: RELATED, SYNONYMOUS, DESCRIBED or BELONGS_TO.
+
     Returns:
       An error, if any.
     """
 
     valid, error_msg = self._is_relationship_valid(
-        src, dst, relationship_type
+        src_display_name,
+        src_type,
+        dst_display_name,
+        dst_type,
+        relationship_type,
     )
     if not valid:
-      return error.TermImportError(
+      return error.EntryImportError(
+          src_type,
           -1,
-          [src, dst],
+          [src_display_name, dst_display_name],
           error_msg,
-          operation=f'create_{relationship_type.value}_relationship',
+          operation=f'create_{relationship_type.value}_relationship_validation',
       )
 
-    if relationship_type == RelationshipType.DESCRIBED:
+    if relationship_type == relation_type.RelationshipType.DESCRIBED:
       # If the asset has a field or column specified we extract it
       # e.g. for projects/123/locations/us-central1/entryGroups/abc/
       # entries/fileset:field1,
       # we want to split the asset
       # [projects/123/locations/us-central1/entryGroups/abc/entries/fileset]
       # from the subfield [field1]
-      entry, source_column = Glossary._parse_entry_path(src)
+      entry, source_column = Glossary._parse_entry_path(src_display_name)
       if entry is None:
-        return error.TermImportError(
+        return error.EntryImportError(
+            src_type,
             -1,
-            [src],
+            [src_display_name],
             (
                 'Resource does not conform with the expected '
                 '"projects/{project_id}/locations/{location}/entryGroups/'
@@ -301,19 +420,35 @@ class Glossary:
 
       # For assets described by a term, we use the asset name after extracting
       # the field or column (if any)
-      endpoint = (
-          'https://datacatalog.googleapis.com/'
-          f'v2/{entry}/relationships'
-      )
+      endpoint = f'https://datacatalog.googleapis.com/v2/{entry}/relationships'
     else:
-      # For other terms, we use the internal term_id
-      endpoint = f'{self._glossary_endpoint}/entries/{self._term_cache[src].term_id}/relationships'
+      # For other entries, we use the internal id
+      src_entry_id = self._get_entry_id_from_cache(src_display_name, src_type)
+      if not src_entry_id:
+        return error.EntryImportError(
+            src_type,
+            -1,
+            [src_display_name, dst_display_name],
+            f'Source entry {src_display_name} not found.',
+            operation=f'create_{relationship_type.value}_relationship',
+        )
+      endpoint = (
+          f'{self._glossary_endpoint}/entries/{src_entry_id}/relationships'
+      )
       # Source column is not used
       source_column = None
 
+    dst_entry_id = self._get_entry_id_from_cache(dst_display_name, dst_type)
+    if not dst_entry_id:
+      return error.EntryImportError(
+          src_type,
+          -1,
+          [src_display_name, dst_display_name],
+          f'Destination entry {dst_display_name} not found.',
+          operation=f'create_{relationship_type.value}_relationship',
+      )
     dest_entry_name = (
-        f'{self._glossary_endpoint}/entries/'
-        f'{self._term_cache[dst].term_id}'
+        f'{self._glossary_endpoint}/entries/{dst_entry_id}'
     ).replace('https://datacatalog.googleapis.com/v2/', '')
 
     # JSON content of the request
@@ -325,7 +460,10 @@ class Glossary:
     # If a field or column in the endpoint was specified for a is_described_by
     # relationship, we express it by using the source_column field of the
     # payload
-    if relationship_type == RelationshipType.DESCRIBED and source_column:
+    if (
+        relationship_type == relation_type.RelationshipType.DESCRIBED
+        and source_column
+    ):
       request_body['source_column'] = source_column
 
     ret = api_call_utils.fetch_api_response(
@@ -337,38 +475,51 @@ class Glossary:
 
     err = ret['error_msg']
     if err:
-      return error.TermImportError(
+      return error.EntryImportError(
+          src_type,
           -1,
-          [src, dst],
+          [src_display_name, dst_display_name],
           message=err,
           operation=f'create_{relationship_type.value}_relationship',
       )
 
   def _create_relationships(
       self,
-      related_terms: set[tuple[str, str]],
-      relationship_type: RelationshipType
+      src_type: entry_type_lib.EntryType,
+      dst_type: entry_type_lib.EntryType,
+      related_entries: set[tuple[str, str]],
+      relationship_type: relation_type.RelationshipType,
   ) -> tuple[
-      list[_CreatedRelationship[RelationshipType]],
-      list[error.TermImportError]
-    ]:
-    """Create a relationship between two terms in DC Business Glossary.
+    list[import_types._CreatedRelationship[relation_type.RelationshipType]],
+    list[error.EntryImportError],
+  ]:
+    """Create a relationship between two entries in DC Business Glossary.
 
     Args:
-      related_terms: Set of tuples containing the terms to create the
+      src_type: EntryType of source entries
+      dst_type: EntryType of destination entries
+      related_entries: Set of tuples containing the entries to create the
         relationship for
-      relationship_type: RelationshipType.SYNONYMOUS, RelationshipType.RELATED
-        or RelasionshipType.DESCRIBED
+      relationship_type: SYNONYMOUS, RELATED, DESCRIBED or BELONGS_TO
+
     Returns:
-      List of TermImportError
+      List of EntryImportError
     """
-    errors: list[error.TermImportError] = []
-    successful_relations: list[_CreatedRelationship[RelationshipType]] = []
-    if not related_terms:
+    errors: list[error.EntryImportError] = []
+    successful_relations: list[
+      import_types._CreatedRelationship[relation_type.RelationshipType]
+    ] = []
+    if not related_entries:
       return successful_relations, errors
 
-    logger.info(f'Adding {relationship_type.value} relations between terms...')
-    tasks = [(src, dst, relationship_type,) for src, dst in related_terms]
+    logger.info(
+        f'Adding {relationship_type.value} relation between'
+        f' {src_type.value} and {dst_type.value} entries...'
+    )
+    tasks = [
+        (src, src_type, dst, dst_type, relationship_type)
+        for src, dst in related_entries
+    ]
 
     ret = Glossary._parallelize(self._create_relationship, tasks)
 
@@ -376,7 +527,9 @@ class Glossary:
       if err:
         errors.append(err)
       else:
-        successful_relations.append(task)
+        src, _, dst, _, _ = task
+        successful_relation = (src, dst, relationship_type)
+        successful_relations.append(successful_relation)
 
     return successful_relations, errors
 
@@ -387,25 +540,165 @@ class Glossary:
     return results
 
   def import_glossary(
+      self,
+      terms: dict[int, bg_term.Term] | None,
+      categories: dict[int, bg_category.Category] | None,
+  ) -> import_types._ImportResult:
+    """Imports categories, terms and relationships to Data Catalog Business Glossary.
+
+    Args:
+      terms: dictionary indicating Term object for related line number
+      categories: dictionary indicating Category object for related line number
+
+    Returns:
+      A tuple consisting of:
+      * dictionary mapping EntryType to list of imported Entries (Terms or
+        Categories)
+      * dictionary mapping EntryType to list of imported relations
+      * lit of import errors
+    """
+    imported_entries = {}
+    imported_relations = {
+        entry_type_lib.EntryType.TERM: [],
+        entry_type_lib.EntryType.CATEGORY: [],
+    }
+    import_errors = []
+    not_imported_category_belongs_to_category_relations = set()
+
+    # Import categories if they were parsed
+    if categories is not None:
+      (
+          imported_categories,
+          not_imported_belongs_to_relations,
+          categories_import_errors,
+      ) = self._import_glossary_categories(categories)
+      imported_entries[entry_type_lib.EntryType.CATEGORY] = imported_categories
+      import_errors.extend(categories_import_errors)
+      not_imported_category_belongs_to_category_relations.update(
+          not_imported_belongs_to_relations
+      )
+      if categories_import_errors:
+        error_log_suffix = ' No terms were imported.' if terms else ''
+        logger.error(
+            'Errors occurred during categories import.%s', error_log_suffix
+        )
+        user_report.print_report_for_erroneous_categories_import(
+            imported_categories, categories_import_errors
+        )
+        utils.end_program_execution()
+
+    # Import terms if they were parsed
+    if terms is not None:
+      (
+          imported_terms,
+          imported_relations_term_to_term,
+          terms_import_errors,
+      ) = self._import_glossary_terms(terms)
+      imported_entries[entry_type_lib.EntryType.TERM] = imported_terms
+      imported_relations[entry_type_lib.EntryType.TERM].extend(
+          imported_relations_term_to_term
+      )
+      import_errors.extend(terms_import_errors)
+
+    # Import category belongs_to category relations as second (due to hierarhcy
+    # limit)
+    (
+        imported_relations_category_to_category,
+        category_to_category_relations_import_error,
+    ) = self._create_relationships(
+        src_type=entry_type_lib.EntryType.CATEGORY,
+        dst_type=entry_type_lib.EntryType.CATEGORY,
+        related_entries=not_imported_category_belongs_to_category_relations,
+        relationship_type=relation_type.RelationshipType.BELONGS_TO,
+    )
+    imported_relations[entry_type_lib.EntryType.CATEGORY].extend(
+        imported_relations_category_to_category
+    )
+    import_errors.extend(category_to_category_relations_import_error)
+
+    return (imported_entries, imported_relations, import_errors)
+
+  def _import_glossary_categories(
+      self, categories: dict[int, bg_category.Category]
+  ) -> tuple[
+    list[bg_category.Category],
+    set[tuple[str, str]],
+    list[error.EntryImportError],
+  ]:
+    """Imports categories into Data Catalog Business Glossary.
+
+    Args:
+      categories: List of categories to add to the glossary.
+
+    Returns:
+      A tuple containing:
+      * a list of successfully imported categories
+      * a set of unimported category belongs_to category relations,
+      * a list of import errors
+    """
+    category_import_errors: list[error.EntryImportError] = []
+    # We want to import category belongs_to category relations later.
+    # Due to hierarchy height limit we allow terms to create belongs_to
+    # relationships first.
+    not_imported_belongs_to_relations = set()
+
+    # Create category entries
+    ret = self._create_glossary_categories(categories)
+
+    # Gather category creation results and prepare relationships
+    for elem_order, response in zip(categories.items(), ret):
+      line_num, category = elem_order
+      err = response['error_msg']
+
+      if err:
+        new_error = error.EntryImportError(
+            entry_type_lib.EntryType.CATEGORY,
+            line_num,
+            [category.display_name],
+            message=err,
+            operation='add_new_category',
+        )
+        category_import_errors.append(new_error)
+      else:
+        # Populate internal category cache
+        self._category_cache[category.display_name] = category
+
+        # Add belongs to category relations to create later
+        if category.belongs_to_category:
+          not_imported_belongs_to_relations.add(
+              (category.display_name, category.belongs_to_category)
+          )
+
+    return (
+        list(self._category_cache.values()),
+        not_imported_belongs_to_relations,
+        category_import_errors,
+    )
+
+  def _import_glossary_terms(
       self, terms: dict[int, bg_term.Term]
   ) -> tuple[
-      list[bg_term.Term],
-      list[_CreatedRelationship[RelationshipType]],
-      list[error.TermImportError]
-    ]:
+    list[bg_term.Term],
+    list[import_types._CreatedRelationship[relation_type.RelationshipType]],
+    list[error.EntryImportError],
+  ]:
     """Imports terms into Data Catalog Business Glossary.
 
     Args:
       terms: List of terms to add to the glossary.
 
     Returns:
-      A list of successfully imported terms, and a list of import errors.
+      A tuple containing:
+      * a list of successfully imported terms
+      * a list of imported relations,
+      * a list of import errors
     """
-    term_import_errors: list[error.TermImportError] = []
+    term_import_errors: list[error.EntryImportError] = []
     imported_relations = []
     synonym_relations = set()
     related_term_relations = set()
     tagged_asset_relations = set()
+    belongs_to_relations = set()
 
     # Create term entries
     ret = self._create_glossary_terms(terms)
@@ -416,7 +709,8 @@ class Glossary:
       err = response['error_msg']
 
       if err:
-        new_error = error.TermImportError(
+        new_error = error.EntryImportError(
+            entry_type_lib.EntryType.TERM,
             line_num,
             [term.display_name],
             message=err,
@@ -450,15 +744,44 @@ class Glossary:
           # once.
           tagged_asset_relations.add((src, term.display_name))
 
+        # Add belongs to category relations to create
+        if term.belongs_to_category:
+          belongs_to_relations.add(
+              (term.display_name, term.belongs_to_category)
+          )
+
     tasks = [
-        (synonym_relations, RelationshipType.SYNONYMOUS),
-        (related_term_relations, RelationshipType.RELATED),
-        (tagged_asset_relations, RelationshipType.DESCRIBED),
+        (
+            entry_type_lib.EntryType.TERM,
+            entry_type_lib.EntryType.TERM,
+            synonym_relations,
+            relation_type.RelationshipType.SYNONYMOUS,
+        ),
+        (
+            entry_type_lib.EntryType.TERM,
+            entry_type_lib.EntryType.TERM,
+            related_term_relations,
+            relation_type.RelationshipType.RELATED,
+        ),
+        (
+            entry_type_lib.EntryType.TERM,
+            entry_type_lib.EntryType.TERM,
+            tagged_asset_relations,
+            relation_type.RelationshipType.DESCRIBED,
+        ),
+        (
+            entry_type_lib.EntryType.TERM,
+            entry_type_lib.EntryType.CATEGORY,
+            belongs_to_relations,
+            relation_type.RelationshipType.BELONGS_TO,
+        ),
     ]
-    for relations, rel_type in tasks:
+    for src_type, dst_type, relations, rel_type in tasks:
       created_relationships, errors = self._create_relationships(
-          relations,
-          rel_type
+          src_type=src_type,
+          dst_type=dst_type,
+          related_entries=relations,
+          relationship_type=rel_type,
       )
       imported_relations.extend(created_relationships)
       term_import_errors.extend(errors)
@@ -469,24 +792,24 @@ class Glossary:
         term_import_errors,
     )
 
-  def _remove_glossary_term(self, term_id: str) -> dict[str, Any]:
-    """Remove term in target glossary.
+  def _remove_glossary_entry(self, entry_id: str) -> dict[str, Any]:
+    """Remove entry in target glossary.
 
     Args:
-      term_id: Term id in the target glossary.
+      entry_id: Entry id in the target glossary.
 
     Returns:
       Dictionary with response and response code.
     """
 
-    endpoint = f'{self._glossary_endpoint}/entries/{term_id}'
+    endpoint = f'{self._glossary_endpoint}/entries/{entry_id}'
 
     return api_call_utils.fetch_api_response(
         requests.delete, endpoint, self._config.project_id
     )
 
   def clear_glossary(self) -> bool:
-    """Remove existing terms from a Data Catalog Business Glossary.
+    """Remove existing terms and categories from a Data Catalog Business Glossary.
 
     Args:
       None.
@@ -494,22 +817,27 @@ class Glossary:
     Returns:
       A boolean indicating if the operation succeeded.
     """
-    logger.info('Clearing the existing terms in the target glossary.')
+    logger.info(
+        'Clearing the existing terms and categories in the target glossary.'
+    )
     tasks = []
     for term in self._term_cache.values():
       tasks.append((term.term_id,))
+    for category in self._category_cache.values():
+      tasks.append((category.category_id,))
 
-    ret = Glossary._parallelize(self._remove_glossary_term, tasks)
+    ret = Glossary._parallelize(self._remove_glossary_entry, tasks)
     for response in ret:
       err = response['error_msg']
 
       if err:
         logger.error(
-            'Could not delete term from the target glossary.'
+            'Could not delete entry (term or catgory) from the target glossary.'
         )
         return False
 
     # Refresh term cache
     self._term_cache = {}
+    self._category_cache = {}
 
     return True

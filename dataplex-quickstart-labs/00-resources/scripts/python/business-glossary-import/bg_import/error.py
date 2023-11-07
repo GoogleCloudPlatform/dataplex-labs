@@ -1,15 +1,18 @@
 """Auxiliary classes to encapsulate errors.
 
 Typical usage example:
-  error = TermImportError(line=1,
+  error = EntryImportError(
+                          entry_type=EntryType.TERM,
+                          line=1,
                           column=1,
                           resources=["Term 1", "Term 2"],
                           operation="create_synonym_relationship")
   print(error.to_string())
-
 """
 
 import abc
+
+import entry_type as entry_type_lib
 
 _MAX_CHARS_PER_LINE = 120
 
@@ -18,8 +21,10 @@ class Error(abc.ABC):
   """Base class for Error.
 
   Attributes:
-    line: An integer containing the line of the record in the CSV.
-    column: An integer containing the column of the error in the CSV.
+    entry_type: An enum containing the type of the record in the CSV file (e.g.
+      TERM, CATEGORY).
+    line: An integer containing the line of the record in the CSV file.
+    column: An integer containing the column of the error in the CSV file.
     resources: A list of the resources (terms, FQNs, entries, etc) that caused
       the error.
     message: An optional string indicating a fix for the error.
@@ -30,12 +35,14 @@ class Error(abc.ABC):
 
   def __init__(
       self,
+      entry_type: entry_type_lib.EntryType,
       line: int,
       column: int,
       resources: list[str],
       message: str | None = None,
       record: list[str] | None = None,
   ):
+    self.entry_type = entry_type
     self.line = line
     self.column = column
     self.resources = resources
@@ -49,6 +56,7 @@ class Error(abc.ABC):
   def to_string(self) -> str:
     """Generates a string containing details on the error."""
     err = []
+    err.append(f"{self.entry_type.value}")
     if self.line >= 1:
       err.append(f"Line {self.line}")
     if self.column >= 1:
@@ -123,21 +131,23 @@ class Error(abc.ABC):
 class ParseError(Error):
   """Initializes an instance of ParseError.
 
-  ParseError objects are populated during the CSV parsing and validation phase.
+  ParseError objects are populated during the CSV file parsing and validation
+  phase.
   """
 
   def __init__(
       self,
+      entry_type: entry_type_lib.EntryType,
       message: str,
       line: int = -1,
       column: int = -1,
       resources: list[str] | None = None,
       record: list[str] | None = None,
   ):  # pylint: disable=useless-parent-delegation
-    super().__init__(line, column, resources or [], message, record)
+    super().__init__(entry_type, line, column, resources or [], message, record)
 
 
-class TermImportError(Error):
+class EntryImportError(Error):
   """Initializes an instance of ImportError.
 
   ImportError objects are populated during the term import phase.
@@ -145,6 +155,7 @@ class TermImportError(Error):
 
   def __init__(
       self,
+      entry_type: entry_type_lib.EntryType,
       line: int,
       resources: list[str],
       message: str | None = None,
@@ -152,5 +163,5 @@ class TermImportError(Error):
       record: list[str] | None = None,
   ):
     assert len(resources) >= 1
-    super().__init__(line, -1, resources, message, record)
+    super().__init__(entry_type, line, -1, resources, message, record)
     self.operation = operation
