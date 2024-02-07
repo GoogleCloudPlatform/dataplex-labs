@@ -63,7 +63,7 @@ Complete the lab modules in a sequential manner. For a better lab experience, re
 | 04 | Organize | [Register assets into your Dataplex lake zones](02-lab-guide/module-04-register-assets-into-zones.md) | 15  |
 | 05 | Discovery |[Discovery of structured Cloud Storage objects - study of entities, schemas, automated external table defintions in Dataproc Metastore Service and BigQuery](02-lab-guide/module-06-discovery.md) | 15  |
 | 06 | Catalog | [Dataplex Catalog basics](02-lab-guide/module-08-1-catalog-basics.md) | 10  |
-| 07 | Catalog | [Creating a tag template in Dataplex and populating tags](02-lab-guide/module-08-2-create-tag-template-for-catalog-entry.md) | 15  |
+| 07 | Catalog | [Creating a tag template in Dataplex and populating tags](02-lab-guide/module-08-3-create-tag-template-for-catalog-entry.md) | 15  |
 | 08 | Catalog | [Creating a custom metadata entry in Dataplex Catalog](02-lab-guide/module-08-3-custom-entry-in-catalog.md) | 10  |
 | 09 | Catalog | [Creating a custom metadata filesets entry in Dataplex Catalog](02-lab-guide/module-08-7-create-fileset-entry-in-catalog.md) | 10  |
 | 10 | Catalog | [Create an overview of a Dataplex Catalog entry](02-lab-guide/module-08-4-create-overview-for-catalog-entry.md) | 10  |
