@@ -1,6 +1,6 @@
-# M8-2: Create a custom entry in Dataplex Catalog & designate a steward
+# M8-7: Create a custom entry in Dataplex Catalog for a fileset & assign a tag template
 
-In this lab module, we will learn how to create entries in Cloud Catalog, manually, using the Metadata API. We will first create an entry group and then an entry belonging to the group. In a subsequent lab, we will use it to demonstrate lineage. We will designate a steward for the entry.
+In this lab module, we will learn how to create entries in Cloud Catalog, manually, using gcloud commands. We will first create an entry group and then an entry belonging to the group. We will also show applying a tag template to the filesets.
 
 ### Prerequisites
 Successful completion of prior modules
