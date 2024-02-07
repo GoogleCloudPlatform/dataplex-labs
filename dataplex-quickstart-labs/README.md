@@ -135,4 +135,4 @@ If you have any questions or if you found any problems with this repository, ple
 | 20230921 |  Module on Data Profiling redone from BQ UI | Jay O' Leary| Anagha Khanolkar|
 | 20230921 |  New module for Dataproc Lineage | Anagha Khanolkar|
 | 20230921 |  Removed references to Explore |  Anagha Khanolkar|
-
+| 20240207 |  Added example of Filesets Catalog Entry Type |  Jay O'Leary|
