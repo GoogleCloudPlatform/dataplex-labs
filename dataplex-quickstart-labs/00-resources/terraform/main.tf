@@ -43,6 +43,7 @@ lab_notebook_bucket         = "raw-notebook-${local.project_nbr}"
 lab_model_bucket            = "raw-model-${local.project_nbr}"
 lab_bundle_bucket           = "raw-model-mleap-bundle-${local.project_nbr}"
 lab_metrics_bucket          = "raw-model-metrics-${local.project_nbr}"
+lab_image_bucket            = "image-data-${local.project_nbr}"
 lab_scheduled_output_bucket = "scheduled-runs-output-${local.project_nbr}"
 
 lab_data_bucket_curated     = "curated-data-${local.project_nbr}"
@@ -502,6 +503,17 @@ resource "google_storage_bucket" "lab_data_bucket_product_creation" {
   ]
 }
 
+resource "google_storage_bucket" "lab_image_bucket_creation" {
+  project                           = local.project_id 
+  name                              = local.lab_image_bucket
+  location                          = local.location_multi
+  uniform_bucket_level_access       = true
+  force_destroy                     = true
+  depends_on = [
+      time_sleep.sleep_after_identities_permissions
+  ]
+}
+
 
 /*******************************************
 Introducing sleep to minimize errors from
@@ -520,8 +532,8 @@ resource "time_sleep" "sleep_after_bucket_creation" {
     google_storage_bucket.lab_bundle_bucket_creation,
     google_storage_bucket.lab_data_bucket_curated_creation,
     google_storage_bucket.lab_data_bucket_product_creation,
-    google_storage_bucket.lab_sensitive_data_bucket_raw_creation
-
+    google_storage_bucket.lab_sensitive_data_bucket_raw_creation,
+    google_storage_bucket.lab_image_bucket_creation
   ]
 }
 
@@ -644,6 +656,26 @@ resource "google_storage_bucket_object" "upload_to_gcs_code_raw" {
 
 }
 
+resource "google_storage_bucket_object" "upload_version1_to_image_bucket" {
+  for_each    = fileset("../datasets/images/version1", "**")
+  bucket      = google_storage_bucket.lab_image_bucket_creation.name
+  source      = "../datasets/images/version1/${each.key}"
+  name        = "version1/${each.key}"
+  depends_on = [
+    time_sleep.sleep_after_bucket_creation
+  ]
+}
+
+resource "google_storage_bucket_object" "upload_version2_to_image_bucket" {
+  for_each    = fileset("../datasets/images/version2", "**")
+  bucket      = google_storage_bucket.lab_image_bucket_creation.name
+  source      = "../datasets/images/version2/${each.key}"
+  name        = "version2/${each.key}"
+  depends_on = [
+    time_sleep.sleep_after_bucket_creation
+  ]
+}
+
 /*******************************************
 Introducing sleep to minimize errors from
 dependencies having not completed
@@ -672,6 +704,7 @@ resource "google_dataproc_metastore_service" "datalake_metastore" {
   service_id    = local.lab_dpms_nm
   location      = local.location
   tier          = "DEVELOPER"
+  project       = var.project_id 
 
  maintenance_window {
     hour_of_day = 2
