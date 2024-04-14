@@ -45,7 +45,7 @@ PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
 GCP_ACCOUNT_NAME=`gcloud auth list --filter=status:ACTIVE --format="value(account)"`
 ORG_ID=`gcloud organizations list --format="value(name)"`
-CLOUD_COMPOSER_IMG_VERSION="composer-2.1.3-airflow-2.3.4"
+CLOUD_COMPOSER_IMG_VERSION="composer-2.6.6-airflow-2.5.3"
 YOUR_GCP_REGION="us-central1"
 YOUR_GCP_ZONE="us-central1-a"
 YOUR_GCP_MULTI_REGION="US"
