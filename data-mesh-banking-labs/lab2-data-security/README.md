@@ -95,7 +95,7 @@ Here you will grant "customer-sa@" service account the data owner role for custo
 
     curl -X \
     GET -H \
-    "Authorization: Bearer $(gcloud auth print-access-token --impersonate -service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com)" -H \
+    "Authorization: Bearer $(gcloud auth print-access-token --impersonate-service-account=customer-sa@${PROJECT_ID}.iam.gserviceaccount.com)" -H \
     "Content-Type: application.json"  https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT_ID}/datasets/customer_refined_data/tables?maxResults=10
     ```
     Sample output: 
