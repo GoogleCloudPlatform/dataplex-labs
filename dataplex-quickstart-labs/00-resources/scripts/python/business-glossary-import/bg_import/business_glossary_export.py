@@ -93,7 +93,7 @@ def fetch_entry_info(entry_name: str, project: str) -> Dict[str, Any]:
   Returns:
       A dictionary containing the entry details.
   """
-  fetch_entry_info_url = DATACATALOG_BASE_URL + f'{entry_name}'
+  fetch_entry_info_url = DATACATALOG_BASE_URL + f'/{entry_name}'
 
   response = api_call_utils.fetch_api_response(
       requests.get, fetch_entry_info_url, project
@@ -113,7 +113,7 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
   Returns:
       A list of dictionaries containing the relationships.
   """
-  fetch_relationships_url = DATACATALOG_BASE_URL + f'{entry_name}/relationships'
+  fetch_relationships_url = DATACATALOG_BASE_URL + f'/{entry_name}/relationships'
   response = api_call_utils.fetch_api_response(
       requests.get, fetch_relationships_url, project
   )
