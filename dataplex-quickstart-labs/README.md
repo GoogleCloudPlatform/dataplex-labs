@@ -7,6 +7,12 @@ Dataplex is a Google Cloud service for Data Governance and Management. Using Dat
 This repository is designed to demystify Dataplex features, through a series of self-contained instructional lab modules, with minimal automation, detailed instructions with screenshots for the full developer experience. Once you are well versed with Dataplex, you can proceeed to the advanced labs that feature Data Mesh. The labs are product sponsored and you can expect to see new modules released as and when there are new features/updates to features announced.
 
 <hr>
+<hr>
+
+**NOTE: There have been changes to the Dataplex APIs. The labs are community contributed, dated and a best effort to keep current. We recommend reading the docs, trying out the lab well ahead of any demos you may be planning and fixing any issues arising from API changes. ** 
+
+<hr>
+<hr>
 
 ## 2. Format & Duration
 The lab is fully scripted (no research needed), with (fully automated) environment setup, data, code, commands, notebooks, orchestration, and configuration. Clone the repo and follow the step by step instructions for an end to end developer experience. <br><br>
