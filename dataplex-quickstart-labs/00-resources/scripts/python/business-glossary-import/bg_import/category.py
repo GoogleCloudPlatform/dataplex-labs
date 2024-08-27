@@ -54,14 +54,25 @@ class Category:
 
   def _generate_category_id(self):
     """Unique glossary category ID."""
+    random_length = 7
+    max_term_id_length = 64
+
     if not self.display_name:
       return ""
-    infix = re.sub(r"[^a-zA-Z0-9_]", "_", self.display_name).lower()
-    prefix = "_" if infix[0].isdigit() else ""
-    suffix = "".join(
-        random.choices(string.ascii_lowercase + string.digits, k=7)
+
+    max_length = min(len(self.display_name), max_term_id_length - random_length)
+    unique_id = re.sub(r"[^a-zA-Z0-9_]", "_", self.display_name).lower()[
+        :max_length
+    ]
+
+    unique_id = unique_id + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=random_length)
     )
-    return f"{prefix}{infix}{suffix}"
+
+    if unique_id[0].isdigit():
+      unique_id = "_" + unique_id
+
+    return unique_id[:max_term_id_length]
 
   @classmethod
   def from_dict(cls, entry: dict[str, Any]) -> Category | None:

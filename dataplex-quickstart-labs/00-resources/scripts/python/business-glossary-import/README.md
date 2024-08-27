@@ -1,17 +1,16 @@
 # Overview
 
-`bg_import` is a utility that performs bulk import of categories and terms into
-a Data Catalog business glossary from CSV files. To achieve that, the CSV files - one for
-categories and one for terms - are parsed and validated. The resulting list of
-categories and terms are then added into the target glossary via Data Catalog
-API. If any errors occur at any stage of the process then an error report is
-printed and import continues or completely stops depending on input flags.
+`bg_import` is a utility that performs bulk import and export of categories and terms into a Data Catalog business glossary using CSV files. To achieve the import functionality, the CSV files - one for categories and one for terms - are parsed and validated. The resulting list of categories and terms are then added into the target glossary via Data Catalog API. If any errors occur at any stage of the process then an error report is printed and import continues or completely stops depending on input flags. Additionally, the export functionality allows you to export the data from a Data Catalog business glossary to CSV files. This feature retrieves all glossary entries (both categories and terms) and writes them to separate CSV files. 
 
 Business Glossary API is currently on private preview, and it needs to be
 enabled on the project for it to be used.
 
+
+
+
 ## Usage
 
+### Import
 ```
 python3 bg_import/business_glossary_import.py <terms csv file legacy>
   --project=<project_id>
@@ -31,6 +30,20 @@ is deprecated. \
 Run `python3 bg_import/business_glossary_import.py -h` for description of
 individual arguments.
 
+### Export
+```
+python3 bg_import/business_glossary_export.py 
+  --project=${PROJECT} 
+  --group=${ENTRY_GROUP} 
+  --glossary=${GLOSSARY} 
+  --location=${LOCATION} 
+  --categories-csv=<categories csv file>
+  --terms-csv=<terms csv file>
+  [-h]
+```
+
+* Provide a terms CSV file and categories CSV file using `--terms-csv` argument, `--categories-csv` argument respectively to export the terms and categories.
+  
 ### Access token
 
 For the utility to be able to access Data Catalog API an access token has to be
@@ -97,3 +110,6 @@ In the case where a list of items inside a field contains the delimiter value
 comma (,) the field has to be escaped by using double quotes (" "). e.g. term 1,
 "Term 1, a description", "Data Steward1<steward1@example.com>, Data
 teward2<steward2@example.com>",,,
+
+#### Note: 
+* tagged_assets are not exported to CSV files as of now, it will be implemented soon
