@@ -216,15 +216,9 @@ def export_glossary_entries(
               rel['destinationEntryName'], project
           )
         elif rel['relationshipType'] == 'is_synonymous_to':
-          synonyms += (
-              get_entry_display_name(rel['destinationEntryName'], project)
-              + ', '
-          )
+          synonyms += f'"{get_entry_display_name(rel["destinationEntryName"], project)}",' 
         elif rel['relationshipType'] == 'is_related_to':
-          related_terms += (
-              get_entry_display_name(rel['destinationEntryName'], project)
-              + ', '
-          )
+          related_terms += f'"{get_entry_display_name(rel["destinationEntryName"], project)}",' 
 
       synonyms = synonyms.rstrip(', ')
       related_terms = related_terms.rstrip(', ')
