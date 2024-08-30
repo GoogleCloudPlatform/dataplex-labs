@@ -132,6 +132,16 @@ def get_entry_display_name(entry_name: str, project: str) -> str:
     raise ValueError(response['error_msg'])
   return response['json'].get('displayName', '')
 
+def is_same_glossary(relationship_resource_name:str, term_name:str):
+  num_components = 6
+  components1 = relationship_resource_name.split('/')
+  components2 = term_name.split('/')
+
+  # Extract the entry group components from both strings
+  entry_group_1 = components1[:num_components]
+  entry_group_2 = components2[:num_components]
+
+  return entry_group_1 == entry_group_2
 
 def export_glossary_entries(
     entries: List[Dict[str, Any]],
@@ -183,6 +193,10 @@ def export_glossary_entries(
       core_aspects = entry_info.get('coreAspects', {})
       business_context = core_aspects.get('business_context', {})
       business_context = business_context.get('jsonContent', {})
+      core_relationships = entry_info.get('coreRelationships',{})
+      glossary_entry_name=""
+      if(len(core_relationships)):
+       glossary_entry_name = core_relationships[0].get('destinationEntryName',{})
 
       # Extract description and stewards
       description = business_context.get('description', '')
@@ -195,6 +209,8 @@ def export_glossary_entries(
       related_terms = ''
 
       for rel in relationships:
+        if(is_same_glossary(rel['destinationEntryName'], glossary_entry_name)==False):
+            continue
         if rel['relationshipType'] == 'belongs_to':
           belongs_to_category = get_entry_display_name(
               rel['destinationEntryName'], project
