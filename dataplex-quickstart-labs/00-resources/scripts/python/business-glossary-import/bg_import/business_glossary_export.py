@@ -39,6 +39,7 @@ import utils
 
 logger = logging_utils.get_logger()
 DATACATALOG_BASE_URL = 'https://datacatalog.googleapis.com/v2'
+csv.field_size_limit(sys.maxsize)
 
 # Assuming fetch_api_response is defined in api_call_utils
 from api_call_utils import fetch_api_response

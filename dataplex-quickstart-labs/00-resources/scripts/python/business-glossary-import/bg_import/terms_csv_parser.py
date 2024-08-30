@@ -13,7 +13,7 @@ import error
 import parse_utils
 import parser_types
 import term as bg_term
-
+import sys
 
 """Each attribute parser is represented as a tuple consisting of:
   field_name: Name of the field to parse.
@@ -61,6 +61,8 @@ def parse_glossary_csv(
   terms = {}
   errors = []
   lines_read = 0
+  csv.field_size_limit(sys.maxsize)
+
 
   # Set where we track terms that appeared previously in the glossary.
   # Duplicated terms will be recorded as an error.
