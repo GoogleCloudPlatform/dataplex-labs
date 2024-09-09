@@ -194,3 +194,82 @@ def _verify_csv_file_existence(
         f"The CSV file path provided for {prefix}{arg_name} doesn't exist."
     )
     sys.exit(1)
+
+def get_export_arguments() -> argparse.Namespace:
+    """Gets arguments for the export program.
+
+    Returns:
+        Namespace object containing the export program arguments.
+    """
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    configure_export_argument_parser(parser)
+    return parser.parse_args()
+
+def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
+    """Defines flags and parses arguments related to export.
+
+    Args:
+        parser: argparse.ArgumentParser().
+    """
+    parser.add_argument(
+        "--project",
+        help="ID of Google Cloud Project containing the destination glossary.",
+        metavar="<project_id>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--group",
+        help="Identifier of an existing Entry Group where the target glossary is located.",
+        metavar="<entry_group_id>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--glossary",
+        help="Identifier of the destination glossary to which data will be exported.",
+        metavar="<glossary_id>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--location",
+        help="Location code where the glossary resource exists.",
+        metavar="<location_code>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--categories-csv",
+        help="Path to the CSV file to export the categories data.",
+        metavar="[Categories CSV file for export]",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--terms-csv",
+        help="Path to the CSV file to export the terms data.",
+        metavar="[Terms CSV file for export]",
+        type=str,
+        required=True,
+    )
+
+def validate_export_args(args: argparse.Namespace) -> None:
+    """Validates script run arguments for exporting.
+
+    Args:
+        args: script run arguments
+    """
+    if not args.categories_csv or not args.terms_csv:
+        logger.error("Both --categories-csv and --terms-csv arguments must be provided for export.")
+        sys.exit(1)
+
+    if not os.path.isdir(os.path.dirname(args.categories_csv)):
+        logger.error(f"Directory for categories CSV export path does not exist: {args.categories_csv}")
+        sys.exit(1)
+
+    if not os.path.isdir(os.path.dirname(args.terms_csv)):
+        logger.error(f"Directory for terms CSV export path does not exist: {args.terms_csv}")
+        sys.exit(1)
