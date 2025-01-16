@@ -149,12 +149,14 @@ gcloud dataproc clusters create $DPGCE_CLUSTER_NM \
    --num-workers 2 \
    --worker-machine-type n1-standard-4 \
    --worker-boot-disk-size 500 \
-   --image-version 2.1.22-debian11 \
+   --image-version 2.1.75-debian11 \
    --optional-components JUPYTER \
    --dataproc-metastore projects/$PROJECT_ID/locations/$LOCATION/services/$DPMS_NM \
    --properties 'dataproc:dataproc.lineage.enabled=true' \
    --impersonate-service-account $UMSA_FQN \
    --scopes https://www.googleapis.com/auth/cloud-platform
+
+# 2.2 does not support open lineage
   
 ```
 This should take 1-2 minutes (or less) to complete.
