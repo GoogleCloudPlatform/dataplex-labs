@@ -8,10 +8,31 @@ import sys
 import error
 import import_mode as import_mode_lib
 import logging_utils
+from typing import Any, List, Dict
+import api_call_utils
+import requests
+
+
+import csv
+import os
+import requests
+import sys
+from typing import Any, List, Dict
+import glossary as dc_glossary
+import glossary_identification
+import api_call_utils
+import logging_utils
+import utils
+import time
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 
 logger = logging_utils.get_logger()
-
+DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
+PAGE_SIZE = 1000
+MAX_WORKERS = 20
 
 def access_token_exists() -> bool:
   return bool(os.environ.get("GCLOUD_ACCESS_TOKEN"))
@@ -56,6 +77,47 @@ def end_program_execution() -> None:
   logger.warning("Program execution finished ahead of time due to errors.")
   sys.exit(1)
 
+def glossary_argument_parser(parser: argparse.Namespace) -> None:
+    """
+    Parses the arguments related to the glossary.
+    
+    Args: 
+    parser: argparse.ArgumentParser().
+    """
+    parser.add_argument(
+      "--project",
+      help="ID of Google Cloud Project containing the destination glossary.",
+      metavar="<project_id>",
+      type=str,
+      required=True,
+  )
+    parser.add_argument(
+        "--group",
+        help=(
+            "Identifier of an existing Entry Group where the target glossary is"
+            " located."
+        ),
+        metavar="<entry_group_id>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--glossary",
+        help=(
+            "Identifier of the destination glossary to which data will be"
+            " imported."
+        ),
+        metavar="<glossary_id>",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--location",
+        help="Location code where the glossary resource exists.",
+        metavar="<location_code>",
+        type=str,
+        required=True,
+    )
 
 def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
   """Defines flags and parses arguments related to preprocess_csv().
@@ -63,46 +125,14 @@ def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
   Args:
     parser: argparse.ArgumentParser().
   """
+  
+  glossary_argument_parser(parser)
   parser.add_argument(
       "terms_csv_legacy",
       help="Path to the CSV file containing the terms data to import.",
       metavar="[Terms CSV file (legacy)]",
       nargs="?",
       type=str,
-  )
-  parser.add_argument(
-      "--project",
-      help="ID of Google Cloud Project containing the destination glossary.",
-      metavar="<project_id>",
-      type=str,
-      required=True,
-  )
-  parser.add_argument(
-      "--group",
-      help=(
-          "Identifier of an existing Entry Group where the target glossary is"
-          " located."
-      ),
-      metavar="<entry_group_id>",
-      type=str,
-      required=True,
-  )
-  parser.add_argument(
-      "--glossary",
-      help=(
-          "Identifier of the destination glossary to which data will be"
-          " imported."
-      ),
-      metavar="<glossary_id>",
-      type=str,
-      required=True,
-  )
-  parser.add_argument(
-      "--location",
-      help="Location code where the glossary resource exists.",
-      metavar="<location_code>",
-      type=str,
-      required=True,
   )
   parser.add_argument(
       "--categories-csv",
@@ -204,6 +234,7 @@ def get_export_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter
     )
+    glossary_argument_parser(parser)
     configure_export_argument_parser(parser)
     return parser.parse_args()
 
@@ -213,34 +244,7 @@ def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
     Args:
         parser: argparse.ArgumentParser().
     """
-    parser.add_argument(
-        "--project",
-        help="ID of Google Cloud Project containing the destination glossary.",
-        metavar="<project_id>",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "--group",
-        help="Identifier of an existing Entry Group where the target glossary is located.",
-        metavar="<entry_group_id>",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "--glossary",
-        help="Identifier of the destination glossary to which data will be exported.",
-        metavar="<glossary_id>",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "--location",
-        help="Location code where the glossary resource exists.",
-        metavar="<location_code>",
-        type=str,
-        required=True,
-    )
+    glossary_argument_parser(parser)
     parser.add_argument(
         "--categories-csv",
         help="Path to the CSV file to export the categories data.",
@@ -273,3 +277,157 @@ def validate_export_args(args: argparse.Namespace) -> None:
     if not os.path.isdir(os.path.dirname(args.terms_csv)):
         logger.error(f"Directory for terms CSV export path does not exist: {args.terms_csv}")
         sys.exit(1)
+
+
+def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
+    """
+    Defines flags and parses arguments related to the export v2.
+    For the JSON export, we require a project, group, glossary,
+    location, and output JSON file path.
+    """
+    glossary_argument_parser(parser)
+    parser.add_argument(
+        "--output-json",
+        help="Path to the JSON file to export the glossary entries data.",
+        metavar="[Output JSON file for export]",
+        type=str,
+        required=True,
+    )
+
+def get_export_v2_arguments() -> argparse.Namespace:
+    """
+    Gets arguments for the export v2 program.
+    Returns:
+        Namespace object containing the export v2  program arguments.
+    """
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    configure_export_v2_arg_parser(parser)
+    return parser.parse_args()
+
+def validate_export_v2_args(args: argparse.Namespace) -> None:
+    """
+    Validates script run arguments for the export v2.
+    Args:
+        args: Parsed script run arguments.
+    """
+    if not args.output_json:
+        logger.error("The --output-json argument must be provided for export v2.")
+        sys.exit(1)
+
+    output_dir = os.path.dirname(args.output_json)
+    if output_dir and not os.path.isdir(output_dir):
+        logger.error(f"Directory for JSON export path does not exist: {output_dir}")
+        sys.exit(1)
+
+
+def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
+    """Fetches relationships for a specific entry from the Data Catalog.
+
+    Args:
+        entry_name: The full resource name of the entry.
+        project: The Google Cloud Project ID.
+
+    Returns:
+        A list of dictionaries containing the relationships.
+    """
+    fetch_relationships_url = (
+        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL"
+    )
+
+    response = api_call_utils.fetch_api_response(
+        requests.get, fetch_relationships_url, project
+    )
+    if response["error_msg"]:
+        raise ValueError(response["error_msg"])
+    return response["json"].get("relationships", [])
+
+def fetch_all_relationships(
+    entries: List[Dict[str, Any]], project: str, max_workers: int = MAX_WORKERS
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Fetches relationships for all entries concurrently, processing in batches."""
+    relationships_data = {}
+    chunk_size = max_workers
+    num_batches = math.ceil(len(entries) / chunk_size)
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        for batch in range(num_batches):
+            start = batch * chunk_size
+            end = start + chunk_size
+            entries_batch = entries[start:end]
+            future_to_entry = {
+                executor.submit(fetch_relationships, entry["name"], project): entry[
+                    "name"
+                ]
+                for entry in entries_batch
+            }
+
+            for future in as_completed(future_to_entry):
+                entry_name = future_to_entry[future]
+                try:
+                    relationships_data[entry_name] = future.result()
+                except Exception as exc:
+                    logger.error(
+                        f"Error fetching relationships for {entry_name}: {exc}"
+                    )
+
+    return relationships_data
+
+
+def fetch_entries(
+    project: str, location: str, entry_group: str
+) -> List[Dict[str, Any]]:
+    """Fetches all entries in the glossary.
+
+    Args:
+        project: The Google Cloud Project ID.
+        location: The location of the glossary.
+        entry_group: The entry group of the glossary.
+
+    Returns:
+        A list of dictionaries containing the entries.
+    """
+    entries = []
+    get_full_entry_url = (
+        DATACATALOG_BASE_URL
+        + f"/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries?view=FULL&pageSize={PAGE_SIZE}"
+    )
+    response = api_call_utils.fetch_api_response(
+        requests.get, get_full_entry_url, project
+    )
+
+    if response["error_msg"]:
+        logger.error(
+            "Can't proceed with export. Please select a valid glossary.",
+            response["error_msg"],
+        )
+        sys.exit(1)
+
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        page_token = None
+
+        while True:
+            if page_token:
+                endpoint_url = f"{get_full_entry_url}&pageToken={page_token}"
+            else:
+                endpoint_url = get_full_entry_url
+
+            future = executor.submit(
+                api_call_utils.fetch_api_response, requests.get, endpoint_url, project
+            )
+            futures.append(future)
+
+            # Wait for the current future to complete and process its results
+            for future in as_completed(futures):
+                response = future.result()
+                if response["error_msg"]:
+                    raise ValueError(response["error_msg"])
+                if "entries" in response["json"]:
+                    entries.extend(response["json"]["entries"])
+                page_token = response["json"].get("nextPageToken", None)
+                if not page_token:
+                    return entries
+            # clear the futures list to avoid any memory build-up
+            futures = []
