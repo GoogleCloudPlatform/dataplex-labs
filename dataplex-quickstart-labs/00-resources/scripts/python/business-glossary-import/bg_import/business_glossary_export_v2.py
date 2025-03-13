@@ -28,7 +28,7 @@ def get_entry_type_name(entry_type: str) -> str:
     """
     Returns the fully qualified entry type name based on the provided entry type.
     Args:
-        entry_type (str): The type of the entry. Can be one of "glossary_term", "glossary_category", or "glossary".
+        entry_type (str): The type of the entry. Can be one of "glossary_term", "glossary_category".
     Returns:
         str: The fully qualified entry type name if the entry type is recognized, otherwise an empty string.
     """
@@ -98,7 +98,7 @@ def build_parent_mapping(entries: List[Dict[str, Any]], relationships_data: Dict
                 parent_id = get_entry_id(parent_full)
                 if parent_id:
                     parent_mapping[child_id] = parent_id
-                    break  # use the first valid belongs_to
+                    break # There exists only one valid belongs_to, needn't traverse furthur 
     return parent_mapping
 
 
@@ -122,26 +122,23 @@ def compute_ancestors(child_id: str,
     Returns: List[Dict[str, str]]: The ancestors array.
     """
     ancestors = []
-    ancestors.append({
-        "name": get_export_resource_by_id(child_id, entry_type, project, location, glossary),
-        "type": get_entry_type_name(entry_type)
-    })
     if child_id in parent_mapping:
         current = parent_mapping[child_id]
         while True:
             current_type = map_entry_id_to_entry_type.get(current, "glossary")
             resource = get_export_resource_by_id(current, current_type, project, location, glossary)
+            glossary_child_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{resource}"
             ancestors.append({
-                "name": resource,
+                "name": glossary_child_entry_name,
                 "type": get_entry_type_name(current_type)
             })
             if current not in parent_mapping:
                 break
             current = parent_mapping[current]
     
-    resource = f"projects/{project}/locations/{location}/glossaries/{glossary}"
+    glossary_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{project}/locations/{location}/glossaries/{glossary}"
     ancestors.append({
-        "name": resource,
+        "name": glossary_entry_name,
         "type": get_entry_type_name("glossary")
     })
     ancestors.reverse()
@@ -153,8 +150,8 @@ def process_entry(entry: Dict[str, Any],
                       map_entry_id_to_entry_type: Dict[str, str],
                       project: str,
                       location: str,
-                      glossary: str,
-                      dataplex_entry_group: str) -> Dict[str, Any]:
+                      glossary: str
+                      ) -> Dict[str, Any]:
     """
     Process a single entry (only glossary_term or glossary_category) and produce the export JSON.
     - Extract the entry id (the portion after "/entries/") for constructing new resource names.
@@ -174,16 +171,16 @@ def process_entry(entry: Dict[str, Any],
     child_id = get_entry_id(entry["name"])
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type, project, location, glossary)
-    entry_name = f"{dataplex_entry_group}/entries/{glossary_resource}"
-    glossary_export = f"projects/{project}/locations/{location}/glossaries/{glossary}"
-    parent_entry = f"{dataplex_entry_group}/entries/{glossary_export}"
-    
+    entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_resource}"
+    glossary_entry_id = f"projects/{project}/locations/{location}/glossaries/{glossary}"
+    parent_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_entry_id}"
+
     ancestors = compute_ancestors(child_id, parent_mapping, map_entry_id_to_entry_type, project, location, glossary, entry_type)
     
     glossary_resource_aspect = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
     aspects = {
             f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
-            f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<b>{description}</b>"}},
+            f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
             f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"name": c} for c in contacts_list]}}
         }
     entry_type_name = get_entry_type_name(entry_type)   
@@ -199,7 +196,7 @@ def process_entry(entry: Dict[str, Any],
             "name": entry_name,
             "entryType": entry_type_name,
             "aspects": aspects,
-            "parentEntry": parent_entry,
+            "parentEntry": parent_entry_name,
             "entrySource": entry_source
         }
     }
@@ -212,7 +209,6 @@ def export_glossary_entries_json(entries: List[Dict[str, Any]],
                                  project: str,
                                  location: str,
                                  glossary: str,
-                                 dataplex_entry_group: str,
                                  max_workers: int = MAX_WORKERS):
     """
     Process each entry and write the export JSON as one object per line.
@@ -230,7 +226,6 @@ def export_glossary_entries_json(entries: List[Dict[str, Any]],
                         project,
                         location,
                         glossary,
-                        dataplex_entry_group
                     )
                 )
             for future in as_completed(futures):
@@ -243,8 +238,8 @@ def main():
     args = utils.get_export_v2_arguments()
     utils.validate_export_v2_args(args)
 
-    dataplex_entry_group = f"projects/{args.project}/locations/{args.location}/entryGroups/@dataplex"
-    glossary_export = f"projects/{args.project}/locations/{args.location}/glossaries/{args.glossary}"
+    global DATAPLEX_ENTRY_GROUP
+    DATAPLEX_ENTRY_GROUP = f"projects/{args.project}/locations/{args.location}/entryGroups/@dataplex"
 
     entries = utils.fetch_entries(args.project, args.location, args.group)
     relationships_data = utils.fetch_all_relationships(entries, args.project)
@@ -257,8 +252,7 @@ def main():
         map_entry_id_to_entry_type,
         args.project,
         args.location,
-        args.glossary,
-        dataplex_entry_group
+        args.glossary,  
     )
 
 
