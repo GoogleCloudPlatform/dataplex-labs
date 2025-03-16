@@ -244,7 +244,6 @@ def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
     Args:
         parser: argparse.ArgumentParser().
     """
-    glossary_argument_parser(parser)
     parser.add_argument(
         "--categories-csv",
         help="Path to the CSV file to export the categories data.",

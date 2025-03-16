@@ -64,8 +64,15 @@ def process_entry(
     """
     Processes a single glossary entry and returns data for either terms or categories.
     """
+    
+    # Display name can be empty for some entries
+    display_name = ""
+    if "displayName" not in entry:
+        display_name = ""
+    else:
+        display_name = entry["displayName"]
+    
     entry_type = entry["entryType"]
-    display_name = entry["displayName"]
     core_aspects = entry.get("coreAspects", {})
 
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
@@ -76,7 +83,6 @@ def process_entry(
     belongs_to_category = ""
     synonyms = ""
     related_terms = ""
-
     core_relationships = entry.get("coreRelationships", {})
     glossary_entry_name = ""
     if len(core_relationships):
@@ -85,7 +91,11 @@ def process_entry(
     for rel in relationships:
         if is_same_glossary(rel["destinationEntryName"], glossary_entry_name) == False:
             continue
-        displayName = rel["destinationEntry"]["displayName"]
+        displayName = ""
+        if displayName not in rel["destinationEntry"]:
+            displayName = ''         
+        else :
+            displayName = rel["destinationEntry"]["displayName"]
         if rel["relationshipType"] == "belongs_to":
             belongs_to_category = f'"{displayName}",'
         elif rel["relationshipType"] == "is_synonymous_to":
