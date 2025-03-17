@@ -278,21 +278,6 @@ def validate_export_args(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
-    """
-    Defines flags and parses arguments related to the export v2.
-    For the JSON export, we require a project, group, glossary,
-    location, and output JSON file path.
-    """
-    glossary_argument_parser(parser)
-    parser.add_argument(
-        "--output-json",
-        help="Path to the JSON file to export the glossary entries data.",
-        metavar="[Output JSON file for export]",
-        type=str,
-        required=True,
-    )
-
 def get_export_v2_arguments() -> argparse.Namespace:
     """
     Gets arguments for the export v2 program.
@@ -305,20 +290,67 @@ def get_export_v2_arguments() -> argparse.Namespace:
     configure_export_v2_arg_parser(parser)
     return parser.parse_args()
 
+def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
+    """
+    Defines flags and parses arguments related to the export v2.
+    For the JSON export, we require a project, group, glossary,
+    location, and output JSON file path.
+    """
+    glossary_argument_parser(parser)
+    parser.add_argument(
+        "--glossary-json",
+        help="Path to the JSON file to export the glossary entries data.",
+        metavar="[Output JSON file for glossary]",
+        type=str,
+    )
+    parser.add_argument(
+        "--entrylinks-json",
+        help="Path to the JSON file to export the glossary entry links data.",
+        metavar="[Output JSON file for entry links]",
+        type=str,
+    )
+    parser.add_argument(
+        "--export-mode",
+        choices=["glossary", "entry_links", "all"],
+        default="all",
+        type=str,
+        help=(
+            "Sets the export mode for the data:\n"
+            "glossary\tExport only the glossary entries to the specified JSON file.\n"
+            "entry_links\tExport only the entry links to the specified JSON file.\n"
+            "all\tExport both the glossary entries and entry links to the specified JSON files.\n"
+        )
+    )
+
 def validate_export_v2_args(args: argparse.Namespace) -> None:
     """
     Validates script run arguments for the export v2.
     Args:
         args: Parsed script run arguments.
     """
-    if not args.output_json:
-        logger.error("The --output-json argument must be provided for export v2.")
+    if args.export_mode == "glossary_only" and not args.glossary_json:
+        logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
         sys.exit(1)
 
-    output_dir = os.path.dirname(args.output_json)
-    if output_dir and not os.path.isdir(output_dir):
-        logger.error(f"Directory for JSON export path does not exist: {output_dir}")
+    if args.export_mode == "entry_links_only" and not args.entrylinks_json:
+        logger.error("The --entrylinks-json argument must be provided for export mode 'entry_links_only'.")
         sys.exit(1)
+
+    if args.export_mode == "all" and (not args.glossary_json or not args.entrylinks_json):
+        logger.error("Both --glossary-json and --entrylinks-json arguments must be provided for export mode 'all'.")
+        sys.exit(1)
+
+    if args.glossary_json:
+        glossary_output_dir = os.path.dirname(args.glossary_json)
+        if glossary_output_dir and not os.path.isdir(glossary_output_dir):
+            logger.error(f"Directory for glossary JSON export path does not exist: {glossary_output_dir}")
+            sys.exit(1)
+
+    if args.entrylinks_json:
+        entrylinks_output_dir = os.path.dirname(args.entrylinks_json)
+        if entrylinks_output_dir and not os.path.isdir(entrylinks_output_dir):
+            logger.error(f"Directory for entry links JSON export path does not exist: {entrylinks_output_dir}")
+            sys.exit(1)
 
 
 def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
