@@ -328,11 +328,11 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
     Args:
         args: Parsed script run arguments.
     """
-    if args.export_mode == "glossary_only" and not args.glossary_json:
+    if args.export_mode == "glossary" and not args.glossary_json:
         logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
         sys.exit(1)
 
-    if args.export_mode == "entry_links_only" and not args.entrylinks_json:
+    if args.export_mode == "entry_links" and not args.entrylinks_json:
         logger.error("The --entrylinks-json argument must be provided for export mode 'entry_links_only'.")
         sys.exit(1)
 

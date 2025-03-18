@@ -13,11 +13,9 @@ The Entry Links JSON file contains the following fields:
 """
 
 import json
-import string
 import logging_utils
 import utils
 import re
-import random
 from typing import Any, List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
