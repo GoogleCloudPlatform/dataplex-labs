@@ -42,123 +42,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing
 
 logger = logging_utils.get_logger()
-DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
-PAGE_SIZE = 1000
 MAX_WORKERS = 20
 csv.field_size_limit(sys.maxsize)
-
-
-def fetch_entries(
-    project: str, location: str, entry_group: str
-) -> List[Dict[str, Any]]:
-    """Fetches all entries in the glossary.
-
-    Args:
-        project: The Google Cloud Project ID.
-        location: The location of the glossary.
-        entry_group: The entry group of the glossary.
-
-    Returns:
-        A list of dictionaries containing the entries.
-    """
-    entries = []
-    get_full_entry_url = (
-        DATACATALOG_BASE_URL
-        + f"/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries?view=FULL&pageSize={PAGE_SIZE}"
-    )
-    response = api_call_utils.fetch_api_response(
-        requests.get, get_full_entry_url, project
-    )
-
-    if response["error_msg"]:
-        logger.error(
-            "Can't proceed with export. Please select a valid glossary.",
-            response["error_msg"],
-        )
-        sys.exit(1)
-
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        page_token = None
-
-        while True:
-            if page_token:
-                endpoint_url = f"{get_full_entry_url}&pageToken={page_token}"
-            else:
-                endpoint_url = get_full_entry_url
-
-            future = executor.submit(
-                api_call_utils.fetch_api_response, requests.get, endpoint_url, project
-            )
-            futures.append(future)
-
-            # Wait for the current future to complete and process its results
-            for future in as_completed(futures):
-                response = future.result()
-                if response["error_msg"]:
-                    raise ValueError(response["error_msg"])
-                if "entries" in response["json"]:
-                    entries.extend(response["json"]["entries"])
-                page_token = response["json"].get("nextPageToken", None)
-                if not page_token:
-                    return entries
-            # clear the futures list to avoid any memory build-up
-            futures = []
-
-
-def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
-    """Fetches relationships for a specific entry from the Data Catalog.
-
-    Args:
-        entry_name: The full resource name of the entry.
-        project: The Google Cloud Project ID.
-
-    Returns:
-        A list of dictionaries containing the relationships.
-    """
-    fetch_relationships_url = (
-        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL"
-    )
-
-    response = api_call_utils.fetch_api_response(
-        requests.get, fetch_relationships_url, project
-    )
-    if response["error_msg"]:
-        raise ValueError(response["error_msg"])
-    return response["json"].get("relationships", [])
-
-
-def fetch_all_relationships(
-    entries: List[Dict[str, Any]], project: str, max_workers: int = MAX_WORKERS
-) -> Dict[str, List[Dict[str, Any]]]:
-    """Fetches relationships for all entries concurrently, processing in batches."""
-    relationships_data = {}
-    chunk_size = max_workers
-    num_batches = math.ceil(len(entries) / chunk_size)
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        for batch in range(num_batches):
-            start = batch * chunk_size
-            end = start + chunk_size
-            entries_batch = entries[start:end]
-            future_to_entry = {
-                executor.submit(fetch_relationships, entry["name"], project): entry[
-                    "name"
-                ]
-                for entry in entries_batch
-            }
-
-            for future in as_completed(future_to_entry):
-                entry_name = future_to_entry[future]
-                try:
-                    relationships_data[entry_name] = future.result()
-                except Exception as exc:
-                    logger.error(
-                        f"Error fetching relationships for {entry_name}: {exc}"
-                    )
-
-    return relationships_data
-
 
 def is_same_glossary(relationship_resource_name: str, term_name: str):
     num_components = 6
@@ -171,10 +56,6 @@ def is_same_glossary(relationship_resource_name: str, term_name: str):
 
     return entry_group_1 == entry_group_2
 
-
-import json
-
-
 def process_entry(
     entry: Dict[str, Any],
     relationships_data: Dict[str, List[Dict[str, Any]]],
@@ -183,8 +64,15 @@ def process_entry(
     """
     Processes a single glossary entry and returns data for either terms or categories.
     """
+    
+    # Display name can be empty for some entries
+    display_name = ""
+    if "displayName" not in entry:
+        display_name = ""
+    else:
+        display_name = entry["displayName"]
+    
     entry_type = entry["entryType"]
-    display_name = entry["displayName"]
     core_aspects = entry.get("coreAspects", {})
 
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
@@ -195,7 +83,6 @@ def process_entry(
     belongs_to_category = ""
     synonyms = ""
     related_terms = ""
-
     core_relationships = entry.get("coreRelationships", {})
     glossary_entry_name = ""
     if len(core_relationships):
@@ -204,8 +91,11 @@ def process_entry(
     for rel in relationships:
         if is_same_glossary(rel["destinationEntryName"], glossary_entry_name) == False:
             continue
-        json.dumps(rel, indent=4)
-        displayName = rel["destinationEntry"]["displayName"]
+        displayName = ""
+        if displayName not in rel["destinationEntry"]:
+            displayName = ''         
+        else :
+            displayName = rel["destinationEntry"]["displayName"]
         if rel["relationshipType"] == "belongs_to":
             belongs_to_category = f'"{displayName}",'
         elif rel["relationshipType"] == "is_synonymous_to":
@@ -283,7 +173,7 @@ def export_glossary_entries(
             terms_file, fieldnames=terms_fields, quoting=csv.QUOTE_ALL
         )
 
-        relationships_data = fetch_all_relationships(entries, project, max_workers)
+        relationships_data = utils.fetch_all_relationships(entries, project, max_workers)
         chunk_size = max_workers
         num_batches = math.ceil(len(entries) / chunk_size)
 
@@ -310,7 +200,7 @@ def export_glossary_entries(
 def main():
     args = utils.get_export_arguments()
     utils.validate_export_args(args)
-    entries = fetch_entries(args.project, args.location, args.group)
+    entries = utils.fetch_entries(args.project, args.location, args.group)
     export_glossary_entries(entries, args.categories_csv, args.terms_csv, args.project)
 
 
