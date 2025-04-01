@@ -4,7 +4,7 @@
 Dataplex Catalog enables users to discover, understand, observe and  manage ALL their data assets on Google Cloud.
 
 It offers:
-1. Simple and scalable metadat (keyword) Search capabilities for business and technical users
+1. Simple and scalable metadata (keyword) Search capabilities for business and technical users
 2. Real-time and batch synchronization of metadata and auto metadata ingestion for BigQuery  and Dataplex
 3. Integrated auto tagging for sensitive data in BigQuery powered by Data Loss Protection (DLP)
 4. Pre-built commonly used tag templates for tagging data assets
@@ -50,90 +50,27 @@ Expand and review the filters available
 ![DEW-1](../01-images/m081-03.png)   
 <br><br>
 
-![DEW-1](../01-images/m081-04.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-05.png)   
-<br><br>
 
 <hr>
 
-### 3. Review options under the "sort by" dropdown
-
-![DEW-1](../01-images/m081-06.png)   
-<br><br>
-
-<hr>
-
-### 4. Search for keyword "forecasting"
+### 4. Search for keyword "chicagocrimes"
 
 ![DEW-1](../01-images/m081-07.png)   
 <br><br>
 
 <hr>
 
-### 5. Search for keyword "forecasting" with system predicate of bigquery
+### 5. Search for keyword "chicagocrimes" with system predicate of 'bigquery' and a type of 'table'
 
 ![DEW-1](../01-images/m081-08.png)   
 <br><br>
 
 <hr>
 
-### 6. Search for keyword "forecasting" with system predicate of dataplex
 
-![DEW-1](../01-images/m081-09.png)   
-<br><br>
+### 6. Search for assets in the "oda-raw-zone" zone
 
-<hr>
-
-### 7. Study the metadata for Cloud Storage based Icecream Sales Forecasting table
-
-![DEW-1](../01-images/m081-10.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-11.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-12.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-13.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-14.png)   
-<br><br>
-
-<hr>
-
-### 8. Study the metadata for BigQuery based Icecream Sales Forecasting table
-
-![DEW-1](../01-images/m081-15.png)   
-<br><br>
-
-![DEW-1](../01-images/m081-16.png)   
-<br><br>
-
-<hr>
-
-
-### 9. Study the schema for the BigQuery based Icecream Sales Forecasting table
-
-![DEW-1](../01-images/m081-17.png)   
-<br><br>
-
-<hr>
-
-### 10. Study the lineage for the BigQuery based Icecream Sales Forecasting table
-
-
-![DEW-1](../01-images/m081-18.png)   
-<br><br>
-
-<hr>
-
-### 11. Review other menu items available for BigQuery tables
-
-![DEW-1](../01-images/m081-19.png)   
+TBD
 <br><br>
 
 <hr>
@@ -141,5 +78,3 @@ Expand and review the filters available
 This concludes the module. Proceed to the [next module](module-08-2-create-custom-entry-in-catalog.md).
 
 <hr>
-
-

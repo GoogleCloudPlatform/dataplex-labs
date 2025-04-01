@@ -49,6 +49,8 @@ CLOUD_COMPOSER_IMG_VERSION="composer-2.6.6-airflow-2.5.3"
 YOUR_GCP_REGION="us-central1"
 YOUR_GCP_ZONE="us-central1-a"
 YOUR_GCP_MULTI_REGION="US"
+USER_PROJECT_OVERRIDE=true
+GOOGLE_BILLING_PROJECT=$PROJECT_ID  
 BQ_CONNECTOR_JAR_GCS_URI="gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.22.2.jar"
 ```
 
@@ -56,7 +58,7 @@ BQ_CONNECTOR_JAR_GCS_URI="gs://spark-lib/bigquery/spark-bigquery-with-dependenci
 
 ## 3. Run the Terraform init
 ```
-cd ~/dataplex-quickstart-labs/00-resources/terraform
+cd ~/dataplex-quickstart-labs/00-resources/terraform/provision
 
 terraform init
 ```
@@ -121,7 +123,7 @@ PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
 GCP_ACCOUNT_NAME=`gcloud auth list --filter=status:ACTIVE --format="value(account)"`
 ORG_ID=`gcloud organizations list --format="value(name)"`
-CLOUD_COMPOSER_IMG_VERSION="composer-2.1.3-airflow-2.3.4"
+CLOUD_COMPOSER_IMG_VERSION="composer-2.11.5-airflow-2.10.2"
 YOUR_GCP_REGION="us-central1"
 YOUR_GCP_ZONE="us-central1-a"
 YOUR_GCP_MULTI_REGION="US"

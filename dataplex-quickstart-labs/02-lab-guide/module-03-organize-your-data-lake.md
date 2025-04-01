@@ -1,4 +1,4 @@
-# M3: Organize your enterprise assets into Lakes and Zones
+# M3: Organize your enterprise assets into Lakes and Zones Using Dataplex Catalog Aspects
 
 In this lab module, we will first go over concepts and then into the lab, and try out the concepts.
 
@@ -15,7 +15,7 @@ Completion of prior modules
 
 ### Targeted Data Lake Layout
 
-We will create a Dataplex Lake and Zones as shown below-
+We will create a DataLake with Lakes and Zones as shown below-
 
 ![IAM](../01-images/m3-01.png)   
 <br><br>
@@ -24,49 +24,42 @@ We will create a Dataplex Lake and Zones as shown below-
 
 ## 1. Concepts
 
-### 1.1. Data Mesh
-Data Mesh is one of the most trending words in the data space currently. A data mesh is an organizational and technical approach that decentralizes data ownership among domain data owners. These owners provide the "data as a product" in a standard way and facilitate communication among different parts of the organization to distribute datasets across different locations. Learn more about [data mesh architectures](https://services.google.com/fh/files/misc/build-a-modern-distributed-datamesh-with-google-cloud-whitepaper.pdf).
-
-Dataplex is Google Cloud Platform's solution to architect a Data Mesh architecture. At the foundation of Dataplex is a Lake.
+### 1.1. Intelligent data to AI governance
+Centrally discover, manage, monitor, and govern data and AI artifacts across your data platform, providing access to trusted data and powering analytics and AI at scale.
 
 
-### 1.2. Dataplex Lake
-A Dataplex Lake is a logical metadata abstraction on top of your assets (structured and unstructured). There are various capabiltiies offered in Dataplex over a Data Lake that we will cover in subsequent labs. It is analogous to a "domain". And is also analogous to a "Data Lake" - a cordoned off repository of your assets.
+### 1.2. Discover, Organize and Enrich
 
-A Dataplex Lake, although provisioned in a GCP project, can span multiple projects. [Documentation](https://cloud.google.com/dataplex/docs/create-lake)
 
-To create a Dataplex Lake, one must have the pre-defined roles  ```roles/dataplex.admin``` or ```roles/dataplex.editor```.
+### 1.3. Dataplex "Lake" Aspect
 
-### 1.3. Dataplex Zone
-Data zones are named entities within a Dataplex lake. They are logical groupings of unstructured, semi-structured, and structured data, consisting of multiple assets, such as Cloud Storage buckets, BigQuery datasets, and BigQuery tables.
+A Lake is a logical metadata abstraction on top of your assets (structured and unstructured). There are various capabiltiies offered in Dataplex over a Data Lake that we will cover in subsequent labs. It is analogous to a "domain". And is also analogous to a "Data Lake" - a cordoned off repository of your assets.
 
-A lake can include one or more zones. While a zone can only be part of one lake, it may contain assets that point to resources that are part of projects outside of its parent project.
+A Lake, although provisioned in a GCP project, can span multiple projects. 
 
-You can select configurations for a zone in Dataplex. There are two types of zones that you can choose from: raw and curated zones.
+To create and assign the "Lake" aspect, one must have the IAM permissions ```dataplex.aspectTypes.create```
+and ```dataplex.aspectTypes.use```.  These permissions are granted to the predefined role ```roles/dataplex.catalogEditor```.
 
-#### 1.3.1. Raw zone
-Raw zones store structured, semi-structured, and unstructured data in any format from external sources. This is useful for staging raw data before performing any transformations. Data can be stored in Cloud Storage buckets or BigQuery datasets.
+### 1.3. Dataplex "Zone" Aspect
+Data zones are named entities within a Dataplex "Lake". They are logical groupings of unstructured, semi-structured, and structured data, consisting of multiple assets, such as Cloud Storage buckets, BigQuery datasets, and BigQuery tables.
 
-Raw zones support bucket-level or dataset-level granularity for read and write permissions. For more information, see IAM and access control.
+A lake can include one or more zones. a Zone may contain assets that point to resources that are part of projects outside of its parent project.  
 
-There are **no restrictions** on the type of data that can be stored in raw zones.
+In this example we have defined six different types of zones.  The name and number of zones are flexible and are dependent on your needs.   For example, some implementers might use the medallion naming convention and have three zones called "bronze", "silver" and "gold"
 
-#### 1.3.2. Curated zone
-Curated zones store structured data. Data can be stored in Cloud Storage buckets or BigQuery datasets.
+In this example, we use the following six zones:<BR>
+<BR>
+1. "oda-misc-zone"
+2. "oda-raw-zone"
+3. "oda-dq-zone"
+4. "oda-curated-zone"
+5. "oda-product-zone"
+6. "oda-raw-sensitive-zone"
 
-Supported formats for Cloud Storage buckets include Parquet, Avro, and ORC. This is useful for staging data that requires processing before it's used for analysis, or for serving data that is ready for analysis.
-
-For BigQuery tables, you must have a well-defined schema and Hive-style partitions. When you provide a schema for a given table in a curated zone, the data should conform to the schema defined for the table without schema drift.
-
-This means that the data should be compatible with the schema defined for the table, and new partitions should not have a schema that conflicts with the table schema.
-
-Curated zones support Cloud Storage bucket-level or BigQuery dataset-level granularity for read and write permissions. For more information, see Access control with IAM.
 
 #### 1.3.3. IAM permisions for Dataplex Zone creation
 
-To add a zone, you must be granted IAM roles containing the dataplex.lakes.create IAM permission. The Dataplex specific role roles/dataplex.admin can be used to grant add permissions. [Documentation](https://cloud.google.com/dataplex/docs/iam-and-access-control)
-
-
+TBD
 
 <hr>
 
@@ -82,16 +75,10 @@ In Cloud Shell, while in the lab's project scope, paste the following-
 ```
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
+USER_PROJECT_OVERRIDE=true
+GOOGLE_BILLING_PROJECT=$PROJECT_ID  
 UMSA_FQN="lab-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-LOCATION="us-central1"
-LOCATION_MULTI="US"
-METASTORE_NM="lab-dpms-$PROJECT_NBR"
-LAKE_NM="oda-lake"
-DATA_RAW_ZONE_NM="oda-raw-zone"
-DATA_RAW_SENSITIVE_ZONE_NM="oda-raw-sensitive-zone"
-DATA_CURATED_ZONE_NM="oda-curated-zone"
-DATA_PRODUCT_ZONE_NM="oda-product-zone"
-MISC_RAW_ZONE_NM="oda-misc-zone"
+YOUR_GCP_REGION="us-central1"
 ```
 
 <hr>
@@ -123,87 +110,32 @@ Documentation: https://cloud.google.com/dataproc-metastore/docs/data-catalog-syn
 
 ## 3. Lab
 
-### 3.1. Lake layout from the lab module
+### 3.1. Getting set up for the lab (assumes you already completed the provision step)
+
+```
+cd ~/dataplex-quickstart-labs/00-resources/terraform/provision
+
+terraform init
+```
+<hr>
+
+### 3.2. Organize the data using Terraform
+
+rm -rf dataplex-quickstart-lab.output
+
+```
+terraform apply \
+  -var="project_id=${PROJECT_ID}" \
+  -var="project_number=${PROJECT_NBR}" \
+  -var="gcp_region=${YOUR_GCP_REGION}" \
+  --auto-approve >> dataplex-quickstart-lab.output
+```
+<hr>
+
+### 3.3. Layout 
 
 ![IAM](../01-images/m3-02.png)   
 <br><br>
-
-### 3.2. Create a Lake
-
-We will create a Dataplex Lake with the metastore attached to it.
-
-In Cloud Shell, paste the below-
-```
-gcloud dataplex lakes create $LAKE_NM --location=$LOCATION \
---metastore-service=projects/${PROJECT_ID}/locations/$LOCATION/services/${METASTORE_NM}
-```
-
-This takes about 2 minutes.
-
-![LAKE](../01-images/03-01.png)   
-<br><br>
-
-<hr>
-
-### 3.3. Create zones with the lake
-
-#### 3.3.1. Create zones for the structured data assets
-
-We will create a zone each for raw, curated and data product, for the structured data assets, with discovery enabled.
-
-##### Raw Zone
-```
-gcloud dataplex zones create ${DATA_RAW_ZONE_NM} \
---lake=$LAKE_NM \
---resource-location-type=MULTI_REGION \
---location=$LOCATION \
---type=RAW \
---discovery-enabled \
---discovery-schedule="0 * * * *"
-```
-
-##### Raw Sensitive Zone
-```
-gcloud dataplex zones create ${DATA_RAW_SENSITIVE_ZONE_NM} \
---lake=$LAKE_NM \
---resource-location-type=MULTI_REGION \
---location=$LOCATION \
---type=RAW \
---discovery-enabled \
---discovery-schedule="0 * * * *"
-```
-
-##### Curated Zone
-```
-gcloud dataplex zones create ${DATA_CURATED_ZONE_NM} \
---lake=$LAKE_NM \
---resource-location-type=MULTI_REGION \
---location=$LOCATION \
---type=CURATED \
---discovery-enabled \
---discovery-schedule="0 * * * *"
-```
-
-##### Product Zone
-```
-gcloud dataplex zones create ${DATA_PRODUCT_ZONE_NM} \
---lake=$LAKE_NM \
---resource-location-type=MULTI_REGION \
---location=$LOCATION \
---type=CURATED \
---discovery-enabled \
---discovery-schedule="0 * * * *"
-```
-
-<hr>
-
-#### 3.3.2. Create a zone for the non-data assets 
-
-We will create a raw zone for the non-data assets, without discovery, as they are mostly code, and therefore unstructured.
-```
-gcloud dataplex zones create ${MISC_RAW_ZONE_NM} --location=$LOCATION --lake=$LAKE_NM \
---resource-location-type=SINGLE_REGION --type=RAW 
-```
 
 #### 3.3.3. Pictorial of zones created
 

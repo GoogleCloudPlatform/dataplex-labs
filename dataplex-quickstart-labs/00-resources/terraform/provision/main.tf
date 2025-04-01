@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2025 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,25 +29,28 @@ umsa                        = "lab-sa"
 umsa_fqn                    = "${local.umsa}@${local.project_id}.iam.gserviceaccount.com"
 
 lab_dpms_nm                 = "lab-dpms-${local.project_nbr}"
-lab_spark_bucket            = "lab-spark-bucket-${local.project_nbr}"
-lab_spark_bucket_fqn        = "gs://dew-lab-spark-${local.project_nbr}"
+lab_spark_bucket            = "lab_spark_bucket_${local.project_nbr}"
+lab_spark_bucket_fqn        = "gs://dew_lab_spark_${local.project_nbr}"
 lab_vpc_nm                  = "lab-vpc-${local.project_nbr}"
 lab_subnet_nm               = "lab-snet"
 lab_subnet_cidr             = "10.0.0.0/16"
 
 lab_sensitive_data_bucket_raw= "raw-data-sensitive-${local.project_nbr}"
 
-lab_data_bucket_raw         = "raw-data-${local.project_nbr}"
-lab_code_bucket             = "raw-code-${local.project_nbr}"
-lab_notebook_bucket         = "raw-notebook-${local.project_nbr}"
-lab_model_bucket            = "raw-model-${local.project_nbr}"
-lab_bundle_bucket           = "raw-model-mleap-bundle-${local.project_nbr}"
-lab_metrics_bucket          = "raw-model-metrics-${local.project_nbr}"
-lab_image_bucket            = "image-data-${local.project_nbr}"
-lab_scheduled_output_bucket = "scheduled-runs-output-${local.project_nbr}"
+lab_data_bucket_raw         = "raw_data_${local.project_nbr}"
+lab_code_bucket             = "raw_code_${local.project_nbr}"
+lab_notebook_bucket         = "raw_notebook_${local.project_nbr}"
+lab_model_bucket            = "raw_model_${local.project_nbr}"
+lab_bundle_bucket           = "raw_model_mleap_bundle_${local.project_nbr}"
+lab_metrics_bucket          = "raw_model_metrics-${local.project_nbr}"
+lab_image_bucket            = "image_data_${local.project_nbr}"
+lab_scheduled_output_bucket = "scheduled_runs_output-${local.project_nbr}"
 
-lab_data_bucket_curated     = "curated-data-${local.project_nbr}"
-lab_data_bucket_product = "product-data-${local.project_nbr}"
+lab_data_bucket_curated     = "curated_data_${local.project_nbr}"
+lab_data_bucket_product     = "product_data_${local.project_nbr}"
+lab_chicagocrimes_bucket    = "chicagocrimes_${local.project_nbr}"
+lab_customers_bucket        = "customers_${local.project_nbr}"
+lab_credit_card_bucket      = "credit_card_${local.project_nbr}"
 
 CC_GMSA_FQN                 = "service-${local.project_nbr}@cloudcomposer-accounts.iam.gserviceaccount.com"
 GCE_GMSA_FQN                = "${local.project_nbr}-compute@developer.gserviceaccount.com"
@@ -55,6 +58,18 @@ CLOUD_COMPOSER2_IMG_VERSION = "${var.cloud_composer_image_version}"
 bq_connector_jar_gcs_uri    = "${var.bq_connector_jar_gcs_uri}"
 
 }
+
+provider "google" {
+  project = var.project_id
+  region  = local.location
+}
+
+provider "google-beta" {
+  project = var.project_id
+  region  = local.location
+}
+
+
 
 /******************************************
 1. Enable Google APIs in parallel
@@ -355,7 +370,6 @@ module "vpc_creation" {
   ]
 }
 
-
 /******************************************
 8. Create Firewall rules 
  *****************************************/
@@ -514,6 +528,38 @@ resource "google_storage_bucket" "lab_image_bucket_creation" {
   ]
 }
 
+resource "google_storage_bucket" "lab_chicagocrimes_bucket_creation" {
+  project                           = local.project_id 
+  name                              = local.lab_chicagocrimes_bucket
+  location                          = local.location_multi
+  uniform_bucket_level_access       = true
+  force_destroy                     = true
+  depends_on = [
+      time_sleep.sleep_after_identities_permissions
+  ]
+}
+
+resource "google_storage_bucket" "lab_customers_bucket_creation" {
+  project                           = local.project_id 
+  name                              = local.lab_customers_bucket
+  location                          = local.location_multi
+  uniform_bucket_level_access       = true
+  force_destroy                     = true
+  depends_on = [
+      time_sleep.sleep_after_identities_permissions
+  ]
+}
+
+resource "google_storage_bucket" "lab_credit_card_bucket_creation" {
+  project                           = local.project_id 
+  name                              = local.lab_credit_card_bucket
+  location                          = local.location_multi
+  uniform_bucket_level_access       = true
+  force_destroy                     = true
+  depends_on = [
+      time_sleep.sleep_after_identities_permissions
+  ]
+}
 
 /*******************************************
 Introducing sleep to minimize errors from
@@ -544,13 +590,13 @@ resource "time_sleep" "sleep_after_bucket_creation" {
 variable "notebooks_to_upload" {
   type = map(string)
   default = {
-    "../notebooks/chicago-crimes-analysis/chicago-crimes-analytics.ipynb" = "chicago-crimes-analysis/chicago-crimes-analytics.ipynb",
-    "../notebooks/icecream-sales-forecasting/icecream-sales-forecasting.ipynb" = "icecream-sales-forecasting/icecream-sales-forecasting.ipynb",
-    "../notebooks/telco-customer-churn-prediction/preprocessing.ipynb" = "telco-customer-churn-prediction/preprocessing.ipynb",
-    "../notebooks/telco-customer-churn-prediction/model_training.ipynb" = "telco-customer-churn-prediction/model_training.ipynb",
-    "../notebooks/telco-customer-churn-prediction/hyperparameter_tuning.ipynb" = "telco-customer-churn-prediction/hyperparameter_tuning.ipynb",
-    "../notebooks/telco-customer-churn-prediction/batch_scoring.ipynb" = "telco-customer-churn-prediction/batch_scoring.ipynb",  
-    "../notebooks/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.ipynb" = "retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.ipynb",
+    "../../../00-resources/notebooks/chicago-crimes-analysis/chicago-crimes-analytics.ipynb" = "chicago-crimes-analysis/chicago-crimes-analytics.ipynb",
+    "../../../00-resources/notebooks/icecream-sales-forecasting/icecream-sales-forecasting.ipynb" = "icecream-sales-forecasting/icecream-sales-forecasting.ipynb",
+    "../../../00-resources/notebooks/telco-customer-churn-prediction/preprocessing.ipynb" = "telco-customer-churn-prediction/preprocessing.ipynb",
+    "../../../00-resources/notebooks/telco-customer-churn-prediction/model_training.ipynb" = "telco-customer-churn-prediction/model_training.ipynb",
+    "../../../00-resources/notebooks/telco-customer-churn-prediction/hyperparameter_tuning.ipynb" = "telco-customer-churn-prediction/hyperparameter_tuning.ipynb",
+    "../../../00-resources/notebooks/telco-customer-churn-prediction/batch_scoring.ipynb" = "telco-customer-churn-prediction/batch_scoring.ipynb",  
+    "../../../00-resources/notebooks/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.ipynb" = "retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.ipynb",
   }
 }
 
@@ -568,12 +614,11 @@ resource "google_storage_bucket_object" "upload_to_gcs_notebooks" {
 variable "csv_datasets_to_upload" {
   type = map(string)
   default = {
-    "../datasets/cell-tower-anomaly-detection/reference_data/ctad_service_threshold_ref.csv"="cell-tower-anomaly-detection/reference_data/ctad_service_threshold_ref.csv",
-    "../datasets/cell-tower-anomaly-detection/transactions_data/ctad_transactions.csv"="cell-tower-anomaly-detection/transactions_data/ctad_transactions.csv",
-    "../datasets/icecream-sales-forecasting/isf_icecream_sales_transactions.csv"="icecream-sales-forecasting/isf_icecream_sales_transactions.csv",
-    "../datasets/telco-customer-churn-prediction/machine_learning_scoring/tccp_customer_churn_score_candidates.csv"="telco-customer-churn-prediction/machine_learning_scoring/tccp_customer_churn_score_candidates.csv",
-    "../datasets/telco-customer-churn-prediction/machine_learning_training/tccp_customer_churn_train_candidates.csv"="telco-customer-churn-prediction/machine_learning_training/tccp_customer_churn_train_candidates.csv",
-    "../datasets/chicago-crimes/reference_data/crimes_chicago_iucr_ref.csv"="chicago-crimes/reference_data/crimes_chicago_iucr_ref.csv",
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/reference_data/ctad_service_threshold_ref.csv"="cell-tower-anomaly-detection/reference_data/ctad_service_threshold_ref.csv",
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/transactions_data/ctad_transactions.csv"="cell-tower-anomaly-detection/transactions_data/ctad_transactions.csv",
+    "../../../00-resources/datasets/icecream-sales-forecasting/isf_icecream_sales_transactions.csv"="icecream-sales-forecasting/isf_icecream_sales_transactions.csv",
+    "../../../00-resources/datasets/telco-customer-churn-prediction/machine_learning_scoring/tccp_customer_churn_score_candidates.csv"="telco-customer-churn-prediction/machine_learning_scoring/tccp_customer_churn_score_candidates.csv",
+    "../../../00-resources/datasets/telco-customer-churn-prediction/machine_learning_training/tccp_customer_churn_train_candidates.csv"="telco-customer-churn-prediction/machine_learning_training/tccp_customer_churn_train_candidates.csv",
     }
 }
 
@@ -587,35 +632,44 @@ resource "google_storage_bucket_object" "upload_to_gcs_datasets_raw" {
   ]
 }
 
-variable "sensitive_csv_datasets_to_upload" {
-  type = map(string)
-  default = {
-
-    "../datasets/banking/customers_raw/credit_card_customers/date=2022-05-01/credit_card_customers.csv"="credit_card_customers/date=2022-05-01/credit_card_customers.csv",
-    "../datasets/banking/customers_raw/customers/date=2022-05-01/customers.csv"="customers/date=2022-05-01/customers.csv",
-
-    }
+locals {
+  copy_list = {
+      entry1 = { 
+                  source_path = "../../../00-resources/datasets/banking/customers_raw/credit_card_customers/date=2022-05-01/credit_card_customers.csv", 
+                  destination_path = "date=2022-05-01/credit_card_customers.csv", 
+                  bucket_name = local.lab_credit_card_bucket
+      }
+      entry2 = { 
+                  source_path = "../../../00-resources/datasets/banking/customers_raw/customers/date=2022-05-01/customers.csv", 
+                  destination_path = "date=2022-05-01/customers.csv" , 
+                  bucket_name = local.lab_customers_bucket
+      }
+      entry3 = { 
+                  source_path = "../../../00-resources/datasets/chicago-crimes/reference_data/crimes_chicago_iucr_ref.csv", 
+                  destination_path = "crimes_chicago_iucr_ref.csv" , 
+                  bucket_name = local.lab_chicagocrimes_bucket
+      }
+  }
 }
 
 resource "google_storage_bucket_object" "upload_to_gcs_sensitive_datasets_raw" {
-  for_each = var.sensitive_csv_datasets_to_upload
-  name     = each.value
-  source   = "${path.module}/${each.key}"
-  bucket   = "${local.lab_sensitive_data_bucket_raw}"
+  for_each = local.copy_list
+  name     = each.value.destination_path
+  source   = each.value.source_path
+  bucket   = each.value.bucket_name
   depends_on = [
     time_sleep.sleep_after_bucket_creation
   ]
 }
 
-
 variable "parquet_datasets_to_upload" {
   type = map(string)
   default = {
-    "../datasets/cell-tower-anomaly-detection/master_data/ctad_part-00000-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00000-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
-    "../datasets/cell-tower-anomaly-detection/master_data/ctad_part-00001-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00001-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
-    "../datasets/cell-tower-anomaly-detection/master_data/ctad_part-00002-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00002-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
-    "../datasets/cell-tower-anomaly-detection/master_data/ctad_part-00003-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00003-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"
-    "../datasets/retail-transactions-anomaly-detection/rtad_sales.parquet"="retail-transactions-anomaly-detection/rtad_sales.parquet"
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/master_data/ctad_part-00000-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00000-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/master_data/ctad_part-00001-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00001-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/master_data/ctad_part-00002-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00002-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet",
+    "../../../00-resources/datasets/cell-tower-anomaly-detection/master_data/ctad_part-00003-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"="cell-tower-anomaly-detection/master_data/ctad_part-00003-fc7d6e20-dbda-4143-91b5-d9414310dfd1-c000.snappy.parquet"
+    "../../../00-resources/datasets/retail-transactions-anomaly-detection/rtad_sales.parquet"="retail-transactions-anomaly-detection/rtad_sales.parquet"
 
   }
 }
@@ -634,14 +688,14 @@ resource "google_storage_bucket_object" "upload_to_gcs_datasets_curated" {
 variable "code_to_upload" {
   type = map(string)
   default = {
-    "../scripts/spark-sql/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.sql" = "spark-sql/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.sql"
+    "../../../00-resources/scripts/spark-sql/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.sql" = "spark-sql/retail-transactions-anomaly-detection/retail-transactions-anomaly-detection.sql"
     
-    "../scripts/pyspark/chicago-crimes-analytics/curate_crimes.py" = "pyspark/chicago-crimes-analytics/curate_crimes.py"
-    "../scripts/pyspark/chicago-crimes-analytics/crimes_report.py" = "pyspark/chicago-crimes-analytics/crimes_report.py"
-    "../scripts/pyspark/nyc-taxi-trip-analytics/taxi_trips_data_generator.py" = "pyspark/nyc-taxi-trip-analytics/taxi_trips_data_generator.py"
+    "../../../00-resources/scripts/pyspark/chicago-crimes-analytics/curate_crimes.py" = "pyspark/chicago-crimes-analytics/curate_crimes.py"
+    "../../../00-resources/scripts/pyspark/chicago-crimes-analytics/crimes_report.py" = "pyspark/chicago-crimes-analytics/crimes_report.py"
+    "../../../00-resources/scripts/pyspark/nyc-taxi-trip-analytics/taxi_trips_data_generator.py" = "pyspark/nyc-taxi-trip-analytics/taxi_trips_data_generator.py"
 
-    "../scripts/airflow/chicago-crimes-analytics/bq_lineage_pipeline.py" = "airflow/chicago-crimes-analytics/bq_lineage_pipeline.py"
-    "../scripts/airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py" = "airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py"
+    "../../../00-resources/scripts/airflow/chicago-crimes-analytics/bq_lineage_pipeline.py" = "airflow/chicago-crimes-analytics/bq_lineage_pipeline.py"
+    "../../../00-resources/scripts/airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py" = "airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py"
   }
 }
 
@@ -657,9 +711,9 @@ resource "google_storage_bucket_object" "upload_to_gcs_code_raw" {
 }
 
 resource "google_storage_bucket_object" "upload_version1_to_image_bucket" {
-  for_each    = fileset("../datasets/images/version1", "**")
+  for_each    = fileset("../../../00-resources/datasets/images/version1", "**")
   bucket      = google_storage_bucket.lab_image_bucket_creation.name
-  source      = "../datasets/images/version1/${each.key}"
+  source      = "../../../00-resources/datasets/images/version1/${each.key}"
   name        = "version1/${each.key}"
   depends_on = [
     time_sleep.sleep_after_bucket_creation
@@ -667,9 +721,9 @@ resource "google_storage_bucket_object" "upload_version1_to_image_bucket" {
 }
 
 resource "google_storage_bucket_object" "upload_version2_to_image_bucket" {
-  for_each    = fileset("../datasets/images/version2", "**")
+  for_each    = fileset("../../../00-resources/datasets/images/version2", "**")
   bucket      = google_storage_bucket.lab_image_bucket_creation.name
-  source      = "../datasets/images/version2/${each.key}"
+  source      = "../../../00-resources/datasets/images/version2/${each.key}"
   name        = "version2/${each.key}"
   depends_on = [
     time_sleep.sleep_after_bucket_creation
@@ -793,8 +847,8 @@ output "CLOUD_COMPOSER_DAG_BUCKET" {
 variable "airflow_dags_to_upload" {
   type = map(string)
   default = {
-    "../scripts/airflow/chicago-crimes-analytics/bq_lineage_pipeline.py" = "dags/chicago-crimes-analytics/bq_lineage_pipeline.py",
-    "../scripts/airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py" = "dags/chicago-crimes-analytics/spark_custom_lineage_pipeline.py"
+    "../../../00-resources/scripts/airflow/chicago-crimes-analytics/bq_lineage_pipeline.py" = "dags/chicago-crimes-analytics/bq_lineage_pipeline.py",
+    "../../../00-resources/scripts/airflow/chicago-crimes-analytics/spark_custom_lineage_pipeline.py" = "dags/chicago-crimes-analytics/spark_custom_lineage_pipeline.py"
   }
 }
 
@@ -807,10 +861,6 @@ resource "google_storage_bucket_object" "upload_dags_to_airflow_dag_bucket" {
     time_sleep.sleep_after_composer_creation
   ]
 }
-
-
-
-
 
 /******************************************
 DONE

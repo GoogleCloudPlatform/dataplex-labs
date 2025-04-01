@@ -1,0 +1,16 @@
+{
+ "dataplex-types.global.generic": {
+  "data": {
+    "type": "generic", 
+    "system": "CLOUD_STORAGE"
+    }
+  },
+  "#PROJECT.#LOCATION.#ASPECTNAME": {
+    "data": {
+      "service": "CLOUD_STORAGE",
+      "resourceName": "gs://#BUCKETNAME",
+      "sourceUris" : ["gs://#BUCKETNAME/#FOLDERNAME/*"],
+      "type": "UNSTRUCTURED"
+    }
+  }
+}
