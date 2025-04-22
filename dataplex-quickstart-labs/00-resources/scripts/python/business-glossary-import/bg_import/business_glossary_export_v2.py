@@ -325,7 +325,9 @@ def main():
     GLOSSARY = args.glossary
     DATAPLEX_ENTRY_GROUP = f"projects/{args.project}/locations/{args.location}/entryGroups/@dataplex"
     
+    logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(args.project, args.location, args.group)
+    logger.info("Fetching entry links in the Glossary...")
     relationships_data = utils.fetch_all_relationships(entries, args.project)
     map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
     parent_mapping = build_parent_mapping(entries, relationships_data)
@@ -348,4 +350,12 @@ if __name__ == "__main__":
     start_time = time.time()
     main()
     end_time = time.time()
-    logger.info(f"Program finished in {end_time - start_time} seconds")
+    elapsed_time = end_time - start_time
+    hours, remainder = divmod(int(elapsed_time), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        logger.info(f"Export completed in {hours} hr {minutes} min {seconds} sec")
+    elif minutes > 0:
+        logger.info(f"Export completed in {minutes} min {seconds} sec")
+    else:
+        logger.info(f"Export completed in {seconds} sec")

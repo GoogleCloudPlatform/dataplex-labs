@@ -311,7 +311,7 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--export-mode",
-        choices=["glossary", "entry_links", "all"],
+        choices=["glossary_only", "entry_links_only", "all"],
         default="all",
         type=str,
         help=(
@@ -328,11 +328,11 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
     Args:
         args: Parsed script run arguments.
     """
-    if args.export_mode == "glossary" and not args.glossary_json:
+    if args.export_mode == "glossary_only" and not args.glossary_json:
         logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
         sys.exit(1)
 
-    if args.export_mode == "entry_links" and not args.entrylinks_json:
+    if args.export_mode == "entry_links_only" and not args.entrylinks_json:
         logger.error("The --entrylinks-json argument must be provided for export mode 'entry_links_only'.")
         sys.exit(1)
 
@@ -371,7 +371,8 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
         requests.get, fetch_relationships_url, project
     )
     if response["error_msg"]:
-        raise ValueError(response["error_msg"])
+        logger.error(f"Error fetching relationships: {response['error_msg']}")
+        sys.exit(1)
     return response["json"].get("relationships", [])
 
 def fetch_all_relationships(
@@ -430,8 +431,7 @@ def fetch_entries(
 
     if response["error_msg"]:
         logger.error(
-            "Can't proceed with export. Please select a valid glossary.",
-            response["error_msg"],
+        f"Can't proceed with export. Details: {response['error_msg']}"
         )
         sys.exit(1)
 
