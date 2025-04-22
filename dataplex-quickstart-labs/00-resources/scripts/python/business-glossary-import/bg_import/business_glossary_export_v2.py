@@ -22,7 +22,7 @@ import time
 logger = logging_utils.get_logger()
 
 # Project number pointing to prod for export 
-PROJECT_NUMBER = "418487367933"
+PROJECT_NUMBER = "655216118709"
 MAX_WORKERS = 20
 
 def get_entry_type_name(entry_type: str) -> str:
