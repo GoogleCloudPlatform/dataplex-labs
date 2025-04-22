@@ -321,6 +321,13 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
             "all\tExport both the glossary entries and entry links to the specified JSON files.\n"
         )
     )
+    parser.add_argument(
+        "--testing",
+        metavar="<true>",
+        type=lambda x: x.lower() == "true",
+        default=False,
+        help="If true, use staging environment instead of prod"
+    )
 
 def validate_export_v2_args(args: argparse.Namespace) -> None:
     """
