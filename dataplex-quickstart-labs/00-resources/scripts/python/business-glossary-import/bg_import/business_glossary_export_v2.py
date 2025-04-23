@@ -231,8 +231,8 @@ def build_entry_link(source_name: str, target_name: str, link_type: str, entry_l
         "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
         "entryLinkType": get_entry_link_type_name(link_type),
         "entryReferences": [
-            {"name": source_name, "type": "SOURCE"},
-            {"name": target_name, "type": "TARGET"}
+            {"name": source_name},
+            {"name": target_name}
         ]
     }
 
