@@ -175,7 +175,6 @@ def process_entry(entry: Dict[str, Any],
     contacts_list = [
         re.sub(r"<([^>]+)>", r" <\1>", contact) for contact in business_context.get("contacts", [])
     ]
-    logger.info(contacts_list)
     child_id = get_entry_id(entry["name"])
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
