@@ -184,10 +184,11 @@ def process_entry(entry: Dict[str, Any],
     ancestors = compute_ancestors(child_id, parent_mapping, map_entry_id_to_entry_type)
     
     glossary_resource_aspect = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
+    role = 'steward'
     aspects = {
             f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
             f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
-            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"name": c} for c in contacts_list]}}
+            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"role": role, "name": c} for c in list(contacts_list)]}}
         }
     entry_type_name = get_entry_type_name(entry_type)   
     entry_source = {
