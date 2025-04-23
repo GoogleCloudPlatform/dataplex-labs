@@ -172,7 +172,10 @@ def process_entry(entry: Dict[str, Any],
     core_aspects = entry.get("coreAspects", {})
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
     description = business_context.get("description", "")
-    contacts_list = business_context.get("contacts", [])
+    contacts_list = [
+        re.sub(r"<([^>]+)>", r" <\1>", contact) for contact in business_context.get("contacts", [])
+    ]
+    logger.info(contacts_list)
     child_id = get_entry_id(entry["name"])
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
