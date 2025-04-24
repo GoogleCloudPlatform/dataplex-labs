@@ -172,8 +172,10 @@ def process_entry(entry: Dict[str, Any],
     core_aspects = entry.get("coreAspects", {})
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
     description = business_context.get("description", "")
-    contacts_list = business_context.get("contacts", [])
-    child_id = get_entry_id(entry["name"])
+    contacts_list = [
+        re.sub(r"<([^>]+)>", r" <\1>", contact) for contact in business_context.get("contacts", [])
+    ]
+    child_id = get_entry_id(entry["name"]).replace("_", "-")
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
     entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_resource}"
@@ -184,10 +186,11 @@ def process_entry(entry: Dict[str, Any],
     ancestors = compute_ancestors(child_id, parent_mapping, map_entry_id_to_entry_type)
     
     glossary_resource_aspect = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
+    role = 'steward'
     aspects = {
             f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
             f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
-            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"name": c} for c in contacts_list]}}
+            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"role": role, "name": c} for c in list(contacts_list)]}}
         }
     entry_type_name = get_entry_type_name(entry_type)   
     entry_source = {
@@ -230,8 +233,8 @@ def build_entry_link(source_name: str, target_name: str, link_type: str, entry_l
         "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
         "entryLinkType": get_entry_link_type_name(link_type),
         "entryReferences": [
-            {"name": source_name, "type": "SOURCE"},
-            {"name": target_name, "type": "TARGET"}
+            {"name": source_name},
+            {"name": target_name}
         ]
     }
 
