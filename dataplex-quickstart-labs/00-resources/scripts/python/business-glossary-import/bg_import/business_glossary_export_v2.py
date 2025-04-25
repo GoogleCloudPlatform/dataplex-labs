@@ -234,12 +234,14 @@ def get_entry_name(glossary_resource_name: str, entry_type: str) -> str:
 def build_entry_link(source_name: str, target_name: str, link_type: str, entry_link_id: str) -> Dict[str, Any]:
     """Constructs an entry link."""
     return {
+        "entryLink": {
         "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
         "entryLinkType": get_entry_link_type_name(link_type),
         "entryReferences": [
             {"name": source_name},
             {"name": target_name}
         ]
+        }
     }
 
 def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
@@ -310,7 +312,7 @@ def export_entry_links_json(entries: List[Dict[str, Any]], relationships_data: D
             result = future.result()
             if result:
                 for link in result:
-                    link_name = link["name"]
+                    link_name = link["entryLink"]["name"]
                     if link_name not in unique_entry_links:
                         unique_entry_links[link_name] = link
                         filtered_links.append(link)  # Store the unique link in a list
