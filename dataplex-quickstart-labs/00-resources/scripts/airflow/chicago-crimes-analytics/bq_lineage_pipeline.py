@@ -21,7 +21,7 @@ SELECT
   EXTRACT(DAYOFWEEK FROM date) AS case_day_of_week_nbr,
   FORMAT_DATE('%A',date) AS case_day_of_week_name
 FROM
-  oda_raw_zone.crimes_raw;
+  oda_raw_zone.chicago_crimes_raw;
 """
 
 TREND_BY_YEAR = f"""
