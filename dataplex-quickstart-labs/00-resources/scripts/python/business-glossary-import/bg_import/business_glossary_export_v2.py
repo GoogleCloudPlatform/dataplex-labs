@@ -176,7 +176,7 @@ def process_entry(entry: Dict[str, Any],
         {
             "role": "steward",
             "name": re.sub(r"<([^>]+)>", "", contact).strip(),
-            "email": re.search(r"<([^>]+)>", contact).group(1) if re.search(r"<([^>]+)>", contact) else ""
+            "id": re.search(r"<([^>]+)>", contact).group(1) if re.search(r"<([^>]+)>", contact) else ""
         }
         for contact in business_context.get("contacts", [])
     ]
