@@ -172,7 +172,14 @@ def process_entry(entry: Dict[str, Any],
     core_aspects = entry.get("coreAspects", {})
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
     description = business_context.get("description", "")
-    contacts_list = business_context.get("contacts", [])
+    contacts_list = [
+        {
+            "role": "steward",
+            "name": re.sub(r"<([^>]+)>", "", contact).strip(),
+            "id": re.search(r"<([^>]+)>", contact).group(1) if re.search(r"<([^>]+)>", contact) else ""
+        }
+        for contact in business_context.get("contacts", [])
+    ]
     child_id = get_entry_id(entry["name"])
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
@@ -187,7 +194,7 @@ def process_entry(entry: Dict[str, Any],
     aspects = {
             f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
             f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
-            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": [{"name": c} for c in contacts_list]}}
+            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": contacts_list}}
         }
     entry_type_name = get_entry_type_name(entry_type)   
     entry_source = {
@@ -227,12 +234,14 @@ def get_entry_name(glossary_resource_name: str, entry_type: str) -> str:
 def build_entry_link(source_name: str, target_name: str, link_type: str, entry_link_id: str) -> Dict[str, Any]:
     """Constructs an entry link."""
     return {
+        "entryLink": {
         "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
         "entryLinkType": get_entry_link_type_name(link_type),
         "entryReferences": [
-            {"name": source_name, "type": "SOURCE"},
-            {"name": target_name, "type": "TARGET"}
+            {"name": source_name},
+            {"name": target_name}
         ]
+        }
     }
 
 def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
@@ -303,7 +312,7 @@ def export_entry_links_json(entries: List[Dict[str, Any]], relationships_data: D
             result = future.result()
             if result:
                 for link in result:
-                    link_name = link["name"]
+                    link_name = link["entryLink"]["name"]
                     if link_name not in unique_entry_links:
                         unique_entry_links[link_name] = link
                         filtered_links.append(link)  # Store the unique link in a list
