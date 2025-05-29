@@ -12,7 +12,7 @@ from typing import Any, List, Dict
 import api_call_utils
 import requests
 
-
+import re
 import csv
 import os
 import requests
@@ -89,7 +89,6 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
       help="ID of Google Cloud Project containing the destination glossary.",
       metavar="<project_id>",
       type=str,
-      required=True,
   )
     parser.add_argument(
         "--group",
@@ -99,7 +98,6 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
         ),
         metavar="<entry_group_id>",
         type=str,
-        required=True,
     )
     parser.add_argument(
         "--glossary",
@@ -109,14 +107,12 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
         ),
         metavar="<glossary_id>",
         type=str,
-        required=True,
     )
     parser.add_argument(
         "--location",
         help="Location code where the glossary resource exists.",
         metavar="<location_code>",
         type=str,
-        required=True,
     )
 
 def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
@@ -259,6 +255,35 @@ def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
         required=True,
     )
 
+def parse_glossary_url(url: str) -> dict:
+    pattern = (
+        r"projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/"
+        r"entryGroups/(?P<entry_group>[^/]+)/glossaries/(?P<glossary>[^/?#]+)"
+    )
+    match = re.search(pattern, url)
+    if not match:
+        raise ValueError("Invalid glossary URL provided. It must contain the pattern: "
+                         "projects/.../locations/.../entryGroups/.../glossaries/...")
+    return match.groupdict()
+
+def maybe_override_args_from_url(args):
+    if hasattr(args, "url") and args.url:
+        try:
+            extracted = parse_glossary_url(args.url)
+            if args.project or args.location or args.group or args.glossary:
+                logger.warning(
+                    "Glossary parameters were provided via both URL and individual flags. "
+                    "Using values extracted from --url and overriding --project, --location, --group, and --glossary."
+                )
+            args.project = extracted["project"]
+            args.location = extracted["location"]
+            args.group = extracted["entry_group"]
+            args.glossary = extracted["glossary"]
+        except ValueError as ve:
+            logger.error(str(ve))
+            sys.exit(1)
+
+
 def validate_export_args(args: argparse.Namespace) -> None:
     """Validates script run arguments for exporting.
 
@@ -321,6 +346,33 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
             "all\tExport both the glossary entries and entry links to the specified JSON files.\n"
         )
     )
+
+    parser.add_argument(
+        "--entrylinktype",
+        help=(
+            "Filter entry links by type. Options:\n"
+            "  is_synonymous_to → synonym links\n"
+            "  is_related_to → related links\n"
+            "  is_described_by → definition (term-entry) links\n"
+            "If omitted, exports all link types."
+        ),
+        choices=["is_synonymous_to", "is_related_to", "is_described_by"],
+        default=None,
+        type=str
+    )
+
+    parser.add_argument(
+    "--url",
+    help=(
+        "Full Glossary URL.\n"
+        "Supports both internal and external formats like:\n"
+        "https://pantheon.corp.google.com/dataplex/glossaries/projects/PROJECT_ID/locations/LOC/entryGroups/ENTRY_GROUP/glossaries/GLOSSARY\n"
+        "https://console.cloud.google.com/dataplex/glossaries/projects/PROJECT_ID/locations/LOC/entryGroups/ENTRY_GROUP/glossaries/GLOSSARY"
+    ),
+    metavar="[Glossary URL]",
+    type=str
+)
+
     parser.add_argument(
         "--testing",
         metavar="<true>",
@@ -329,12 +381,22 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
         help="If true, use staging environment instead of prod"
     )
 
+
 def validate_export_v2_args(args: argparse.Namespace) -> None:
     """
     Validates script run arguments for the export v2.
     Args:
         args: Parsed script run arguments.
     """
+    # Check mutual requirement: either --url or all of project, location, group, glossary
+    if not args.url:
+        missing = [flag for flag in ["project", "location", "group", "glossary"] if not getattr(args, flag)]
+        if missing:
+            logger.error(
+                f"You must either provide --url OR all of the following flags: --project, --location, --group, --glossary. Missing: {', '.join(missing)}"
+            )
+            sys.exit(1)
+
     if args.export_mode == "glossary_only" and not args.glossary_json:
         logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
         sys.exit(1)

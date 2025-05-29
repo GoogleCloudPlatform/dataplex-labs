@@ -20,8 +20,13 @@ from typing import Any, List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 logger = logging_utils.get_logger()
+import api_call_utils
+import requests
+import subprocess
 
 MAX_WORKERS = 20
+GLOSSARY_EXPORT_LOCATION = "global"
+
 
 def get_entry_type_name(entry_type: str) -> str:
     """
@@ -51,6 +56,8 @@ def get_entry_link_type_name(entry_link_type: str) -> str:
         return f"projects/{PROJECT_NUMBER}/locations/global/entryLinkTypes/synonym"
     elif entry_link_type == "is_related_to":
         return f"projects/{PROJECT_NUMBER}/locations/global/entryLinkTypes/related"
+    elif entry_link_type == "is_described_by":
+        return f"projects/{PROJECT_NUMBER}/locations/global/entryLinkTypes/definition"
     return ""
 
 
@@ -86,9 +93,10 @@ def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
         glossary_child_resources = "categories"
     
     if glossary_child_resources:
-        return f"projects/{PROJECT}/locations/{LOCATION}/glossaries/{GLOSSARY}/{glossary_child_resources}/{entry_id}"
+        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}/{glossary_child_resources}/{entry_id}"
+
     else:
-        return f"projects/{PROJECT}/locations/{LOCATION}/glossaries/{GLOSSARY}"
+        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
 
 
 def build_parent_mapping(entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, str]:
@@ -144,7 +152,7 @@ def compute_ancestors(child_id: str,
                 break
             current = parent_mapping[current]
     
-    glossary_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{LOCATION}/glossaries/{GLOSSARY}"
+    glossary_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
     ancestors.append({
         "name": glossary_entry_name,
         "type": get_entry_type_name("glossary")
@@ -184,7 +192,7 @@ def process_entry(entry: Dict[str, Any],
     
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
     entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_resource}"
-    glossary_entry_id = f"projects/{PROJECT}/locations/{LOCATION}/glossaries/{GLOSSARY}"
+    glossary_entry_id = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
     parent_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_entry_id}"
     parent_entry_name = get_entry_name(glossary_entry_id, "glossary")
 
@@ -296,41 +304,221 @@ def export_glossary_entries_json(entries: List[Dict[str, Any]],
                     outputfile.write(json.dumps(result) + "\n")
 
 
-def export_entry_links_json(entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]], output_json: str):
-    """
-    Export the entry links JSON data for synonyms and related terms.
-    """
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(build_entry_links, entry, relationships_data): entry for entry in entries}
-        
-        unique_entry_links = {}
-        filtered_links = []
+# Combined export function for term-term and term-entry links with correct structure and attributes
+import os
+from collections import defaultdict
 
-        # For entry links within glossary, same entry link will be present in relationships data of two entries
-        # so we have to remove entrylinks with same name
+def ensure_directory_exists(path: str):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def write_links_to_file(links, filepath, mode="w"):
+    with open(filepath, mode=mode, encoding="utf-8") as outputfile:
+        for link in links:
+            outputfile.write(json.dumps(link) + "\n")
+
+def export_combined_entry_links_json(entries: List[Dict[str, Any]],
+                                      relationships_data: Dict[str, List[Dict[str, Any]]],
+                                      output_json: str,
+                                      project_id: str,
+                                      entrylink_type_filter: str = None):
+    """
+    Export term-term and term-entry entry links with enhanced filtering and dynamic file handling.
+    """
+    all_links = []
+    seen_link_names = set()
+    definition_links_by_entrygroup = defaultdict(list)
+    term_links = []
+
+    def process_term_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+        entry_links = []
+        entry_name = entry.get("name", "")
+        relationships = relationships_data.get(entry_name, [])
+
+        for relationship in relationships:
+            entry_link_id = get_entry_link_id(relationship.get("name", ""))
+            link_type = relationship.get("relationshipType", "")
+            if entrylink_type_filter and link_type != entrylink_type_filter:
+                continue
+            if link_type in ["is_synonymous_to", "is_related_to"]:
+                destination_entry = relationship.get("destinationEntry", {}).get("name", "")
+                source_entry = relationship.get("sourceEntry", {}).get("name", "")
+                source_entry_type = relationship.get("sourceEntry", {}).get("entryType", "")
+
+                if destination_entry:
+                    source_entry_name = get_entry_name(source_entry, source_entry_type)
+                    destination_entry_name = get_entry_name(destination_entry, source_entry_type)
+                    link = build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id)
+                    if link["entryLink"]["name"] not in seen_link_names:
+                        seen_link_names.add(link["entryLink"]["name"])
+                        entry_links.append(link)
+                        term_links.append(link)
+        return entry_links
+
+    def process_term_entry_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+        entry_links = []
+        if entry.get("entryType") != "glossary_term":
+            return entry_links
+
+        entry_id = get_entry_id(entry.get("name", ""))
+        entry_uid = entry.get("entryUid", "")
+        search_url = "https://datacatalog.googleapis.com/v1/catalog:search"
+        request_body = {
+            "orderBy": "relevance",
+            "pageSize": 1000,
+            "query": f"(term:{entry_id})",
+            "scope": {
+                "includeGcpPublicDatasets": False,
+                "includeOrgIds": ORG_IDS,
+            }
+        }
+
+        search_response = api_call_utils.fetch_api_response(requests.post, search_url, project_id, request_body)
+        results = search_response.get("json", {}).get("results", [])
+
+        for result in results:
+            linked_resource = result.get("linkedResource", "").lstrip("/")
+            relative_resource_name = result.get("relativeResourceName", "")
+
+            if not linked_resource or not relative_resource_name:
+                continue
+
+            new_entry_id = re.sub(r"^/+", "", linked_resource).replace(" ", "")
+            relative_resource_name_v2 = re.sub(r'entries/[^/]+$', f'entries/{new_entry_id}', relative_resource_name)
+
+            entry_get_url = f"https://dataplex.googleapis.com/v1/{relative_resource_name_v2}"
+            entry_check = api_call_utils.fetch_api_response(requests.get, entry_get_url, project_id)
+            if not entry_check.get("json") or entry_check.get("error_msg"):
+                logger.warning(f"Dataplex entry not found for linked resource: {linked_resource}")
+                continue
+
+            rel_url = f"https://datacatalog.googleapis.com/v2/{relative_resource_name}/relationships"
+            response = api_call_utils.fetch_api_response(requests.get, rel_url, project_id)
+            relationships = response.get("json", {}).get("relationships", [])
+
+            for rel in relationships:
+                dest_entry = rel.get("destinationEntryName", "")
+                source_column = rel.get("sourceColumn", "")
+                if get_entry_id(dest_entry) == entry_uid:
+                    rel_id = get_entry_link_id(rel.get("name", ""))
+                    entrygroup_match = re.search(r"projects/[^/]+/locations/[^/]+/entryGroups/([^/]+)/entries/", relative_resource_name)
+                    entry_group = entrygroup_match.group(1) if entrygroup_match else "@dataplex"
+
+                    entry_group_sanitized = re.sub(r'[^a-zA-Z0-9_]', '', entry_group)
+                    entry_link_name = f"projects/{PROJECT}/locations/global/entryGroups/{entry_group}/entryLinks/{rel_id}"
+                    entry_reference_source = {
+                        "name": relative_resource_name_v2,
+                        "path": f"schema.{source_column}" if source_column else "",
+                        "type": "SOURCE"
+                    }
+                    entry_reference_target = {
+                        "name": f"projects/{PROJECT}/locations/global/entryGroups/@dataplex/entries/{get_export_resource_by_id(entry_id, entry.get('entryType', 'glossary_term'))}",
+                        "path": "",
+                        "type": "TARGET"
+                    }
+
+                    link = {
+                        "entryLink": {
+                            "name": entry_link_name,
+                            "entryLinkType": get_entry_link_type_name("is_described_by"),
+                            "entryReferences": [entry_reference_source, entry_reference_target]
+                        }
+                    }
+                    if link["entryLink"]["name"] not in seen_link_names:
+                        seen_link_names.add(link["entryLink"]["name"])
+                        definition_links_by_entrygroup[entry_group_sanitized].append(link)
+                        entry_links.append(link)
+        return entry_links
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        if not entrylink_type_filter or entrylink_type_filter in ["is_synonymous_to", "is_related_to"]:
+            futures += [executor.submit(process_term_links, entry) for entry in entries]
+        if not entrylink_type_filter or entrylink_type_filter == "is_described_by":
+            futures += [executor.submit(process_term_entry_links, entry) for entry in entries]
+
         for future in as_completed(futures):
             result = future.result()
             if result:
-                for link in result:
-                    link_name = link["entryLink"]["name"]
-                    if link_name not in unique_entry_links:
-                        unique_entry_links[link_name] = link
-                        filtered_links.append(link)  # Store the unique link in a list
+                all_links.extend(result)
 
-    with open(output_json, mode="w", encoding="utf-8") as outputfile:
-        for link in filtered_links:
-            outputfile.write(json.dumps(link) + "\n")
+    # Only create default_dir if needed
+    default_dir = os.path.join(os.getcwd(), "Generated_Import_files")
+    use_default_dir = (
+        not output_json or
+        (entrylink_type_filter == "is_described_by" and len(definition_links_by_entrygroup) > 1)
+    )
+
+    if entrylink_type_filter == "is_described_by":
+        if len(definition_links_by_entrygroup) == 1 and output_json:
+            group_links = next(iter(definition_links_by_entrygroup.values()))
+            try:
+                write_links_to_file(group_links, output_json)
+            except Exception as e:
+                ensure_directory_exists(default_dir)
+                fallback_path = os.path.join(default_dir, "definition_entrylinks.json")
+                logger.warning(f"Could not write to {output_json}, falling back to {fallback_path}. Error: {e}")
+                write_links_to_file(group_links, fallback_path)
+        else:
+            ensure_directory_exists(default_dir)
+            logger.warning("Cannot write all entry links to single JSON since multiple entry groups found in definition entry links. Exporting to default files instead.")
+            for entrygroup, links in definition_links_by_entrygroup.items():
+                output_path = os.path.join(default_dir, f"definition_entrylinks_{entrygroup}.json")
+                write_links_to_file(links, output_path)
+
+    elif entrylink_type_filter in ["is_related_to", "is_synonymous_to"]:
+        try:
+            write_links_to_file(all_links, output_json)
+        except Exception as e:
+            ensure_directory_exists(default_dir)
+            fallback_path = os.path.join(default_dir, f"{entrylink_type_filter}_entrylinks.json")
+            logger.warning(f"Could not write to {output_json}, falling back to {fallback_path}. Error: {e}")
+            write_links_to_file(all_links, fallback_path)
+
+    else:
+        related_output_path = output_json if output_json else os.path.join(default_dir, "related_and_synonym_entrylinks.json")
+        try:
+            write_links_to_file(term_links, related_output_path, mode="w")
+            if len(definition_links_by_entrygroup) == 1:
+                group_links = next(iter(definition_links_by_entrygroup.values()))
+                write_links_to_file(group_links, related_output_path, mode="a")
+            else:
+                ensure_directory_exists(default_dir)
+                logger.warning("Cannot write all entry links to single JSON since multiple entry groups found in definition entry links. Exporting to default files instead.")
+                for entrygroup, links in definition_links_by_entrygroup.items():
+                    output_path = os.path.join(default_dir, f"definition_entrylinks_{entrygroup}.json")
+                    write_links_to_file(links, output_path)
+        except Exception as e:
+            logger.warning(f"Could not write to {related_output_path}. Error: {e}")
 
 
 def main():
     args = utils.get_export_v2_arguments()
     utils.validate_export_v2_args(args)
+    utils.maybe_override_args_from_url(args)
 
-    global DATAPLEX_ENTRY_GROUP, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL
+
+    # Run the gcloud command to get organization IDs
+    result = subprocess.run(
+        ["gcloud", "organizations", "list", "--format=value(ID)"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    if result.stderr:
+        print("Error:", result.stderr)
+    org_ids = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+    print(f"Organization IDs: {org_ids}")
+
+    if result.stderr:
+        print("Error:", result.stderr)
+    global DATAPLEX_ENTRY_GROUP, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     PROJECT = args.project
     LOCATION = args.location
     GLOSSARY = args.glossary
-    DATAPLEX_ENTRY_GROUP = f"projects/{PROJECT}/locations/{LOCATION}/entryGroups/@dataplex"
+    ORG_IDS = org_ids
+
+    DATAPLEX_ENTRY_GROUP = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex"
     if args.testing:
         PROJECT_NUMBER = "418487367933"  # Staging project number
     else:
@@ -352,7 +540,15 @@ def main():
         logger.info(f"Glossary exported to {args.glossary_json}")
 
     if args.export_mode in ["entry_links_only", "all"]:
-        export_entry_links_json(entries, relationships_data, args.entrylinks_json)
+        export_combined_entry_links_json(
+    entries,
+    relationships_data,
+    args.entrylinks_json,
+    args.project,
+    args.entrylinktype
+)
+
+
         logger.info(f"Entry links exported to {args.entrylinks_json}")
 
 
