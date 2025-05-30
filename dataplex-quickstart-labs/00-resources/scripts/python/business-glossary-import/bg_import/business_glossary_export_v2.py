@@ -1,11 +1,13 @@
 """
 This script is used to export data from a Data Catalog glossary to JSON files depending on the export mode.
+
 The Glossary JSON file contains the following fields:
 - name: The name of the entry.
 - entryType: The type of the entry (e.g., glossary_term, glossary_category, glossary).
 - aspects: Various aspects of the entry, including glossary-term-aspect, glossary-category-aspect, overview, and contacts.
 - parentEntry: The parent entry of the current entry.
 - entrySource: The source information of the entry, including resource, displayName, description, and ancestors.
+
 The Entry Links JSON file contains the following fields:
 - name: The name of the entry link.
 - entryLinkType: The type of the entry link (e.g., synonym, related).
@@ -23,6 +25,10 @@ logger = logging_utils.get_logger()
 import api_call_utils
 import requests
 import subprocess
+import os
+from collections import defaultdict
+
+logger = logging_utils.get_logger()
 
 MAX_WORKERS = 20
 GLOSSARY_EXPORT_LOCATION = "global"
@@ -200,11 +206,11 @@ def process_entry(entry: Dict[str, Any],
     
     glossary_resource_aspect = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
     aspects = {
-            f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
-            f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
-            f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": contacts_list}}
-        }
-    entry_type_name = get_entry_type_name(entry_type)   
+        f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
+        f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
+        f"{PROJECT_NUMBER}.global.contacts": {"data": {"identities": contacts_list}}
+    }
+    entry_type_name = get_entry_type_name(entry_type)
     entry_source = {
         "resource": glossary_resource,
         "displayName": display_name,
@@ -222,7 +228,6 @@ def process_entry(entry: Dict[str, Any],
         }
     }
 
-
 def get_entry_link_id(relationship_name: str) -> str:
     """Extracts the id from the full relationship name."""
     # Since relationships are bi-directional, we need to ensure the same entry link ID is used if the relationship involves two glossaries.
@@ -231,8 +236,6 @@ def get_entry_link_id(relationship_name: str) -> str:
     if match:
         return match.group(1)
     return ""
-
-    
 
 def get_entry_name(glossary_resource_name: str, entry_type: str) -> str:
     """Generates the full entry name."""
@@ -243,12 +246,12 @@ def build_entry_link(source_name: str, target_name: str, link_type: str, entry_l
     """Constructs an entry link."""
     return {
         "entryLink": {
-        "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
-        "entryLinkType": get_entry_link_type_name(link_type),
-        "entryReferences": [
-            {"name": source_name},
-            {"name": target_name}
-        ]
+            "name": f"{DATAPLEX_ENTRY_GROUP}/entryLinks/{entry_link_id}",
+            "entryLinkType": get_entry_link_type_name(link_type),
+            "entryReferences": [
+                {"name": source_name},
+                {"name": target_name}
+            ]
         }
     }
 
@@ -272,17 +275,10 @@ def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[
             if destination_entry:
                 source_entry_name = get_entry_name(source_entry, source_entry_type)
                 destination_entry_name = get_entry_name(destination_entry, source_entry_type)
-                
                 entry_links.append(build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id))
-    
     return entry_links
 
-
-def export_glossary_entries_json(entries: List[Dict[str, Any]],
-                                 output_json: str,
-                                 parent_mapping: Dict[str, str],
-                                 map_entry_id_to_entry_type: Dict[str, str],
-                                 max_workers: int = MAX_WORKERS):
+def export_glossary_entries_json(entries: List[Dict[str, Any]], output_json: str, parent_mapping: Dict[str, str], map_entry_id_to_entry_type: Dict[str, str], max_workers: int = MAX_WORKERS):
     """
     Process each entry and write the export JSON as one object per line.
     """
@@ -303,11 +299,6 @@ def export_glossary_entries_json(entries: List[Dict[str, Any]],
                 if result:
                     outputfile.write(json.dumps(result) + "\n")
 
-
-# Combined export function for term-term and term-entry links with correct structure and attributes
-import os
-from collections import defaultdict
-
 def ensure_directory_exists(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
@@ -317,11 +308,13 @@ def write_links_to_file(links, filepath, mode="w"):
         for link in links:
             outputfile.write(json.dumps(link) + "\n")
 
-def export_combined_entry_links_json(entries: List[Dict[str, Any]],
-                                      relationships_data: Dict[str, List[Dict[str, Any]]],
-                                      output_json: str,
-                                      project_id: str,
-                                      entrylink_type_filter: str = None):
+def export_combined_entry_links_json(
+    entries: List[Dict[str, Any]],
+    relationships_data: Dict[str, List[Dict[str, Any]]],
+    output_json: str,
+    project_id: str,
+    entrylink_type_filter: str = None
+):
     """
     Export term-term and term-entry entry links with enhanced filtering and dynamic file handling.
     """
@@ -408,7 +401,7 @@ def export_combined_entry_links_json(entries: List[Dict[str, Any]],
                     entry_link_name = f"projects/{PROJECT}/locations/global/entryGroups/{entry_group}/entryLinks/{rel_id}"
                     entry_reference_source = {
                         "name": relative_resource_name_v2,
-                        "path": f"schema.{source_column}" if source_column else "",
+                        "path": f"Schema.{source_column}" if source_column else "",
                         "type": "SOURCE"
                     }
                     entry_reference_target = {
@@ -491,12 +484,10 @@ def export_combined_entry_links_json(entries: List[Dict[str, Any]],
         except Exception as e:
             logger.warning(f"Could not write to {related_output_path}. Error: {e}")
 
-
 def main():
     args = utils.get_export_v2_arguments()
     utils.validate_export_v2_args(args)
     utils.maybe_override_args_from_url(args)
-
 
     # Run the gcloud command to get organization IDs
     result = subprocess.run(
@@ -508,7 +499,6 @@ def main():
     if result.stderr:
         print("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
-    print(f"Organization IDs: {org_ids}")
 
     if result.stderr:
         print("Error:", result.stderr)
@@ -523,9 +513,11 @@ def main():
         PROJECT_NUMBER = "418487367933"  # Staging project number
     else:
         PROJECT_NUMBER = "655216118709"  # Prod project number
+
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(args.project, args.location, args.group)
-    logger.info("Fetching entry links in the Glossary...")
+    if args.export_mode != "glossary_only":
+        logger.info("Fetching entry links in the Glossary...")
     relationships_data = utils.fetch_all_relationships(entries, args.project)
     map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
     parent_mapping = build_parent_mapping(entries, relationships_data)
@@ -541,16 +533,13 @@ def main():
 
     if args.export_mode in ["entry_links_only", "all"]:
         export_combined_entry_links_json(
-    entries,
-    relationships_data,
-    args.entrylinks_json,
-    args.project,
-    args.entrylinktype
-)
-
-
+            entries,
+            relationships_data,
+            args.entrylinks_json,
+            args.project,
+            args.entrylinktype
+        )
         logger.info(f"Entry links exported to {args.entrylinks_json}")
-
 
 if __name__ == "__main__":
     start_time = time.time()
