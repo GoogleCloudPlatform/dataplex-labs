@@ -21,11 +21,11 @@ import re
 from typing import Any, List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-logger = logging_utils.get_logger()
 import api_call_utils
 import requests
 import subprocess
 import os
+import sys
 from collections import defaultdict
 
 logger = logging_utils.get_logger()
@@ -50,11 +50,12 @@ def get_entry_type_name(entry_type: str) -> str:
         return f"projects/{PROJECT_NUMBER}/locations/global/entryTypes/glossary"
     return ""
 
+
 def get_entry_link_type_name(entry_link_type: str) -> str:
     """
     Returns the fully qualified entry link type name based on the provided entry link type.
     Args:
-        entry_link_type (str): The type of the entry link. Can be one of "synonym", "related".
+        entry_link_type (str): The type of the entry link. Can be one of "synonym", "related", "definition".
     Returns:
         str: The fully qualified entry link type name if the entry link type is recognized, otherwise an empty string.
     """
@@ -70,7 +71,7 @@ def get_entry_link_type_name(entry_link_type: str) -> str:
 def get_entry_id(entry_name: str) -> str:
     """
     Extract the entry id from the full entry name.
-    
+
     Args: entry_name (str): The full entry name.
     Returns: str: The entry id.
     """
@@ -83,8 +84,8 @@ def get_entry_id(entry_name: str) -> str:
 def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
     """
     Construct the export resource name based on the entry id and type.
-    
-    Args: 
+
+    Args:
         entry_id (str): The entry id.
         entry_type (str): The entry type.
         project (str): The project id.
@@ -97,24 +98,26 @@ def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
         glossary_child_resources = "terms"
     elif entry_type == "glossary_category":
         glossary_child_resources = "categories"
-    
+
     if glossary_child_resources:
         return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}/{glossary_child_resources}/{entry_id}"
-
     else:
         return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
 
 
-def build_parent_mapping(entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, str]:
+def build_parent_mapping(
+    entries: List[Dict[str, Any]],
+    relationships_data: Dict[str, List[Dict[str, Any]]],
+) -> Dict[str, str]:
     """
     Build a mapping: child_entry_id -> parent's entry_id, based on the "belongs_to" relationship.
-    
-    Args: 
+
+    Args:
         entries (List[Dict[str, Any]]): The list of entries.
-        relationships_data (Dict[str, List[Dict[str, Any]]): The relationships data.
+        relationships_data (Dict[str, List[Dict[str, Any]]]): The relationships data.
     Returns: Dict[str, str]: The parent mapping.
     """
-    parent_mapping = {}
+    parent_mapping: Dict[str, str] = {}
     for entry in entries:
         child_id = get_entry_id(entry["name"])
         rels = relationships_data.get(entry["name"], [])
@@ -125,25 +128,27 @@ def build_parent_mapping(entries: List[Dict[str, Any]], relationships_data: Dict
                 parent_id = get_entry_id(parent_full)
                 if parent_id:
                     parent_mapping[child_id] = parent_id
-                    break # There exists only one valid belongs_to, needn't traverse furthur 
+                    break  # There is exactly one valid belongs_to
     return parent_mapping
 
 
-def compute_ancestors(child_id: str,
-                      parent_mapping: Dict[str, str],
-                      map_entry_id_to_entry_type: Dict[str, str]) -> List[Dict[str, str]]:
+def compute_ancestors(
+    child_id: str,
+    parent_mapping: Dict[str, str],
+    map_entry_id_to_entry_type: Dict[str, str],
+) -> List[Dict[str, str]]:
     """
     Build the ancestors array for an entry (using entry IDs).
     For each ancestor in the chain, construct its export resource using get_export_resource_by_id.
     If no belongs_to exists, assume the glossary is the only ancestor.
-    
-    Args: 
+
+    Args:
         child_id (str): The entry id of the child.
         parent_mapping (Dict[str, str]): The parent mapping.
         map_entry_id_to_entry_type (Dict[str, str]): The mapping of entry id to entry type.
     Returns: List[Dict[str, str]]: The ancestors array.
     """
-    ancestors = []
+    ancestors: List[Dict[str, str]] = []
     if child_id in parent_mapping:
         current = parent_mapping[child_id]
         while True:
@@ -157,7 +162,7 @@ def compute_ancestors(child_id: str,
             if current not in parent_mapping:
                 break
             current = parent_mapping[current]
-    
+
     glossary_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
     ancestors.append({
         "name": glossary_entry_name,
@@ -167,10 +172,11 @@ def compute_ancestors(child_id: str,
     return ancestors
 
 
-def process_entry(entry: Dict[str, Any],
-                      parent_mapping: Dict[str, str],
-                      map_entry_id_to_entry_type: Dict[str, str],
-                      ) -> Dict[str, Any]:
+def process_entry(
+    entry: Dict[str, Any],
+    parent_mapping: Dict[str, str],
+    map_entry_id_to_entry_type: Dict[str, str],
+) -> Dict[str, Any]:
     """
     Process a single entry (only glossary_term or glossary_category) and produce the export JSON.
     - Extract the entry id (the portion after "/entries/") for constructing new resource names.
@@ -195,15 +201,14 @@ def process_entry(entry: Dict[str, Any],
         for contact in business_context.get("contacts", [])
     ]
     child_id = get_entry_id(entry["name"])
-    
+
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
     entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_resource}"
     glossary_entry_id = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
-    parent_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_entry_id}"
     parent_entry_name = get_entry_name(glossary_entry_id, "glossary")
 
     ancestors = compute_ancestors(child_id, parent_mapping, map_entry_id_to_entry_type)
-    
+
     glossary_resource_aspect = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
     aspects = {
         f"{PROJECT_NUMBER}.global.{glossary_resource_aspect}": {"data": {}},
@@ -228,19 +233,20 @@ def process_entry(entry: Dict[str, Any],
         }
     }
 
+
 def get_entry_link_id(relationship_name: str) -> str:
     """Extracts the id from the full relationship name."""
-    # Since relationships are bi-directional, we need to ensure the same entry link ID is used if the relationship involves two glossaries.
-    # This ensures that during export and subsequent import, the entry link ID remains consistent for the same relationship.
     match = re.search(r"projects/[^/]+/locations/[^/]+/entryGroups/[^/]+/entries/[^/]+/relationships/(.+)$", relationship_name)
     if match:
         return match.group(1)
     return ""
 
+
 def get_entry_name(glossary_resource_name: str, entry_type: str) -> str:
     """Generates the full entry name."""
     resource_name = get_export_resource_by_id(get_entry_id(glossary_resource_name), entry_type)
     return f"{DATAPLEX_ENTRY_GROUP}/entries/{resource_name}"
+
 
 def build_entry_link(source_name: str, target_name: str, link_type: str, entry_link_id: str) -> Dict[str, Any]:
     """Constructs an entry link."""
@@ -255,30 +261,36 @@ def build_entry_link(source_name: str, target_name: str, link_type: str, entry_l
         }
     }
 
+
 def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
     """
     Build the entry links JSON data for synonyms and related terms.
     """
-    entry_links = []
+    entry_links: List[Dict[str, Any]] = []
     entry_name = entry.get("name", "")
     relationships = relationships_data.get(entry_name, [])
 
     for relationship in relationships:
         entry_link_id = get_entry_link_id(relationship.get("name", ""))
-
         link_type = relationship.get("relationshipType", "")
         if link_type in ["is_synonymous_to", "is_related_to"]:
             destination_entry = relationship.get("destinationEntry", {}).get("name", "")
             source_entry = relationship.get("sourceEntry", {}).get("name", "")
             source_entry_type = relationship.get("sourceEntry", {}).get("entryType", "")
-            
             if destination_entry:
                 source_entry_name = get_entry_name(source_entry, source_entry_type)
                 destination_entry_name = get_entry_name(destination_entry, source_entry_type)
                 entry_links.append(build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id))
     return entry_links
 
-def export_glossary_entries_json(entries: List[Dict[str, Any]], output_json: str, parent_mapping: Dict[str, str], map_entry_id_to_entry_type: Dict[str, str], max_workers: int = MAX_WORKERS):
+
+def export_glossary_entries_json(
+    entries: List[Dict[str, Any]],
+    output_json: str,
+    parent_mapping: Dict[str, str],
+    map_entry_id_to_entry_type: Dict[str, str],
+    max_workers: int = MAX_WORKERS
+):
     """
     Process each entry and write the export JSON as one object per line.
     """
@@ -299,39 +311,65 @@ def export_glossary_entries_json(entries: List[Dict[str, Any]], output_json: str
                 if result:
                     outputfile.write(json.dumps(result) + "\n")
 
+
 def ensure_directory_exists(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
+
 
 def write_links_to_file(links, filepath, mode="w"):
     with open(filepath, mode=mode, encoding="utf-8") as outputfile:
         for link in links:
             outputfile.write(json.dumps(link) + "\n")
 
+def parse_entrylinktype_arg(raw_entrylinktype):
+        logger.info(f"Raw entrylinktype argument: '{raw_entrylinktype}'")
+        cleaned = (raw_entrylinktype or "").strip("{} ")
+        tokens = [t.strip() for t in cleaned.split(",") if t.strip()]
+        logger.info(f"Parsed entrylinktype tokens: {tokens}")
+        mapping = {
+            "synonym": "is_synonymous_to",
+            "related": "is_related_to",
+            "definition": "is_described_by",
+        }
+        if not tokens:
+            return set(mapping.values())  # all three if none provided
+        entrylinktype_set = set()
+        for t in tokens:
+            t_lower = t.lower()
+            if t_lower in mapping:
+                entrylinktype_set.add(mapping[t_lower])
+            else:
+                logger.error(f"Invalid entrylinktype token: '{t}'. Must be one of {list(mapping.keys())}")
+                sys.exit(1)
+        return entrylinktype_set
+
 def export_combined_entry_links_json(
     entries: List[Dict[str, Any]],
     relationships_data: Dict[str, List[Dict[str, Any]]],
     output_json: str,
     project_id: str,
-    entrylink_type_filter: str = None
+    entrylinktype_set: set,
 ):
     """
     Export term-term and term-entry entry links with enhanced filtering and dynamic file handling.
+    entrylinktype_set is a set of full relationshipType strings, e.g.:
+       {"is_synonymous_to", "is_related_to", "is_described_by"} 
     """
-    all_links = []
+    all_links: List[Dict[str, Any]] = []
     seen_link_names = set()
     definition_links_by_entrygroup = defaultdict(list)
-    term_links = []
+    term_links: List[Dict[str, Any]] = []
 
     def process_term_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
-        entry_links = []
+        entry_links: List[Dict[str, Any]] = []
         entry_name = entry.get("name", "")
         relationships = relationships_data.get(entry_name, [])
 
         for relationship in relationships:
             entry_link_id = get_entry_link_id(relationship.get("name", ""))
             link_type = relationship.get("relationshipType", "")
-            if entrylink_type_filter and link_type != entrylink_type_filter:
+            if link_type not in entrylinktype_set:
                 continue
             if link_type in ["is_synonymous_to", "is_related_to"]:
                 destination_entry = relationship.get("destinationEntry", {}).get("name", "")
@@ -349,7 +387,7 @@ def export_combined_entry_links_json(
         return entry_links
 
     def process_term_entry_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
-        entry_links = []
+        entry_links: List[Dict[str, Any]] = []
         if entry.get("entryType") != "glossary_term":
             return entry_links
 
@@ -425,24 +463,21 @@ def export_combined_entry_links_json(
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
-        if not entrylink_type_filter or entrylink_type_filter in ["is_synonymous_to", "is_related_to"]:
-            futures += [executor.submit(process_term_links, entry) for entry in entries]
-        if not entrylink_type_filter or entrylink_type_filter == "is_described_by":
-            futures += [executor.submit(process_term_entry_links, entry) for entry in entries]
+        # If we requested synonym/related, run process_term_links
+        if {"is_synonymous_to", "is_related_to"} & entrylinktype_set:
+            futures += [executor.submit(process_term_links, e) for e in entries]
+        # If we requested definition, run process_term_entry_links
+        if "is_described_by" in entrylinktype_set:
+            futures += [executor.submit(process_term_entry_links, e) for e in entries]
 
         for future in as_completed(futures):
             result = future.result()
             if result:
                 all_links.extend(result)
 
-    # Only create default_dir if needed
     default_dir = os.path.join(os.getcwd(), "Generated_Import_files")
-    use_default_dir = (
-        not output_json or
-        (entrylink_type_filter == "is_described_by" and len(definition_links_by_entrygroup) > 1)
-    )
 
-    if entrylink_type_filter == "is_described_by":
+    if entrylinktype_set == {"is_described_by"}:
         if len(definition_links_by_entrygroup) == 1 and output_json:
             group_links = next(iter(definition_links_by_entrygroup.values()))
             try:
@@ -459,12 +494,12 @@ def export_combined_entry_links_json(
                 output_path = os.path.join(default_dir, f"definition_entrylinks_{entrygroup}.json")
                 write_links_to_file(links, output_path)
 
-    elif entrylink_type_filter in ["is_related_to", "is_synonymous_to"]:
+    elif entrylinktype_set <= {"is_related_to", "is_synonymous_to"} and "is_described_by" not in entrylinktype_set:
         try:
             write_links_to_file(all_links, output_json)
         except Exception as e:
             ensure_directory_exists(default_dir)
-            fallback_path = os.path.join(default_dir, f"{entrylink_type_filter}_entrylinks.json")
+            fallback_path = os.path.join(default_dir, f"{','.join(sorted(entrylinktype_set))}_entrylinks.json")
             logger.warning(f"Could not write to {output_json}, falling back to {fallback_path}. Error: {e}")
             write_links_to_file(all_links, fallback_path)
 
@@ -484,6 +519,7 @@ def export_combined_entry_links_json(
         except Exception as e:
             logger.warning(f"Could not write to {related_output_path}. Error: {e}")
 
+
 def main():
     args = utils.get_export_v2_arguments()
     utils.validate_export_v2_args(args)
@@ -500,8 +536,6 @@ def main():
         print("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
 
-    if result.stderr:
-        print("Error:", result.stderr)
     global DATAPLEX_ENTRY_GROUP, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     PROJECT = args.project
     LOCATION = args.location
@@ -516,12 +550,30 @@ def main():
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(args.project, args.location, args.group)
-    if args.export_mode != "glossary_only":
-        logger.info("Fetching entry links in the Glossary...")
-    relationships_data = utils.fetch_all_relationships(entries, args.project)
-    map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
-    parent_mapping = build_parent_mapping(entries, relationships_data)
 
+    # 1) Parse entrylinktype into a set of full relationshipType strings
+    entrylinktype_set = parse_entrylinktype_arg(args.entrylinktype)
+
+    # 2) Conditionally fetch term→term “belongs_to” and “synonym/related” relationships only if needed
+    need_relationships = (
+        args.export_mode != "glossary_only"
+        and bool({"is_synonymous_to", "is_related_to"} & entrylinktype_set)
+    )
+    if need_relationships:
+        logger.info("Fetching Entry relationships...")
+        relationships_data = utils.fetch_all_relationships(entries, args.project)
+    else:
+        relationships_data = {}
+
+    # 3) Conditionally build parent_mapping only if glossary entries might be exported
+    if args.export_mode != "entry_links_only":
+        map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
+        parent_mapping = build_parent_mapping(entries, relationships_data)
+    else:
+        map_entry_id_to_entry_type = {}
+        parent_mapping = {}
+
+    # 4) Export glossary entries if requested
     if args.export_mode in ["glossary_only", "all"]:
         export_glossary_entries_json(
             entries,
@@ -531,15 +583,17 @@ def main():
         )
         logger.info(f"Glossary exported to {args.glossary_json}")
 
+    # 5) Export entry links if requested
     if args.export_mode in ["entry_links_only", "all"]:
         export_combined_entry_links_json(
             entries,
             relationships_data,
             args.entrylinks_json,
             args.project,
-            args.entrylinktype
+            entrylinktype_set,
         )
         logger.info(f"Entry links exported to {args.entrylinks_json}")
+
 
 if __name__ == "__main__":
     start_time = time.time()

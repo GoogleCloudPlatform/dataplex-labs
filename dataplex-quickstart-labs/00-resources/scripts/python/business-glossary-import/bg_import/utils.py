@@ -89,7 +89,7 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
       help="ID of Google Cloud Project containing the destination glossary.",
       metavar="<project_id>",
       type=str,
-  )
+    )
     parser.add_argument(
         "--group",
         help=(
@@ -350,15 +350,14 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--entrylinktype",
         help=(
-            "Filter entry links by type. Options:\n"
-            "  is_synonymous_to → synonym links\n"
-            "  is_related_to → related links\n"
-            "  is_described_by → definition (term-entry) links\n"
+            "Filter entry links by type. Options (comma‐separated, braces optional):\n"
+            "  synonym    → synonym links only\n"
+            "  related    → related links only\n"
+            "  definition → definition (term-entry) links only\n"
             "If omitted, exports all link types."
         ),
-        choices=["is_synonymous_to", "is_related_to", "is_described_by"],
         default=None,
-        type=str
+        type=str,
     )
 
     parser.add_argument(
@@ -397,18 +396,6 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
 
-    if args.export_mode == "glossary_only" and not args.glossary_json:
-        logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
-        sys.exit(1)
-
-    if args.export_mode == "entry_links_only" and not args.entrylinks_json:
-        logger.error("The --entrylinks-json argument must be provided for export mode 'entry_links_only'.")
-        sys.exit(1)
-
-    if args.export_mode == "all" and (not args.glossary_json or not args.entrylinks_json):
-        logger.error("Both --glossary-json and --entrylinks-json arguments must be provided for export mode 'all'.")
-        sys.exit(1)
-
     if args.glossary_json:
         glossary_output_dir = os.path.dirname(args.glossary_json)
         if glossary_output_dir and not os.path.isdir(glossary_output_dir):
@@ -420,6 +407,14 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
         if entrylinks_output_dir and not os.path.isdir(entrylinks_output_dir):
             logger.error(f"Directory for entry links JSON export path does not exist: {entrylinks_output_dir}")
             sys.exit(1)
+
+    # If user did not supply a --glossary-json path, default to "glossary.json" in CWD.
+    if args.export_mode in ["glossary_only", "all"] and not args.glossary_json:
+        args.glossary_json = "glossary.json"
+
+    # If user did not supply a --entrylinks-json path, default to "entrylinks.json" in CWD.
+    if args.export_mode in ["entry_links_only", "all"] and not args.entrylinks_json:
+        args.entrylinks_json = "entrylinks.json"
 
 
 def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
