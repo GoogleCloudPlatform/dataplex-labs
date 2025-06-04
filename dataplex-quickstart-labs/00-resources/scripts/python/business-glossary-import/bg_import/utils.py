@@ -31,6 +31,7 @@ import multiprocessing
 
 logger = logging_utils.get_logger()
 DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
+DATAPLEX_BASE_URL = "https://dataplex.googleapis.com/v1"
 PAGE_SIZE = 1000
 MAX_WORKERS = 20
 
@@ -323,18 +324,6 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     """
     glossary_argument_parser(parser)
     parser.add_argument(
-        "--glossary-json",
-        help="Path to the JSON file to export the glossary entries data.",
-        metavar="[Output JSON file for glossary]",
-        type=str,
-    )
-    parser.add_argument(
-        "--entrylinks-json",
-        help="Path to the JSON file to export the glossary entry links data.",
-        metavar="[Output JSON file for entry links]",
-        type=str,
-    )
-    parser.add_argument(
         "--export-mode",
         choices=["glossary_only", "entry_links_only", "all"],
         default="all",
@@ -395,26 +384,6 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
                 f"You must either provide --url OR all of the following flags: --project, --location, --group, --glossary. Missing: {', '.join(missing)}"
             )
             sys.exit(1)
-
-    if args.glossary_json:
-        glossary_output_dir = os.path.dirname(args.glossary_json)
-        if glossary_output_dir and not os.path.isdir(glossary_output_dir):
-            logger.error(f"Directory for glossary JSON export path does not exist: {glossary_output_dir}")
-            sys.exit(1)
-
-    if args.entrylinks_json:
-        entrylinks_output_dir = os.path.dirname(args.entrylinks_json)
-        if entrylinks_output_dir and not os.path.isdir(entrylinks_output_dir):
-            logger.error(f"Directory for entry links JSON export path does not exist: {entrylinks_output_dir}")
-            sys.exit(1)
-
-    # If user did not supply a --glossary-json path, default to "glossary.json" in CWD.
-    if args.export_mode in ["glossary_only", "all"] and not args.glossary_json:
-        args.glossary_json = "glossary.json"
-
-    # If user did not supply a --entrylinks-json path, default to "entrylinks.json" in CWD.
-    if args.export_mode in ["entry_links_only", "all"] and not args.entrylinks_json:
-        args.entrylinks_json = "entrylinks.json"
 
 
 def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
@@ -526,3 +495,48 @@ def fetch_entries(
                     return entries
             # clear the futures list to avoid any memory build-up
             futures = []
+
+
+def create_glossary(
+    project: str,
+    location: str,
+    entry_group: str,
+    glossary: str
+) -> None:
+    """Creates a new Dataplex glossary."""
+    catalog_url = (
+        f"{DATACATALOG_BASE_URL}/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries/{glossary}"
+    )
+    dataplex_post_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries?glossary_id={glossary}"
+    dataplex_get_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries/{glossary}"
+
+    datacatalog_response = api_call_utils.fetch_api_response(
+        requests.get, catalog_url, project
+    )
+    if datacatalog_response["error_msg"]:
+        logger.error(f"Failed to fetch Data Catalog entry:\n  {datacatalog_response['error_msg']}")
+        sys.exit(1)
+
+    display_name = datacatalog_response["json"].get("displayName", "")
+    description_text = (
+        datacatalog_response["json"].get("coreAspects", {}).get("business_context", {}).get("jsonContent", {}).get("description", "")
+    )
+
+    logger.info("Creating dataplex business glossary...")
+    request_body = {"displayName": display_name, "description": description_text}
+    dp_resp = api_call_utils.fetch_api_response(
+        requests.post, dataplex_post_url, project, request_body
+    )
+    if dp_resp["error_msg"]:
+        logger.error(f"Error creating Dataplex glossary:\n  {dp_resp['error_msg']}")
+        sys.exit(1)
+
+    time.sleep(30)
+    glossary_creation_response = api_call_utils.fetch_api_response(
+        requests.get, dataplex_get_url, project
+    )
+    if glossary_creation_response["error_msg"]:
+        logger.error("Unknown error occurred while creating the glossary. please try again manually.")
+        sys.exit(1)
+
+    logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")
