@@ -326,10 +326,8 @@ def parse_entrylinktype_arg(raw_entrylinktype: str) -> set:
     Parse the raw `--entrylinktype` string (e.g. "{related,synonym}") into a set
     of full relationship types: {"is_related_to", "is_synonymous_to", "is_described_by"}.
     """
-    logger.info(f"Raw entrylinktype argument: '{raw_entrylinktype}'")
     cleaned = (raw_entrylinktype or "").strip("{} ")
     tokens = [t.strip() for t in cleaned.split(",") if t.strip()]
-    logger.info(f"Parsed entrylinktype tokens: {tokens}")
     mapping = {"synonym": "is_synonymous_to", "related": "is_related_to", "definition": "is_described_by"}
     if not tokens:
         return set(mapping.values())
