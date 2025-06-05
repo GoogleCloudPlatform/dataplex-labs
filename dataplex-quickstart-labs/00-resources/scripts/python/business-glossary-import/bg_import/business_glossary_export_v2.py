@@ -549,7 +549,7 @@ def main():
         text=True,
     )
     if result.stderr:
-        print("Error:", result.stderr)
+        logger.error("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
 
     global DATAPLEX_ENTRY_GROUP, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS

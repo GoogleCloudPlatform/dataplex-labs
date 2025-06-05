@@ -496,6 +496,15 @@ def fetch_entries(
             # clear the futures list to avoid any memory build-up
             futures = []
 
+def normalize_glossary_id(glossary: str) -> str:
+    """Converts a string to a valid Dataplex glossary_id (lowercase, numbers, hyphens only)."""
+    glossary_id = glossary.lower()
+    glossary_id = re.sub(r"[ _]", "-", glossary_id)
+    glossary_id = re.sub(r"[^a-z0-9\-]", "-", glossary_id)
+    glossary_id = re.sub(r"-+", "-", glossary_id)
+    glossary_id = glossary_id.strip("-")
+    return glossary_id
+
 
 def create_glossary(
     project: str,
@@ -507,8 +516,9 @@ def create_glossary(
     catalog_url = (
         f"{DATACATALOG_BASE_URL}/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries/{glossary}"
     )
-    dataplex_post_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries?glossary_id={glossary}"
-    dataplex_get_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries/{glossary}"
+    glossary_id = normalize_glossary_id(glossary)
+    dataplex_post_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries?glossary_id={glossary_id}"
+    dataplex_get_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries/{glossary_id}"
 
     datacatalog_response = api_call_utils.fetch_api_response(
         requests.get, catalog_url, project
