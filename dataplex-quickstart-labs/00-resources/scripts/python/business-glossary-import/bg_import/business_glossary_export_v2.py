@@ -236,7 +236,7 @@ def get_entry_link_id(relationship_name: str) -> str:
         relationship_name,
     )
     if match:
-        return match.group(1)
+        return "g"+ match.group(1) # adding prefix 'g' to ensure entrylink_id always starts with a letter
     return ""
 
 
@@ -269,7 +269,7 @@ def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[
     relationships = relationships_data.get(entry_name, [])
 
     for relationship in relationships:
-        entry_link_id = "g" + get_entry_link_id(relationship.get("name", "")) #adding prefix 'g' to ensure entrylink_id always starts with a letter
+        entry_link_id = get_entry_link_id(relationship.get("name", ""))
         link_type = relationship.get("relationshipType", "")
         if link_type in ["is_synonymous_to", "is_related_to"]:
             destination_entry = relationship.get("destinationEntry", {}).get("name", "")
@@ -402,7 +402,7 @@ def export_combined_entry_links_json(
             }
         }
 
-        search_response = api_call_utils.fetch_api_response(requests.post, search_url, project_id, request_body)
+        search_response = api_call_utils.fetch_api_response(requests.post, search_url, USER_PROJECT, request_body)
         results = search_response.get("json", {}).get("results", [])
 
         for result in results:
@@ -412,17 +412,24 @@ def export_combined_entry_links_json(
             if not linked_resource or not relative_resource_name:
                 continue
 
-            new_entry_id = re.sub(r"^/+", "", linked_resource).replace(" ", "")
+            new_entry_id = re.sub(r"^/+", "", linked_resource)
             relative_resource_name_v2 = re.sub(r"entries/[^/]+$", f"entries/{new_entry_id}", relative_resource_name)
 
-            entry_get_url = f"https://dataplex.googleapis.com/v1/{relative_resource_name_v2}"
-            entry_check = api_call_utils.fetch_api_response(requests.get, entry_get_url, project_id)
+            requested_project_name = ""
+            match = re.match(r"projects/([^/]+)/locations/([^/]+)/", relative_resource_name_v2)
+            if match:
+                project_id_from_relative_resource_name_v2 = match.group(1)
+                location_from_relative_resource_name_v2 = match.group(2)
+                requested_project_name = f"projects/{project_id_from_relative_resource_name_v2}/locations/{location_from_relative_resource_name_v2}"
+
+            entry_get_url = f"https://dataplex.googleapis.com/v1/{requested_project_name}:lookupEntry?entry={relative_resource_name_v2}"
+            entry_check = api_call_utils.fetch_api_response(requests.get, entry_get_url, USER_PROJECT)
             if not entry_check.get("json") or entry_check.get("error_msg"):
                 logger.warning(f"Dataplex entry not found for linked resource: {linked_resource}")
                 continue
 
             rel_url = f"https://datacatalog.googleapis.com/v2/{relative_resource_name}/relationships"
-            response = api_call_utils.fetch_api_response(requests.get, rel_url, project_id)
+            response = api_call_utils.fetch_api_response(requests.get, rel_url, USER_PROJECT)
             relationships = response.get("json", {}).get("relationships", [])
 
             for rel in relationships:
@@ -552,7 +559,8 @@ def main():
         logger.error("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
 
-    global DATAPLEX_ENTRY_GROUP, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    USER_PROJECT = args.user_project
     PROJECT = args.project
     LOCATION = args.location
     GLOSSARY = args.glossary
@@ -565,7 +573,7 @@ def main():
         PROJECT_NUMBER = "655216118709"  # Prod project number
 
     logger.info("Fetching entries in the Glossary...")
-    entries = utils.fetch_entries(args.project, args.location, args.group)
+    entries = utils.fetch_entries(args.user_project,args.project, args.location, args.group)
 
     # Parse entrylinktype into a set of full relationshipType strings
     entrylinktype_set = parse_entrylinktype_arg(args.entrylinktype)
@@ -577,7 +585,7 @@ def main():
     )
     if need_relationships:
         logger.info("Fetching entry relationships...")
-        relationships_data = utils.fetch_all_relationships(entries, args.project)
+        relationships_data = utils.fetch_all_relationships(entries, args.user_project, args.project)
     else:
         relationships_data = {}
 
@@ -610,7 +618,7 @@ def main():
         logger.info(f"Entry links exported under {export_folder}/")
 
      # Create Glossary in Dataplex if it does not exist
-    utils.create_glossary(args.project, args.location, args.group, args.glossary)
+    utils.create_glossary(args.user_project, args.project, args.location, args.group, args.glossary)
 
 
 if __name__ == "__main__":

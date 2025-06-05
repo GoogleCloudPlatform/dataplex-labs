@@ -323,6 +323,16 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     location, and output JSON file path.
     """
     glossary_argument_parser(parser)
+
+    parser.add_argument(
+        "--user-project",
+        help=(
+            "Google Cloud Project ID to use for billing purposes when exporting data."
+        ),
+        metavar="[User Project ID]",
+        type=str,
+        required=True,
+    )
     parser.add_argument(
         "--export-mode",
         choices=["glossary_only", "entry_links_only", "all"],
@@ -386,7 +396,7 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
-def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
+def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, Any]]:
     """Fetches relationships for a specific entry from the Data Catalog.
 
     Args:
@@ -401,7 +411,7 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
     )
 
     response = api_call_utils.fetch_api_response(
-        requests.get, fetch_relationships_url, project
+        requests.get, fetch_relationships_url, user_project
     )
     if response["error_msg"]:
         logger.error(f"Error fetching relationships: {response['error_msg']}")
@@ -409,7 +419,7 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
     return response["json"].get("relationships", [])
 
 def fetch_all_relationships(
-    entries: List[Dict[str, Any]], project: str, max_workers: int = MAX_WORKERS
+    entries: List[Dict[str, Any]], user_project: str,project: str, max_workers: int = MAX_WORKERS
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Fetches relationships for all entries concurrently, processing in batches."""
     relationships_data = {}
@@ -422,7 +432,7 @@ def fetch_all_relationships(
             end = start + chunk_size
             entries_batch = entries[start:end]
             future_to_entry = {
-                executor.submit(fetch_relationships, entry["name"], project): entry[
+                executor.submit(fetch_relationships, entry["name"], user_project): entry[
                     "name"
                 ]
                 for entry in entries_batch
@@ -441,7 +451,7 @@ def fetch_all_relationships(
 
 
 def fetch_entries(
-    project: str, location: str, entry_group: str
+    user_project: str, project: str, location: str, entry_group: str
 ) -> List[Dict[str, Any]]:
     """Fetches all entries in the glossary.
 
@@ -459,7 +469,7 @@ def fetch_entries(
         + f"/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries?view=FULL&pageSize={PAGE_SIZE}"
     )
     response = api_call_utils.fetch_api_response(
-        requests.get, get_full_entry_url, project
+        requests.get, get_full_entry_url, user_project
     )
 
     if response["error_msg"]:
@@ -479,7 +489,7 @@ def fetch_entries(
                 endpoint_url = get_full_entry_url
 
             future = executor.submit(
-                api_call_utils.fetch_api_response, requests.get, endpoint_url, project
+                api_call_utils.fetch_api_response, requests.get, endpoint_url, user_project
             )
             futures.append(future)
 
@@ -507,6 +517,7 @@ def normalize_glossary_id(glossary: str) -> str:
 
 
 def create_glossary(
+    user_project: str,
     project: str,
     location: str,
     entry_group: str,
@@ -521,7 +532,7 @@ def create_glossary(
     dataplex_get_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries/{glossary_id}"
 
     datacatalog_response = api_call_utils.fetch_api_response(
-        requests.get, catalog_url, project
+        requests.get, catalog_url, user_project
     )
     if datacatalog_response["error_msg"]:
         logger.error(f"Failed to fetch Data Catalog entry:\n  {datacatalog_response['error_msg']}")
@@ -535,7 +546,7 @@ def create_glossary(
     logger.info("Creating dataplex business glossary...")
     request_body = {"displayName": display_name, "description": description_text}
     dp_resp = api_call_utils.fetch_api_response(
-        requests.post, dataplex_post_url, project, request_body
+        requests.post, dataplex_post_url, user_project, request_body
     )
     if dp_resp["error_msg"]:
         logger.error(f"Error creating Dataplex glossary:\n  {dp_resp['error_msg']}")
@@ -543,7 +554,7 @@ def create_glossary(
 
     time.sleep(30)
     glossary_creation_response = api_call_utils.fetch_api_response(
-        requests.get, dataplex_get_url, project
+        requests.get, dataplex_get_url, user_project
     )
     if glossary_creation_response["error_msg"]:
         logger.error("Unknown error occurred while creating the glossary. please try again manually.")
