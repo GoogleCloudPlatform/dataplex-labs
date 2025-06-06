@@ -331,7 +331,6 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
         ),
         metavar="[User Project ID]",
         type=str,
-        required=True,
     )
     parser.add_argument(
         "--export-mode",
@@ -515,6 +514,14 @@ def normalize_glossary_id(glossary: str) -> str:
     glossary_id = glossary_id.strip("-")
     return glossary_id
 
+def replace_with_new_glossary_id(file_path, glossary_id: str) -> None:
+    new_glossary_id = normalize_glossary_id(glossary_id)
+    pattern = re.compile(rf"glossaries/{re.escape(glossary_id)}")
+    with open(file_path, "r") as file:
+        content = file.read()
+    new_content = pattern.sub(f"glossaries/{new_glossary_id}", content)
+    with open(file_path, "w") as file:
+        file.write(new_content)
 
 def create_glossary(
     user_project: str,

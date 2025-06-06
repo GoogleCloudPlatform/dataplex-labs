@@ -319,7 +319,7 @@ def write_links_to_file(links, filepath, mode="w"):
     with open(filepath, mode=mode, encoding="utf-8") as outputfile:
         for link in links:
             outputfile.write(json.dumps(link) + "\n")
-
+    utils.replace_with_new_glossary_id(filepath, GLOSSARY)
 
 def parse_entrylinktype_arg(raw_entrylinktype: str) -> set:
     """
@@ -544,9 +544,21 @@ def main():
     utils.validate_export_v2_args(args)
     utils.maybe_override_args_from_url(args)
 
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    USER_PROJECT = args.user_project if args.user_project else args.project
+    PROJECT = args.project
+    LOCATION = args.location
+    GLOSSARY = args.glossary
+
+    DATAPLEX_ENTRY_GROUP = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex"
+    if args.testing:
+        PROJECT_NUMBER = "418487367933"  # Staging project number
+    else:
+        PROJECT_NUMBER = "655216118709"  # Prod project number
+
     # Create "Exported_Files" and compute glossary path
     export_folder = create_export_folder()
-    glossary_output_path = compute_glossary_path(export_folder, args.glossary)
+    glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
 
     # Run gcloud to fetch organization IDs
     result = subprocess.run(
@@ -558,19 +570,8 @@ def main():
     if result.stderr:
         logger.error("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-
-    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
-    USER_PROJECT = args.user_project
-    PROJECT = args.project
-    LOCATION = args.location
-    GLOSSARY = args.glossary
     ORG_IDS = org_ids
 
-    DATAPLEX_ENTRY_GROUP = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex"
-    if args.testing:
-        PROJECT_NUMBER = "418487367933"  # Staging project number
-    else:
-        PROJECT_NUMBER = "655216118709"  # Prod project number
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(args.user_project,args.project, args.location, args.group)
@@ -606,6 +607,7 @@ def main():
             map_entry_id_to_entry_type,
         )
         logger.info(f"Glossary exported to {glossary_output_path}")
+        utils.replace_with_new_glossary_id(glossary_output_path, GLOSSARY)
 
     # Export entry links if requested
     if args.export_mode in ["entry_links_only", "all"]:
@@ -618,7 +620,7 @@ def main():
         logger.info(f"Entry links exported under {export_folder}/")
 
      # Create Glossary in Dataplex if it does not exist
-    utils.create_glossary(args.user_project, args.project, args.location, args.group, args.glossary)
+    utils.create_glossary(args.user_project, args.project, args.location, args.group, GLOSSARY)
 
 
 if __name__ == "__main__":
