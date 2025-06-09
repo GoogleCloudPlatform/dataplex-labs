@@ -91,6 +91,8 @@ def get_entry_id(entry_name: str) -> str:
         return match.group(1)
     return ""
 
+def Normalize_name(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", s or "")
 
 def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
     """
@@ -455,10 +457,8 @@ def export_combined_entry_links_json(
                     loc  = m.group(2) if m else LOCATION
                     entrygroup_match = re.search(r"entryGroups/([^/]+)/", relative_resource_name)
                     eg = entrygroup_match.group(1) if entrygroup_match else "@dataplex"
-                    # Sanitize project, location, and entry group for filename safety
-                    def sanitize(s):
-                        return re.sub(r"[^a-zA-Z0-9_\-]", "_", s or "")
-                    ple = f"{sanitize(proj)}_{sanitize(loc)}_{sanitize(eg)}"
+                    # Normalize project, location, and entry group for filename safety
+                    ple = f"{Normalize_name(proj)}_{Normalize_name(loc)}_{Normalize_name(eg)}"
                     entry_link_name = f"projects/{proj}/locations/{loc}/entryGroups/{eg}/entryLinks/{rel_id}"
                     entry_reference_source = {
                         "name": relative_resource_name_v2,
@@ -587,7 +587,6 @@ def main():
         logger.error("Error:", result.stderr)
     org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
     ORG_IDS = org_ids
-
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
