@@ -34,6 +34,17 @@ MAX_WORKERS = 20
 GLOSSARY_EXPORT_LOCATION = "global"
 
 
+def get_project_number(project_id: str) -> str:
+    """Call Cloud Resource Manager to look up the numeric project number."""
+    url = f"https://cloudresourcemanager.googleapis.com/v3/projects/{project_id}"
+    resp = api_call_utils.fetch_api_response(requests.get, url, "")
+    if resp["error_msg"]:
+        logger.error(f"Could not fetch project number for {project_id}: {resp['error_msg']}")
+        return project_id
+    name = resp["json"].get("name", "")
+    parts = name.split("/")
+    return parts[1] if len(parts) == 2 else project_id
+
 def get_entry_type_name(entry_type: str) -> str:
     """
     Returns the fully qualified entry type name based on the provided entry type.
@@ -356,7 +367,8 @@ def export_combined_entry_links_json(
     """
     all_links: List[Dict[str, Any]] = []
     seen_link_names = set()
-    definition_links_by_entrygroup = defaultdict(list)
+    # group definition links by PROJECT_LOCATION_ENTRYGROUP
+    definition_links_by_ple = defaultdict(list)
     term_links: List[Dict[str, Any]] = []
 
     def process_term_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -437,13 +449,17 @@ def export_combined_entry_links_json(
                 source_column = rel.get("sourceColumn", "")
                 if get_entry_id(dest_entry) == entry_uid:
                     rel_id = get_entry_link_id(rel.get("name", ""))
-                    entrygroup_match = re.search(
-                        r"projects/[^/]+/locations/[^/]+/entryGroups/([^/]+)/entries/", relative_resource_name
-                    )
-                    entry_group = entrygroup_match.group(1) if entrygroup_match else "@dataplex"
-
-                    entry_group_sanitized = re.sub(r"[^a-zA-Z0-9_]", "", entry_group)
-                    entry_link_name = f"projects/{PROJECT}/locations/global/entryGroups/{entry_group}/entryLinks/{rel_id}"
+                    # extract project & location from the relative resource name
+                    m = re.match(r"projects/([^/]+)/locations/([^/]+)/", relative_resource_name_v2)
+                    proj = m.group(1) if m else PROJECT
+                    loc  = m.group(2) if m else LOCATION
+                    entrygroup_match = re.search(r"entryGroups/([^/]+)/", relative_resource_name)
+                    eg = entrygroup_match.group(1) if entrygroup_match else "@dataplex"
+                    # Sanitize project, location, and entry group for filename safety
+                    def sanitize(s):
+                        return re.sub(r"[^a-zA-Z0-9_\-]", "_", s or "")
+                    ple = f"{sanitize(proj)}_{sanitize(loc)}_{sanitize(eg)}"
+                    entry_link_name = f"projects/{PROJECT}/locations/global/entryGroups/{eg}/entryLinks/{rel_id}"
                     entry_reference_source = {
                         "name": relative_resource_name_v2,
                         "path": f"Schema.{source_column}" if source_column else "",
@@ -464,7 +480,7 @@ def export_combined_entry_links_json(
                     }
                     if link["entryLink"]["name"] not in seen_link_names:
                         seen_link_names.add(link["entryLink"]["name"])
-                        definition_links_by_entrygroup[entry_group_sanitized].append(link)
+                        definition_links_by_ple[ple].append(link)
                         entry_links.append(link)
         return entry_links
 
@@ -486,11 +502,11 @@ def export_combined_entry_links_json(
     # "Definition" only filter: one file per entrygroup
     if entrylinktype_set == {"is_described_by"}:
         ensure_directory_exists(default_dir)
-        for entrygroup, links in definition_links_by_entrygroup.items():
-            filename = f"entrylinks_definition_{GLOSSARY}_{entrygroup}.json"
+        for ple, links in definition_links_by_ple.items():
+            filename = f"entrylinks_definition_{GLOSSARY}_{ple}.json"
             output_path = os.path.join(default_dir, filename)
             write_links_to_file(links, output_path)
-            logger.info(f"Exported definition links for entryGroup={entrygroup} to {output_path}")
+            logger.info(f"Exported definition links for {ple} → {output_path}")
 
     # "Related" and/or "Synonym" only (no definitions)
     elif entrylinktype_set <= {"is_related_to", "is_synonymous_to"} and "is_described_by" not in entrylinktype_set:
@@ -515,11 +531,11 @@ def export_combined_entry_links_json(
         write_links_to_file(term_links, relsyn_path, mode="w")
         logger.info(f"Exported related/synonym links to {relsyn_path}")
         # Then: write each definition group separately
-        for entrygroup, links in definition_links_by_entrygroup.items():
-            filename = f"entrylinks_definition_{GLOSSARY}_{entrygroup}.json"
+        for ple, links in definition_links_by_ple.items():
+            filename = f"entrylinks_definition_{GLOSSARY}_{ple}.json"
             output_path = os.path.join(default_dir, filename)
             write_links_to_file(links, output_path)
-            logger.info(f"Exported definition links for entryGroup={entrygroup} to {output_path}")
+            logger.info(f"Exported definition links to {output_path}")
 
 
 def create_export_folder() -> str:
@@ -546,7 +562,7 @@ def main():
 
     global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     USER_PROJECT = args.user_project if args.user_project else args.project
-    PROJECT = args.project
+    PROJECT = get_project_number(args.project)
     LOCATION = args.location
     GLOSSARY = args.glossary
 
@@ -574,7 +590,7 @@ def main():
 
 
     logger.info("Fetching entries in the Glossary...")
-    entries = utils.fetch_entries(args.user_project,args.project, args.location, args.group)
+    entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
 
     # Parse entrylinktype into a set of full relationshipType strings
     entrylinktype_set = parse_entrylinktype_arg(args.entrylinktype)
@@ -586,7 +602,7 @@ def main():
     )
     if need_relationships:
         logger.info("Fetching entry relationships...")
-        relationships_data = utils.fetch_all_relationships(entries, args.user_project, args.project)
+        relationships_data = utils.fetch_all_relationships(entries, USER_PROJECT, PROJECT)
     else:
         relationships_data = {}
 
@@ -614,13 +630,13 @@ def main():
         export_combined_entry_links_json(
             entries,
             relationships_data,
-            args.project,
+            PROJECT,
             entrylinktype_set,
         )
         logger.info(f"Entry links exported under {export_folder}/")
 
      # Create Glossary in Dataplex if it does not exist
-    utils.create_glossary(args.user_project, args.project, args.location, args.group, GLOSSARY)
+    utils.create_glossary(USER_PROJECT, PROJECT, args.location, args.group, GLOSSARY)
 
 
 if __name__ == "__main__":

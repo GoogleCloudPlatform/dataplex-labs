@@ -348,7 +348,7 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--entrylinktype",
         help=(
-            "Filter entry links by type. Options (comma‐separated, braces optional):\n"
+            "Filter entry links by type. Options (comma-separated, braces optional):\n"
             "  synonym    → synonym links only\n"
             "  related    → related links only\n"
             "  definition → definition (term-entry) links only\n"
@@ -542,7 +542,7 @@ def create_glossary(
         requests.get, catalog_url, user_project
     )
     if datacatalog_response["error_msg"]:
-        logger.error(f"Failed to fetch Data Catalog entry:\n  {datacatalog_response['error_msg']}")
+        logger.warning(f"Failed to fetch Data Catalog entry:\n  {datacatalog_response['error_msg']}")
         sys.exit(1)
 
     display_name = datacatalog_response["json"].get("displayName", "")
@@ -556,7 +556,7 @@ def create_glossary(
         requests.post, dataplex_post_url, user_project, request_body
     )
     if dp_resp["error_msg"]:
-        logger.error(f"Error creating Dataplex glossary:\n  {dp_resp['error_msg']}")
+        logger.warning(f"Error creating Dataplex glossary:\n  {dp_resp['error_msg']}")
         sys.exit(1)
 
     time.sleep(30)
@@ -564,7 +564,7 @@ def create_glossary(
         requests.get, dataplex_get_url, user_project
     )
     if glossary_creation_response["error_msg"]:
-        logger.error("Unknown error occurred while creating the glossary. please try again manually.")
+        logger.warning("Unknown error occurred while creating the glossary. please try again manually.")
         sys.exit(1)
 
     logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")
