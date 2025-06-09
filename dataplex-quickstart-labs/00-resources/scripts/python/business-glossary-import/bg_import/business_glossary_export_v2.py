@@ -459,7 +459,7 @@ def export_combined_entry_links_json(
                     def sanitize(s):
                         return re.sub(r"[^a-zA-Z0-9_\-]", "_", s or "")
                     ple = f"{sanitize(proj)}_{sanitize(loc)}_{sanitize(eg)}"
-                    entry_link_name = f"projects/{PROJECT}/locations/global/entryGroups/{eg}/entryLinks/{rel_id}"
+                    entry_link_name = f"projects/{proj}/locations/{loc}/entryGroups/{eg}/entryLinks/{rel_id}"
                     entry_reference_source = {
                         "name": relative_resource_name_v2,
                         "path": f"Schema.{source_column}" if source_column else "",
