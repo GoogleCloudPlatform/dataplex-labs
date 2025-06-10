@@ -12,7 +12,7 @@ from typing import Any, List, Dict
 import api_call_utils
 import requests
 
-
+import re
 import csv
 import os
 import requests
@@ -31,6 +31,7 @@ import multiprocessing
 
 logger = logging_utils.get_logger()
 DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
+DATAPLEX_BASE_URL = "https://dataplex.googleapis.com/v1"
 PAGE_SIZE = 1000
 MAX_WORKERS = 20
 
@@ -89,8 +90,7 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
       help="ID of Google Cloud Project containing the destination glossary.",
       metavar="<project_id>",
       type=str,
-      required=True,
-  )
+    )
     parser.add_argument(
         "--group",
         help=(
@@ -99,7 +99,6 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
         ),
         metavar="<entry_group_id>",
         type=str,
-        required=True,
     )
     parser.add_argument(
         "--glossary",
@@ -109,14 +108,12 @@ def glossary_argument_parser(parser: argparse.Namespace) -> None:
         ),
         metavar="<glossary_id>",
         type=str,
-        required=True,
     )
     parser.add_argument(
         "--location",
         help="Location code where the glossary resource exists.",
         metavar="<location_code>",
         type=str,
-        required=True,
     )
 
 def configure_argument_parser(parser: argparse.ArgumentParser) -> None:
@@ -259,6 +256,35 @@ def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
         required=True,
     )
 
+def parse_glossary_url(url: str) -> dict:
+    pattern = (
+        r"projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/"
+        r"entryGroups/(?P<entry_group>[^/]+)/glossaries/(?P<glossary>[^/?#]+)"
+    )
+    match = re.search(pattern, url)
+    if not match:
+        raise ValueError("Invalid glossary URL provided. It must contain the pattern: "
+                         "projects/.../locations/.../entryGroups/.../glossaries/...")
+    return match.groupdict()
+
+def maybe_override_args_from_url(args):
+    if hasattr(args, "url") and args.url:
+        try:
+            extracted = parse_glossary_url(args.url)
+            if args.project or args.location or args.group or args.glossary:
+                logger.warning(
+                    "Glossary parameters were provided via both URL and individual flags. "
+                    "Using values extracted from --url and overriding --project, --location, --group, and --glossary."
+                )
+            args.project = extracted["project"]
+            args.location = extracted["location"]
+            args.group = extracted["entry_group"]
+            args.glossary = extracted["glossary"]
+        except ValueError as ve:
+            logger.error(str(ve))
+            sys.exit(1)
+
+
 def validate_export_args(args: argparse.Namespace) -> None:
     """Validates script run arguments for exporting.
 
@@ -297,16 +323,13 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     location, and output JSON file path.
     """
     glossary_argument_parser(parser)
+
     parser.add_argument(
-        "--glossary-json",
-        help="Path to the JSON file to export the glossary entries data.",
-        metavar="[Output JSON file for glossary]",
-        type=str,
-    )
-    parser.add_argument(
-        "--entrylinks-json",
-        help="Path to the JSON file to export the glossary entry links data.",
-        metavar="[Output JSON file for entry links]",
+        "--user-project",
+        help=(
+            "Google Cloud Project ID to use for billing purposes when exporting data."
+        ),
+        metavar="[User Project ID]",
         type=str,
     )
     parser.add_argument(
@@ -321,6 +344,31 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
             "all\tExport both the glossary entries and entry links to the specified JSON files.\n"
         )
     )
+
+    parser.add_argument(
+        "--entrylinktype",
+        help=(
+            "Filter entry links by type. Options (comma-separated, braces optional):\n"
+            "  synonym    → synonym links only\n"
+            "  related    → related links only\n"
+            "  definition → definition (term-entry) links only\n"
+            "If omitted, exports all link types."
+        ),
+        default=None,
+        type=str,
+    )
+
+    parser.add_argument(
+    "--url",
+    help=(
+        "Full Glossary URL.\n"
+        "Supports both internal and external formats like:\n"
+        "https://console.cloud.google.com/dataplex/glossaries/projects/PROJECT_ID/locations/LOC/entryGroups/ENTRY_GROUP/glossaries/GLOSSARY"
+    ),
+    metavar="[Glossary URL]",
+    type=str
+)
+
     parser.add_argument(
         "--testing",
         metavar="<true>",
@@ -329,38 +377,24 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
         help="If true, use staging environment instead of prod"
     )
 
+
 def validate_export_v2_args(args: argparse.Namespace) -> None:
     """
     Validates script run arguments for the export v2.
     Args:
         args: Parsed script run arguments.
     """
-    if args.export_mode == "glossary_only" and not args.glossary_json:
-        logger.error("The --glossary-json argument must be provided for export mode 'glossary_only'.")
-        sys.exit(1)
-
-    if args.export_mode == "entry_links_only" and not args.entrylinks_json:
-        logger.error("The --entrylinks-json argument must be provided for export mode 'entry_links_only'.")
-        sys.exit(1)
-
-    if args.export_mode == "all" and (not args.glossary_json or not args.entrylinks_json):
-        logger.error("Both --glossary-json and --entrylinks-json arguments must be provided for export mode 'all'.")
-        sys.exit(1)
-
-    if args.glossary_json:
-        glossary_output_dir = os.path.dirname(args.glossary_json)
-        if glossary_output_dir and not os.path.isdir(glossary_output_dir):
-            logger.error(f"Directory for glossary JSON export path does not exist: {glossary_output_dir}")
-            sys.exit(1)
-
-    if args.entrylinks_json:
-        entrylinks_output_dir = os.path.dirname(args.entrylinks_json)
-        if entrylinks_output_dir and not os.path.isdir(entrylinks_output_dir):
-            logger.error(f"Directory for entry links JSON export path does not exist: {entrylinks_output_dir}")
+    # Check mutual requirement: either --url or all of project, location, group, glossary
+    if not args.url:
+        missing = [flag for flag in ["project", "location", "group", "glossary"] if not getattr(args, flag)]
+        if missing:
+            logger.error(
+                f"You must either provide --url OR all of the following flags: --project, --location, --group, --glossary. Missing: {', '.join(missing)}"
+            )
             sys.exit(1)
 
 
-def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
+def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, Any]]:
     """Fetches relationships for a specific entry from the Data Catalog.
 
     Args:
@@ -375,7 +409,7 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
     )
 
     response = api_call_utils.fetch_api_response(
-        requests.get, fetch_relationships_url, project
+        requests.get, fetch_relationships_url, user_project
     )
     if response["error_msg"]:
         logger.error(f"Error fetching relationships: {response['error_msg']}")
@@ -383,7 +417,7 @@ def fetch_relationships(entry_name: str, project: str) -> List[Dict[str, Any]]:
     return response["json"].get("relationships", [])
 
 def fetch_all_relationships(
-    entries: List[Dict[str, Any]], project: str, max_workers: int = MAX_WORKERS
+    entries: List[Dict[str, Any]], user_project: str,project: str, max_workers: int = MAX_WORKERS
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Fetches relationships for all entries concurrently, processing in batches."""
     relationships_data = {}
@@ -396,7 +430,7 @@ def fetch_all_relationships(
             end = start + chunk_size
             entries_batch = entries[start:end]
             future_to_entry = {
-                executor.submit(fetch_relationships, entry["name"], project): entry[
+                executor.submit(fetch_relationships, entry["name"], user_project): entry[
                     "name"
                 ]
                 for entry in entries_batch
@@ -415,7 +449,7 @@ def fetch_all_relationships(
 
 
 def fetch_entries(
-    project: str, location: str, entry_group: str
+    user_project: str, project: str, location: str, entry_group: str
 ) -> List[Dict[str, Any]]:
     """Fetches all entries in the glossary.
 
@@ -433,7 +467,7 @@ def fetch_entries(
         + f"/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries?view=FULL&pageSize={PAGE_SIZE}"
     )
     response = api_call_utils.fetch_api_response(
-        requests.get, get_full_entry_url, project
+        requests.get, get_full_entry_url, user_project
     )
 
     if response["error_msg"]:
@@ -453,7 +487,7 @@ def fetch_entries(
                 endpoint_url = get_full_entry_url
 
             future = executor.submit(
-                api_call_utils.fetch_api_response, requests.get, endpoint_url, project
+                api_call_utils.fetch_api_response, requests.get, endpoint_url, user_project
             )
             futures.append(future)
 
@@ -469,3 +503,66 @@ def fetch_entries(
                     return entries
             # clear the futures list to avoid any memory build-up
             futures = []
+
+def normalize_glossary_id(glossary: str) -> str:
+    """Converts a string to a valid Dataplex glossary_id (lowercase, numbers, hyphens only)."""
+    glossary_id = glossary.lower()
+    glossary_id = re.sub(r"[ _]", "-", glossary_id)
+    glossary_id = re.sub(r"[^a-z0-9\-]", "-", glossary_id)
+    glossary_id = re.sub(r"-+", "-", glossary_id)
+    glossary_id = glossary_id.strip("-")
+    return glossary_id
+
+def replace_with_new_glossary_id(file_path, glossary_id: str) -> None:
+    new_glossary_id = normalize_glossary_id(glossary_id)
+    pattern = re.compile(rf"glossaries/{re.escape(glossary_id)}")
+    with open(file_path, "r") as file:
+        content = file.read()
+    new_content = pattern.sub(f"glossaries/{new_glossary_id}", content)
+    with open(file_path, "w") as file:
+        file.write(new_content)
+
+def create_glossary(
+    user_project: str,
+    project: str,
+    location: str,
+    entry_group: str,
+    glossary: str
+) -> None:
+    """Creates a new Dataplex glossary."""
+    catalog_url = (
+        f"{DATACATALOG_BASE_URL}/projects/{project}/locations/{location}/entryGroups/{entry_group}/entries/{glossary}"
+    )
+    glossary_id = normalize_glossary_id(glossary)
+    dataplex_post_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries?glossary_id={glossary_id}"
+    dataplex_get_url = f"{DATAPLEX_BASE_URL}/projects/{project}/locations/global/glossaries/{glossary_id}"
+
+    datacatalog_response = api_call_utils.fetch_api_response(
+        requests.get, catalog_url, user_project
+    )
+    if datacatalog_response["error_msg"]:
+        logger.warning(f"Failed to fetch Data Catalog entry:\n  {datacatalog_response['error_msg']}")
+        sys.exit(1)
+
+    display_name = datacatalog_response["json"].get("displayName", "")
+
+    logger.info("Creating dataplex business glossary...")
+    request_body = {"displayName": display_name}
+    dp_resp = api_call_utils.fetch_api_response(
+        requests.post, dataplex_post_url, user_project, request_body
+    )
+    if dp_resp["error_msg"]:
+        logger.warning(f"Error creating Dataplex glossary:\n  {dp_resp['error_msg']}")
+        sys.exit(1)
+
+    time.sleep(30)
+    glossary_creation_response = api_call_utils.fetch_api_response(
+        requests.get, dataplex_get_url, user_project
+    )
+    if glossary_creation_response["error_msg"]:
+        logger.warning(
+            f"Error occurred while creating the glossary {glossary_creation_response['error_msg']}. Please try again manually."
+        )
+        sys.exit(1)
+
+    logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")

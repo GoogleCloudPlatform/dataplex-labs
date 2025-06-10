@@ -134,19 +134,28 @@ def fetch_api_response(
   method_name = 'GET' if method == requests.get else 'POST'
   try:
     res = method(url, headers=_get_header(project_id), json=request_body)
-    res.raise_for_status()
+    try:
+      data = res.json()
+    except requests.exceptions.JSONDecodeError:
+      error_msg = f'{method_name} call to {url} returned non valid JSON.'
+      return {
+          'json': None,
+          'error_msg': error_msg
+      }
+    if not res.ok:
+      # If the response is an error, capture the error message from the JSON
+      error_msg = data.get('error', {}).get('message') or f'{method_name} call to {url} returned HTTP {res.status_code}.'
+      return {
+          'json': data,
+          'error_msg': error_msg
+      }
+    return {
+        'json': data,
+        'error_msg': None
+    }
   except requests.exceptions.RequestException as err:
     error_msg = create_error_message(method_name, url, err)
     return {
-        'json': data,
+        'json': None,
         'error_msg': error_msg
     }
-
-  try:
-    data = res.json()
-  except requests.exceptions.JSONDecodeError:
-    error_msg = f'{method_name} call to {url} returned non valid JSON.'
-  return {
-      'json': data,
-      'error_msg': error_msg
-  }
