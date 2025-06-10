@@ -363,7 +363,6 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     help=(
         "Full Glossary URL.\n"
         "Supports both internal and external formats like:\n"
-        "https://pantheon.corp.google.com/dataplex/glossaries/projects/PROJECT_ID/locations/LOC/entryGroups/ENTRY_GROUP/glossaries/GLOSSARY\n"
         "https://console.cloud.google.com/dataplex/glossaries/projects/PROJECT_ID/locations/LOC/entryGroups/ENTRY_GROUP/glossaries/GLOSSARY"
     ),
     metavar="[Glossary URL]",
@@ -546,12 +545,9 @@ def create_glossary(
         sys.exit(1)
 
     display_name = datacatalog_response["json"].get("displayName", "")
-    description_text = (
-        datacatalog_response["json"].get("coreAspects", {}).get("business_context", {}).get("jsonContent", {}).get("description", "")
-    )
 
     logger.info("Creating dataplex business glossary...")
-    request_body = {"displayName": display_name, "description": description_text}
+    request_body = {"displayName": display_name}
     dp_resp = api_call_utils.fetch_api_response(
         requests.post, dataplex_post_url, user_project, request_body
     )
@@ -564,7 +560,9 @@ def create_glossary(
         requests.get, dataplex_get_url, user_project
     )
     if glossary_creation_response["error_msg"]:
-        logger.warning("Unknown error occurred while creating the glossary. please try again manually.")
+        logger.warning(
+            f"Error occurred while creating the glossary {glossary_creation_response['error_msg']}. Please try again manually."
+        )
         sys.exit(1)
 
     logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")
