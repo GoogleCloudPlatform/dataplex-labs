@@ -596,8 +596,7 @@ def main():
 
     # Fetch "term-term" relationships only if needed
     need_relationships = (
-        args.export_mode != "glossary_only"
-        and bool({"is_synonymous_to", "is_related_to"} & entrylinktype_set)
+        bool({"is_synonymous_to", "is_related_to"} & entrylinktype_set)
     )
     if need_relationships:
         logger.info("Fetching entry relationships...")
