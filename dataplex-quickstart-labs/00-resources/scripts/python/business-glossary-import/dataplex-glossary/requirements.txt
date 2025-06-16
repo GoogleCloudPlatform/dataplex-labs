@@ -1,0 +1,4 @@
+gspread==5.9.0
+google-auth==2.29.0
+google-cloud-storage==2.15.0
+google-api-python-client
