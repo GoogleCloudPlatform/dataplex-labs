@@ -32,7 +32,7 @@ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 # Regex pattern for the parent format (category_id)
 PARENT_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 
-NAME_COLUMN = "name"  # A constant for the name column name
+ID_COLUMN = "id"  # A constant for the name column name
 DISPLAY_NAME_COLUMN_NAME = "display_name"  # A constant for the display name column name
 DESCRIPTION_COLUMN_NAME = "description"  # A constant for the description column name
 PARENT_COLUMN_NAME = "parent"  # A constant for the parent column name
@@ -43,7 +43,7 @@ CONTACT2_EMAIL_COLUMN_NAME = "contact2_email"  # A constant for the contact2 ema
 CONTACT2_NAME_COLUMN_NAME = "contact2_name"  # A constant for the contact2 name column name
 TYPE_COLUMN_NAME = "type"  # A constant for the type column name
 
-ALLOWED_HEADERS = [NAME_COLUMN, PARENT_COLUMN_NAME, DISPLAY_NAME_COLUMN_NAME, DESCRIPTION_COLUMN_NAME, OVERVIEW_COLUMN_NAME, CONTACT1_EMAIL_COLUMN_NAME, CONTACT1_NAME_COLUMN_NAME, CONTACT2_EMAIL_COLUMN_NAME, CONTACT2_NAME_COLUMN_NAME, TYPE_COLUMN_NAME]
+ALLOWED_HEADERS = [ID_COLUMN, PARENT_COLUMN_NAME, DISPLAY_NAME_COLUMN_NAME, DESCRIPTION_COLUMN_NAME, OVERVIEW_COLUMN_NAME, CONTACT1_EMAIL_COLUMN_NAME, CONTACT1_NAME_COLUMN_NAME, CONTACT2_EMAIL_COLUMN_NAME, CONTACT2_NAME_COLUMN_NAME, TYPE_COLUMN_NAME]
 
 # GENERATED COLUMNS
 ENTRY_NAME_COLUMN = "ENTRY_NAME_COLUMN"
@@ -349,7 +349,7 @@ class SheetProcessor:
             if len(row) != len(headers):
                 continue
             row_data = dict(zip(headers, row))
-            name = row_data.get(NAME_COLUMN)
+            name = row_data.get(ID_COLUMN)
             type_value = row_data.get(TYPE_COLUMN_NAME)
             if name and type_value == CATEGORY_TYPE:
               self.category_names[name] = name
@@ -361,7 +361,7 @@ class SheetProcessor:
             for key, value in row_data.items():
                 if isinstance(value, str):
                     row_data[key] = value.strip()
-            name = row_data.get(NAME_COLUMN)
+            name = row_data.get(ID_COLUMN)
             type_value = row_data.get(TYPE_COLUMN_NAME)
             parent = row_data.get(PARENT_COLUMN_NAME)
             try:
