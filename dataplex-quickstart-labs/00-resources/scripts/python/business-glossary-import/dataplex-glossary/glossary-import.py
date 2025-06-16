@@ -27,7 +27,7 @@ CATEGORY_TYPE = "CATEGORY"
 ALLOWED_TYPES = {TERM_TYPE, CATEGORY_TYPE}
 
 # Regex pattern for the name format (term_id or category_id)
-NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 # Regex pattern for the parent format (category_id)
 PARENT_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -129,20 +129,20 @@ class SheetProcessor:
         self.base_parent = f"{self.entry_group_name}/entries/{self.project_location_base}/glossaries/{self.glossary_id}"
         
 
-    def _validate_name(self, name, row_num):
+    def _validate_name(self, id, row_num):
         """Validates the name field against the regex pattern.
 
         Args:
-            name: The name field to validate.
+            id: The name field to validate.
             row_num: The row number.
 
         Raises:
             InvalidNameException: If the name is invalid.
         """
-        if not name:
-            raise InvalidNameException(f"Missing 'name' value in row {row_num}")
-        if not NAME_PATTERN.match(name):
-             raise InvalidNameException(f"Invalid 'name' format in row {row_num}. Name should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. Actual value: {name}")
+        if not id:
+            raise InvalidNameException(f"Missing 'id' value in row {row_num}")
+        if not ID_PATTERN.match(id):
+             raise InvalidNameException(f"Invalid 'id' format in row {row_num}. Id should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. Actual value: {id}")
 
     def _validate_type(self, type_value, row_num):
         """Validate that the type is one of the allowed types
@@ -286,7 +286,7 @@ class SheetProcessor:
         
         if row_data["type"] == TERM_TYPE:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-term"
-            resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/terms/{row_data['name']}"
+            resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/terms/{row_data[ID_COLUMN]}"
             aspects = {
                 "dataplex-types.global.glossary-term-aspect": {"data": {}}, 
                 "dataplex-types.global.overview": {"data": {"content": row_data[OVERVIEW_COLUMN_NAME]}},
@@ -294,7 +294,7 @@ class SheetProcessor:
             }
         elif row_data["type"] == CATEGORY_TYPE:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-category"
-            resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/categories/{row_data['name']}"
+            resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/categories/{row_data[ID_COLUMN]}"
             aspects = {
                 "dataplex-types.global.glossary-category-aspect": {"data": {}}, 
                 "dataplex-types.global.overview": {"data": {"content": row_data[OVERVIEW_COLUMN_NAME]}},
