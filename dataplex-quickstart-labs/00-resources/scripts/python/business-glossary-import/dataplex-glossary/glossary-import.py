@@ -657,10 +657,8 @@ if __name__ == "__main__":
     
     match = GLOSSARY_URL_PATTERN.match(glossary_url)
     if not match:
-        raise InvalidGlossaryURLError(
-           f"Invalid glossary URL format. Expected: {EXPECTED_GLOSSARY_URL_FORMAT}, "
-           f"but got: {glossary_url}"
-        )
+        print(f"Invalid glossary URL format. Expected url format: {EXPECTED_GLOSSARY_URL_FORMAT}, but got: {glossary_url}")
+        exit(1)
     project_id = match.group("project_id")
     location_id = match.group("location_id")
     glossary_id = match.group("glossary_id")
