@@ -42,8 +42,18 @@ CONTACT1_NAME_COLUMN_NAME = "contact1_name"  # A constant for the contact1 name 
 CONTACT2_EMAIL_COLUMN_NAME = "contact2_email"  # A constant for the contact2 email column name
 CONTACT2_NAME_COLUMN_NAME = "contact2_name"  # A constant for the contact2 name column name
 TYPE_COLUMN_NAME = "type"  # A constant for the type column name
+LABEL1_KEY_COLUMN_NAME = "label1_key"  # A constant for the label1 key column name
+LABEL1_VALUE_COLUMN_NAME = "label1_value"  # A constant for label1 value column name
+LABEL2_KEY_COLUMN_NAME = "label2_key"  # A constant for the label2 key column name
+LABEL2_VALUE_COLUMN_NAME = "label2_value"  # A constant for the label2 value column name
 
-ALLOWED_HEADERS = [ID_COLUMN, PARENT_COLUMN_NAME, DISPLAY_NAME_COLUMN_NAME, DESCRIPTION_COLUMN_NAME, OVERVIEW_COLUMN_NAME, CONTACT1_EMAIL_COLUMN_NAME, CONTACT1_NAME_COLUMN_NAME, CONTACT2_EMAIL_COLUMN_NAME, CONTACT2_NAME_COLUMN_NAME, TYPE_COLUMN_NAME]
+# Allowed headers for the Google Sheet
+# These headers are used to validate the sheet structure
+# and ensure that the required fields are present.
+# They also help in mapping the columns to the corresponding fields in the Dataplex Glossary
+# entry.
+ALLOWED_HEADERS = [ID_COLUMN, PARENT_COLUMN_NAME, DISPLAY_NAME_COLUMN_NAME, DESCRIPTION_COLUMN_NAME, OVERVIEW_COLUMN_NAME, TYPE_COLUMN_NAME,
+                   CONTACT1_EMAIL_COLUMN_NAME, CONTACT1_NAME_COLUMN_NAME, CONTACT2_EMAIL_COLUMN_NAME, CONTACT2_NAME_COLUMN_NAME, LABEL1_KEY_COLUMN_NAME, LABEL1_VALUE_COLUMN_NAME, LABEL2_KEY_COLUMN_NAME, LABEL2_VALUE_COLUMN_NAME]
 
 # GENERATED COLUMNS
 ENTRY_NAME_COLUMN = "ENTRY_NAME_COLUMN"
@@ -85,6 +95,11 @@ class InvalidContactException(Exception):
     def __init__(self, message):
       super().__init__(message)
 
+class InvalidLabelException(Exception):
+    """Custom exception for invalid label."""
+    def __init__(self, message):
+      super().__init__(message)
+
 class InvalidDepthException(Exception):
     """Custom exception for invalid depth."""
     def __init__(self, message):
@@ -92,6 +107,11 @@ class InvalidDepthException(Exception):
 
 class InvalidHeaderException(Exception):
     """Custom exception for invalid sheet header."""
+    def __init__(self, message):
+      super().__init__(message)
+
+class ValidationException(Exception):
+    """Custom exception for misc validations."""
     def __init__(self, message):
       super().__init__(message)
 
@@ -154,10 +174,10 @@ class SheetProcessor:
             row_num: The row number.
 
         Raises:
-            InvalidNameException: If the name is invalid.
+            ValidationException: If the name is invalid.
         """
         if display_name and len(display_name) > 256:
-            raise InvalidNameException(f"Invalid '{DISPLAY_NAME_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {display_name}")
+            raise ValidationException(f"Invalid '{DISPLAY_NAME_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {display_name}")
 
     def _validate_description(self, description, row_num):
         """Validates the description field.
@@ -167,10 +187,10 @@ class SheetProcessor:
             row_num: The row number.
 
         Raises:
-            InvalidNameException: If the name is invalid.
+            ValidationException: If the name is invalid.
         """
         if description and len(description) > 1024:
-            raise InvalidNameException(f"Invalid '{DESCRIPTION_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {description}")
+            raise ValidationException(f"Invalid '{DESCRIPTION_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {description}")
 
     def _validate_overview(self, overview, row_num):
         """Validates the overview field.
@@ -180,10 +200,10 @@ class SheetProcessor:
             row_num: The row number.
 
         Raises:
-            InvalidNameException: If the name is invalid.
+            ValidationException: If the name is invalid.
         """
         if overview and len(overview) > 120000:
-            raise InvalidNameException(f"Invalid '{OVERVIEW_COLUMN_NAME}' length in row {row_num}. Overview should be less than or equal to 120KB. Actual value: {overview}")
+            raise ValidationException(f"Invalid '{OVERVIEW_COLUMN_NAME}' length in row {row_num}. Overview should be less than or equal to 120KB. Actual value: {overview}")
 
     def _validate_type(self, type_value, row_num):
         """Validate that the type is one of the allowed types
@@ -217,14 +237,14 @@ class SheetProcessor:
             raise InvalidParentException(f"Invalid '{PARENT_COLUMN_NAME}' format in row {row_num}. Parent should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. Actual value: {parent}")
 
     def _validate_contacts(self, row_data, row_num):
-        """Validates the email field against the regex pattern.
+        """Validates the contacts.
 
         Args:
-            email: The email field to validate.
+            row_data: row data which contains the contacts.
             row_num: The row number.
 
         Raises:
-            InvalidContactException: If the email is invalid.
+            InvalidContactException: If the contact is invalid.
         """
         name1 = row_data[CONTACT1_NAME_COLUMN_NAME]
         email1 = row_data[CONTACT1_EMAIL_COLUMN_NAME]
@@ -239,6 +259,27 @@ class SheetProcessor:
             raise InvalidContactException(f"Invalid '{CONTACT2_EMAIL_COLUMN_NAME}' format in row {row_num}. Please provide an email id along with name. '{CONTACT2_NAME_COLUMN_NAME}' is: {name2}, while '{CONTACT2_EMAIL_COLUMN_NAME}' is empty")
         if email2 and not EMAIL_PATTERN.match(email2):
             raise InvalidContactException(f"Invalid '{CONTACT2_EMAIL_COLUMN_NAME}' format in row {row_num}. Please provide a valid email id. Actual value: {email2}")
+    
+    def _validate_labels(self, row_data, row_num):
+        """Validates the labels.
+
+        Args:
+            row_data: row data which contains the labels.
+            row_num: The row number.
+
+        Raises:
+            InvalidLabelException: If the label is invalid.
+        """
+        label1_key = row_data[LABEL1_KEY_COLUMN_NAME]
+        label1_value = row_data[LABEL1_VALUE_COLUMN_NAME]
+        if label1_key and not label1_value:
+            raise InvalidLabelException(f"Invalid '{LABEL1_VALUE_COLUMN_NAME}' format in row {row_num}. Please provide label value along with label key name. '{LABEL1_KEY_COLUMN_NAME}' is: {label1_key}, while '{LABEL1_VALUE_COLUMN_NAME}' is empty")
+        
+        label2_key = row_data[LABEL2_KEY_COLUMN_NAME]
+        label2_value = row_data[LABEL2_VALUE_COLUMN_NAME]
+        if label2_key and not label2_value:
+            raise InvalidLabelException(f"Invalid '{LABEL2_VALUE_COLUMN_NAME}' format in row {row_num}. Please provide label value along with label key name. '{LABEL2_KEY_COLUMN_NAME}' is: {label2_key}, while '{LABEL2_VALUE_COLUMN_NAME}' is empty")
+        
 
     def _generate_full_name(self, name, type_value):
         """Generates the full name based on the type and the glossary URL."""
@@ -320,10 +361,16 @@ class SheetProcessor:
         resource = ""
         aspects = {}
         identities = []
+        labels = {}
         if row_data[CONTACT1_EMAIL_COLUMN_NAME]:
             identities.append({"role":"steward","name":row_data[CONTACT1_NAME_COLUMN_NAME],"id":row_data[CONTACT1_EMAIL_COLUMN_NAME]})
         if row_data[CONTACT2_EMAIL_COLUMN_NAME]:
             identities.append({"role":"steward","name":row_data[CONTACT2_NAME_COLUMN_NAME],"id":row_data[CONTACT2_EMAIL_COLUMN_NAME]})
+        
+        if row_data[LABEL1_KEY_COLUMN_NAME] and row_data[LABEL1_VALUE_COLUMN_NAME]:
+            labels[row_data[LABEL1_KEY_COLUMN_NAME]] = row_data[LABEL1_VALUE_COLUMN_NAME]
+        if row_data[LABEL2_KEY_COLUMN_NAME] and row_data[LABEL2_VALUE_COLUMN_NAME]:
+            labels[row_data[LABEL2_KEY_COLUMN_NAME]] = row_data[LABEL2_VALUE_COLUMN_NAME]
         
         if row_data["type"] == TERM_TYPE:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-term"
@@ -354,7 +401,8 @@ class SheetProcessor:
                     "resource": resource,
                     "displayName": row_data[DISPLAY_NAME_COLUMN_NAME],
                     "description": row_data[DESCRIPTION_COLUMN_NAME],
-                    "ancestors": ancestors
+                    "ancestors": ancestors,
+                    "labels": labels
                 },
             },
             "entryLink": None,
@@ -415,6 +463,7 @@ class SheetProcessor:
                 self._validate_display_name(row_data.get(DISPLAY_NAME_COLUMN_NAME), row_num)
                 self._validate_description(row_data.get(DESCRIPTION_COLUMN_NAME), row_num)
                 self._validate_overview(row_data.get(OVERVIEW_COLUMN_NAME), row_num)
+                self._validate_labels(row_data, row_num)
                 row_data[ENTRY_NAME_COLUMN] = self._generate_full_name(id, type_value)
                 row_data[PARENT_ENTRY_COLUMN_NAME] = self._generate_full_parent(parent)
                 valid_rows.append(row_data)
