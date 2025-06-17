@@ -32,6 +32,7 @@ logger = logging_utils.get_logger()
 
 MAX_WORKERS = 20
 GLOSSARY_EXPORT_LOCATION = "global"
+entrygroup_to_glossaryid_map = {}
 
 
 def get_project_number(project_id: str) -> str:
@@ -115,6 +116,27 @@ def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
     else:
         return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
 
+def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
+    """
+    Given an entry name, fetch the glossary ID (entry ID) if not already cached.
+    """
+    match = re.search(r"(projects/[^/]+/locations/[^/]+)/entryGroups/([^/]+)/entries/([^/]+)", entry_full_name)
+    if not match:
+        return None
+
+    project_loc, entry_group_id, entry_id = match.groups()
+    key = f"{project_loc}/entryGroups/{entry_group_id}"
+    if key in entrygroup_to_glossaryid_map:
+        return entrygroup_to_glossaryid_map[key]
+
+    url = f"https://datacatalog.googleapis.com/v2/{key}/entries/{entry_id}"
+    response = api_call_utils.fetch_api_response(requests.get, url, user_project)
+    glossary_name = response.get("json", {}).get("name", "")
+
+    glossary_id = get_entry_id(glossary_name)
+    if glossary_id:
+        entrygroup_to_glossaryid_map[key] = glossary_id
+    return utils.normalize_glossary_id(glossary_id)
 
 def build_parent_mapping(
     entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]]
@@ -294,7 +316,6 @@ def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[
                 entry_links.append(build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id))
     return entry_links
 
-
 def export_glossary_entries_json(
     entries: List[Dict[str, Any]],
     output_json: str,
@@ -387,10 +408,17 @@ def export_combined_entry_links_json(
                 destination_entry = relationship.get("destinationEntry", {}).get("name", "")
                 source_entry = relationship.get("sourceEntry", {}).get("name", "")
                 source_entry_type = relationship.get("sourceEntry", {}).get("entryType", "")
-
+                glossary_entry = relationship.get("destinationEntry", {}).get("coreRelationships", {})[0].get("destinationEntryName", {})
                 if destination_entry:
                     source_entry_name = get_entry_name(source_entry, source_entry_type)
-                    destination_entry_name = get_entry_name(destination_entry, source_entry_type)
+                    destination_entry_id = get_entry_id(destination_entry)
+                    destination_project = re.sub(r"^projects/([^/]+)/.*", r"\1", glossary_entry)
+                    glossary_id = fetch_glossary_id(glossary_entry, USER_PROJECT)
+                    if glossary_id:
+                            destination_entry_name = (
+                                f"projects/{destination_project}/locations/global/entryGroups/@dataplex/entries/"
+                                f"{destination_project}/locations/global/glossaries/{glossary_id}/terms/{destination_entry_id}"
+                            )
                     link = build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id)
                     if link["entryLink"]["name"] not in seen_link_names:
                         seen_link_names.add(link["entryLink"]["name"])
