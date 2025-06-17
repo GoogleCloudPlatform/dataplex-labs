@@ -52,8 +52,22 @@ LABEL2_VALUE_COLUMN_NAME = "label2_value"  # A constant for the label2 value col
 # and ensure that the required fields are present.
 # They also help in mapping the columns to the corresponding fields in the Dataplex Glossary
 # entry.
-ALLOWED_HEADERS = [ID_COLUMN, PARENT_COLUMN_NAME, DISPLAY_NAME_COLUMN_NAME, DESCRIPTION_COLUMN_NAME, OVERVIEW_COLUMN_NAME, TYPE_COLUMN_NAME,
-                   CONTACT1_EMAIL_COLUMN_NAME, CONTACT1_NAME_COLUMN_NAME, CONTACT2_EMAIL_COLUMN_NAME, CONTACT2_NAME_COLUMN_NAME, LABEL1_KEY_COLUMN_NAME, LABEL1_VALUE_COLUMN_NAME, LABEL2_KEY_COLUMN_NAME, LABEL2_VALUE_COLUMN_NAME]
+ALLOWED_HEADERS = {
+    ID_COLUMN,
+    PARENT_COLUMN_NAME,
+    DISPLAY_NAME_COLUMN_NAME,
+    DESCRIPTION_COLUMN_NAME,
+    OVERVIEW_COLUMN_NAME,
+    TYPE_COLUMN_NAME,
+    CONTACT1_EMAIL_COLUMN_NAME,
+    CONTACT1_NAME_COLUMN_NAME,
+    CONTACT2_EMAIL_COLUMN_NAME,
+    CONTACT2_NAME_COLUMN_NAME,
+    LABEL1_KEY_COLUMN_NAME,
+    LABEL1_VALUE_COLUMN_NAME,
+    LABEL2_KEY_COLUMN_NAME,
+    LABEL2_VALUE_COLUMN_NAME,
+}
 
 # GENERATED COLUMNS
 ENTRY_NAME_COLUMN = "ENTRY_NAME_COLUMN"
@@ -131,7 +145,6 @@ class SheetProcessor:
         self.project_location_base = None
         self.category_names = {}
         self._extract_glossary_ids()
-        self.errors: List[str] = []
         
     def _extract_glossary_ids(self):
         """Extracts project, location, and glossary IDs from the glossary URL."""
@@ -177,7 +190,7 @@ class SheetProcessor:
             ValidationException: If the name is invalid.
         """
         if display_name and len(display_name) > 256:
-            raise ValidationException(f"Invalid '{DISPLAY_NAME_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {display_name}")
+            raise ValidationException(f"Invalid '{DISPLAY_NAME_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 256 characters. Actual value: {display_name}")
 
     def _validate_description(self, description, row_num):
         """Validates the description field.
@@ -190,7 +203,7 @@ class SheetProcessor:
             ValidationException: If the name is invalid.
         """
         if description and len(description) > 1024:
-            raise ValidationException(f"Invalid '{DESCRIPTION_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {description}")
+            raise ValidationException(f"Invalid '{DESCRIPTION_COLUMN_NAME}' length in row {row_num}. Description should be less than or equal to 1024 characters. Actual value: {description}")
 
     def _validate_overview(self, overview, row_num):
         """Validates the overview field.
@@ -272,13 +285,13 @@ class SheetProcessor:
         """
         label1_key = row_data[LABEL1_KEY_COLUMN_NAME]
         label1_value = row_data[LABEL1_VALUE_COLUMN_NAME]
-        if label1_key and not label1_value:
-            raise InvalidLabelException(f"Invalid '{LABEL1_VALUE_COLUMN_NAME}' format in row {row_num}. Please provide label value along with label key name. '{LABEL1_KEY_COLUMN_NAME}' is: {label1_key}, while '{LABEL1_VALUE_COLUMN_NAME}' is empty")
+        if (label1_key and not label1_value) or (label1_value and not label1_key):
+            raise InvalidLabelException(f"Invalid Label in row {row_num}. Please provide both key and value for label. '{LABEL1_KEY_COLUMN_NAME}' is: {label1_key}, while '{LABEL1_VALUE_COLUMN_NAME}' is {label1_value}")
         
         label2_key = row_data[LABEL2_KEY_COLUMN_NAME]
         label2_value = row_data[LABEL2_VALUE_COLUMN_NAME]
-        if label2_key and not label2_value:
-            raise InvalidLabelException(f"Invalid '{LABEL2_VALUE_COLUMN_NAME}' format in row {row_num}. Please provide label value along with label key name. '{LABEL2_KEY_COLUMN_NAME}' is: {label2_key}, while '{LABEL2_VALUE_COLUMN_NAME}' is empty")
+        if (label2_key and not label2_value) or (label2_value and not label2_key):
+            raise InvalidLabelException(f"Invalid Label format in row {row_num}. Please provide both key and value for label. '{LABEL2_KEY_COLUMN_NAME}' is: {label2_key}, while '{LABEL2_VALUE_COLUMN_NAME}' is {label2_value}")
         
 
     def _generate_full_name(self, name, type_value):
@@ -428,7 +441,7 @@ class SheetProcessor:
         # Trim whitespace
         headers = [header.strip() for header in headers]
 
-        if headers != ALLOWED_HEADERS:
+        if set(headers) != ALLOWED_HEADERS:
             print(f"Invalid sheet. The first row of the sheet should be headers conatin exactly : {ALLOWED_HEADERS}. Actual headers: {headers}")
             is_dump_valid = False
             return is_dump_valid, dump_entries
@@ -540,12 +553,6 @@ def process_sheet_to_json_and_upload(sheet_url, glossary_url, output_file_path, 
 
         sheet_processor = SheetProcessor(sheet_url, glossary_url, creds)
         is_dump_valid, dump_entries = sheet_processor.read_and_validate_data()
-
-        if sheet_processor.errors:
-          print("Validation errors found:")
-          for error in sheet_processor.errors:
-            print(error)
-          return False
 
         if not dump_entries:
           print("No valid rows found.")
