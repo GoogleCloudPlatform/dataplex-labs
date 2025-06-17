@@ -129,7 +129,7 @@ class SheetProcessor:
         self.base_parent = f"{self.entry_group_name}/entries/{self.project_location_base}/glossaries/{self.glossary_id}"
         
 
-    def _validate_name(self, id, row_num):
+    def _validate_id(self, id, row_num):
         """Validates the name field against the regex pattern.
 
         Args:
@@ -143,6 +143,47 @@ class SheetProcessor:
             raise InvalidNameException(f"Missing 'id' value in row {row_num}")
         if not ID_PATTERN.match(id):
              raise InvalidNameException(f"Invalid 'id' format in row {row_num}. Id should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. Actual value: {id}")
+        if len(id) > 63:
+            raise InvalidNameException(f"Invalid 'id' length in row {row_num}. Id should be less than or equal to 63 characters. Actual value: {id}")
+
+    def _validate_display_name(self, display_name, row_num):
+        """Validates the display_name field.
+
+        Args:
+            display_name: The display_name field to validate.
+            row_num: The row number.
+
+        Raises:
+            InvalidNameException: If the name is invalid.
+        """
+        if display_name and len(display_name) > 256:
+            raise InvalidNameException(f"Invalid '{DISPLAY_NAME_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {display_name}")
+
+    def _validate_description(self, description, row_num):
+        """Validates the description field.
+
+        Args:
+            description: The description field to validate.
+            row_num: The row number.
+
+        Raises:
+            InvalidNameException: If the name is invalid.
+        """
+        if description and len(description) > 1024:
+            raise InvalidNameException(f"Invalid '{DESCRIPTION_COLUMN_NAME}' length in row {row_num}. Display name should be less than or equal to 63 characters. Actual value: {description}")
+
+    def _validate_overview(self, overview, row_num):
+        """Validates the overview field.
+
+        Args:
+            overview: The overview field to validate.
+            row_num: The row number.
+
+        Raises:
+            InvalidNameException: If the name is invalid.
+        """
+        if overview and len(overview) > 120000:
+            raise InvalidNameException(f"Invalid '{OVERVIEW_COLUMN_NAME}' length in row {row_num}. Overview should be less than or equal to 120KB. Actual value: {overview}")
 
     def _validate_type(self, type_value, row_num):
         """Validate that the type is one of the allowed types
@@ -175,7 +216,7 @@ class SheetProcessor:
         if parent and not PARENT_PATTERN.match(parent):
             raise InvalidParentException(f"Invalid '{PARENT_COLUMN_NAME}' format in row {row_num}. Parent should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. Actual value: {parent}")
 
-    def _validate_email(self, row_data, row_num):
+    def _validate_contacts(self, row_data, row_num):
         """Validates the email field against the regex pattern.
 
         Args:
@@ -281,7 +322,7 @@ class SheetProcessor:
         identities = []
         if row_data[CONTACT1_EMAIL_COLUMN_NAME]:
             identities.append({"role":"steward","name":row_data[CONTACT1_NAME_COLUMN_NAME],"id":row_data[CONTACT1_EMAIL_COLUMN_NAME]})
-        if row_data[CONTACT1_EMAIL_COLUMN_NAME]:
+        if row_data[CONTACT2_EMAIL_COLUMN_NAME]:
             identities.append({"role":"steward","name":row_data[CONTACT2_NAME_COLUMN_NAME],"id":row_data[CONTACT2_EMAIL_COLUMN_NAME]})
         
         if row_data["type"] == TERM_TYPE:
@@ -346,9 +387,11 @@ class SheetProcessor:
 
         # First, populate category_names
         for row_num, row in enumerate(data[1:], start=2):
-            if len(row) != len(headers):
-                continue
             row_data = dict(zip(headers, row))
+            # Trim whitespace
+            for key, value in row_data.items():
+                if isinstance(value, str):
+                    row_data[key] = value.strip()
             name = row_data.get(ID_COLUMN)
             type_value = row_data.get(TYPE_COLUMN_NAME)
             if name and type_value == CATEGORY_TYPE:
@@ -361,15 +404,18 @@ class SheetProcessor:
             for key, value in row_data.items():
                 if isinstance(value, str):
                     row_data[key] = value.strip()
-            name = row_data.get(ID_COLUMN)
+            id = row_data.get(ID_COLUMN)
             type_value = row_data.get(TYPE_COLUMN_NAME)
             parent = row_data.get(PARENT_COLUMN_NAME)
             try:
-                self._validate_name(name, row_num)
+                self._validate_id(id, row_num)
                 self._validate_type(type_value, row_num)
                 self._validate_parent(parent, row_data, row_num)
-                self._validate_email(row_data, row_num)
-                row_data[ENTRY_NAME_COLUMN] = self._generate_full_name(name, type_value)
+                self._validate_contacts(row_data, row_num)
+                self._validate_display_name(row_data.get(DISPLAY_NAME_COLUMN_NAME), row_num)
+                self._validate_description(row_data.get(DESCRIPTION_COLUMN_NAME), row_num)
+                self._validate_overview(row_data.get(OVERVIEW_COLUMN_NAME), row_num)
+                row_data[ENTRY_NAME_COLUMN] = self._generate_full_name(id, type_value)
                 row_data[PARENT_ENTRY_COLUMN_NAME] = self._generate_full_parent(parent)
                 valid_rows.append(row_data)
             except Exception as e:
@@ -538,10 +584,21 @@ def poll_operation(operation_name, poll_interval=10, max_polls=60):
 
 if __name__ == "__main__":
     sheet_url = input("Enter the Google Sheet URL: ")
-    # "https://docs.google.com/spreadsheets/d/1HbY56s5Y9krVUtXDSB8iSTyi0xn0nOihHfIBCStpDHo/edit?usp=sharing&resourcekey=0-wYnN_osznBvuD7C9GSPF3Q" 
     glossary_url = input("Enter the glossary URL: ")
     bucket_id = input("Enter the GCS bucket ID (or leave empty to skip upload): ")
-
+    sheet_url = sheet_url.strip()
+    glossary_url = glossary_url.strip()
+    bucket_id = bucket_id.strip() if bucket_id else None
+    
+    if not sheet_url or not glossary_url:
+        print("Both Google Sheet URL and glossary URL are required.")
+        exit(1)
+    
+    # Validate inputs
+    if not sheet_url.startswith("https://docs.google.com/spreadsheets/d/"):
+        print("Invalid Google Sheet URL. Please provide a valid URL.")
+        exit(1)
+    
     match = GLOSSARY_URL_PATTERN.match(glossary_url)
     if not match:
         raise InvalidGlossaryURLError(
