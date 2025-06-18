@@ -24,7 +24,7 @@ gcloud auth application-default login --scopes="https://www.googleapis.com/auth/
 ## Sheets file schema
 The first line of the sheet should contain the following header
 
-`id, parent, display_name, description	overview, contact1_email, contact1_name, contact2_email, contact2_name, type`
+`id, parent, display_name, description	overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
 
 Where:
 
@@ -33,9 +33,13 @@ Where:
 *   `display_name` (required): The display name of the term/category.
 *   `description` (optional): A brief description of the term/category.
 *   `overview` (optional): A rich text description of the term/category. It can contain html tags.
+*   `type` (required): Describes whether this row represents a TERM or a CATEGORY. Only valid values for this is TERM or CATEGORY
 *   `contact1_email` (optional): Email id of the data steward for this term/category.
 *   `contact1_name` (optional): Name of the data steward for this term/category.
 *   `contact2_email` (optional): Email id of another data steward for this term/category.
 *   `contact2_name` (optional): Name of another data steward for this term/category.
-*   `type` (required): Describes whether this row represents a TERM or a CATEGORY. Only valid values for this is TERM or CATEGORY
+*   `label1_key` (optional): Label1's key.
+*   `label1_value` (optional): Label1's value.
+*   `label2_key` (optional): Label2's key.
+*   `label2_value` (optional): Label2's value.
  
