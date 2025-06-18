@@ -511,7 +511,8 @@ class SheetProcessor:
         
         for row_data in valid_rows:
             entry_name = row_data[ENTRY_NAME_COLUMN]
-            dump_entries.append(self._convert_to_import_item(row_data, ancestors_map[entry_name]))
+            if entry_name in ancestors_map:
+                dump_entries.append(self._convert_to_import_item(row_data, ancestors_map[entry_name]))
 
         return is_dump_valid, dump_entries
 
