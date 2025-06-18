@@ -287,11 +287,19 @@ class SheetProcessor:
         label1_value = row_data[LABEL1_VALUE_COLUMN_NAME]
         if (label1_key and not label1_value) or (label1_value and not label1_key):
             raise InvalidLabelException(f"Invalid Label in row {row_num}. Please provide both key and value for label. '{LABEL1_KEY_COLUMN_NAME}' is: {label1_key}, while '{LABEL1_VALUE_COLUMN_NAME}' is {label1_value}")
+        if label1_key and len(label1_key) > 128:
+            raise InvalidLabelException(f"Invalid Label key length in row {row_num}. Label key should be less than or equal to 128 characters. Actual value: {label1_key}")
+        if label1_value and len(label1_value) > 128:
+            raise InvalidLabelException(f"Invalid Label value length in row {row_num}. Label value should be less than or equal to 128 characters. Actual value: {label1_value}")
         
         label2_key = row_data[LABEL2_KEY_COLUMN_NAME]
         label2_value = row_data[LABEL2_VALUE_COLUMN_NAME]
         if (label2_key and not label2_value) or (label2_value and not label2_key):
             raise InvalidLabelException(f"Invalid Label format in row {row_num}. Please provide both key and value for label. '{LABEL2_KEY_COLUMN_NAME}' is: {label2_key}, while '{LABEL2_VALUE_COLUMN_NAME}' is {label2_value}")
+        if label2_key and len(label2_key) > 128:
+            raise InvalidLabelException(f"Invalid Label key length in row {row_num}. Label key should be less than or equal to 128 characters. Actual value: {label2_key}")
+        if label2_value and len(label2_value) > 128:
+            raise InvalidLabelException(f"Invalid Label value length in row {row_num}. Label value should be less than or equal to 128 characters. Actual value: {label2_value}")
         
 
     def _generate_full_name(self, name, type_value):
