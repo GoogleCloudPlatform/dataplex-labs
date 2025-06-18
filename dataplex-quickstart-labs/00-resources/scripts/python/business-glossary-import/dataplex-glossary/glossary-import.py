@@ -76,6 +76,8 @@ ANCESTORS = "ANCESTORS"
 
 ENTRY_GROUP_ID = "@dataplex" # Added a constant for the entry group id
 MAX_DEPTH = 4 # Max depth allowed for a node.
+MAX_NUM_CATEGORIES = 200 # Max number of categories allowed in the glossary
+MAX_NUM_TERMS = 5000 # Max number of terms allowed in the glossary
 
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -445,6 +447,7 @@ class SheetProcessor:
         valid_rows = []
         is_dump_valid = True
         dump_entries = []
+        num_terms = 0
 
         # Trim whitespace
         headers = [header.strip() for header in headers]
@@ -466,6 +469,9 @@ class SheetProcessor:
             if name and type_value == CATEGORY_TYPE:
               self.category_names[name] = name
 
+        if len(self.category_names) > MAX_NUM_CATEGORIES:
+            print(f"Invalid sheet. The number of categories exceeds the maximum allowed limit of {MAX_NUM_CATEGORIES}. Actual number of categories: {len(self.category_names)}")
+            is_dump_valid = False
         
         for row_num, row in enumerate(data[1:], start=2):
             row_data = dict(zip(headers, row))
@@ -476,6 +482,11 @@ class SheetProcessor:
             id = row_data.get(ID_COLUMN)
             type_value = row_data.get(TYPE_COLUMN_NAME)
             parent = row_data.get(PARENT_COLUMN_NAME)
+            if type_value == TERM_TYPE:
+                num_terms += 1
+                if num_terms > MAX_NUM_TERMS:
+                    print(f"Invalid sheet. The number of terms exceeds the maximum allowed limit of {MAX_NUM_TERMS}. Actual number of terms: {num_terms}")
+                    is_dump_valid = False
             try:
                 self._validate_id(id, row_num)
                 self._validate_type(type_value, row_num)
