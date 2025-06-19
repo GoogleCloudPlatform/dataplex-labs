@@ -32,6 +32,9 @@ ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 # Regex pattern for the parent format (category_id)
 PARENT_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 
+# Regex pattern for label key and values
+LABEL_PATTERN = re.compile(r"^[a-z0-9_-]+$")
+
 ID_COLUMN = "id"  # A constant for the name column name
 DISPLAY_NAME_COLUMN_NAME = "display_name"  # A constant for the display name column name
 DESCRIPTION_COLUMN_NAME = "description"  # A constant for the description column name
@@ -293,7 +296,9 @@ class SheetProcessor:
             raise InvalidLabelException(f"Invalid Label key length in row {row_num}. Label key should be less than or equal to 128 characters. Actual value: {label1_key}")
         if label1_value and len(label1_value) > 128:
             raise InvalidLabelException(f"Invalid Label value length in row {row_num}. Label value should be less than or equal to 128 characters. Actual value: {label1_value}")
-        
+        if LABEL_PATTERN.match(label1_key) is None or LABEL_PATTERN.match(label1_value) is None:
+            raise InvalidLabelException(f"Invalid Label format in row {row_num}. Label key and value should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. '{LABEL1_KEY_COLUMN_NAME}' is: {label1_key}, while '{LABEL1_VALUE_COLUMN_NAME}' is {label1_value}")
+
         label2_key = row_data[LABEL2_KEY_COLUMN_NAME]
         label2_value = row_data[LABEL2_VALUE_COLUMN_NAME]
         if (label2_key and not label2_value) or (label2_value and not label2_key):
@@ -302,6 +307,8 @@ class SheetProcessor:
             raise InvalidLabelException(f"Invalid Label key length in row {row_num}. Label key should be less than or equal to 128 characters. Actual value: {label2_key}")
         if label2_value and len(label2_value) > 128:
             raise InvalidLabelException(f"Invalid Label value length in row {row_num}. Label value should be less than or equal to 128 characters. Actual value: {label2_value}")
+        if LABEL_PATTERN.match(label2_key) is None or LABEL_PATTERN.match(label2_value) is None:
+            raise InvalidLabelException(f"Invalid Label format in row {row_num}. Label key and value should contain only lowercase letters, numbers, or hyphens and should start with a lowercase letter. '{LABEL2_KEY_COLUMN_NAME}' is: {label2_key}, while '{LABEL2_VALUE_COLUMN_NAME}' is {label2_value}")
         
 
     def _generate_full_name(self, name, type_value):
@@ -502,6 +509,10 @@ class SheetProcessor:
             except Exception as e:
                 is_dump_valid = False
                 print(f"Invalid data: {e}")
+
+        if not is_dump_valid:
+            print("Dump is not valid. Please fix the errors and try again.")
+            return is_dump_valid, dump_entries
         
         ancestors_map = self._generate_ancestors(valid_rows)
         
