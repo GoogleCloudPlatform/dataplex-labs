@@ -93,7 +93,7 @@ def get_entry_id(entry_name: str) -> str:
     return ""
 
 def Normalize_name(name: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_\-]", "_", s or "")
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", name or "")
 
 def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
     """
@@ -416,7 +416,7 @@ def export_combined_entry_links_json(
                     glossary_id = fetch_glossary_id(glossary_entry, USER_PROJECT)
                     if glossary_id:
                             destination_entry_name = (
-                                f"projects/{destination_project}/locations/global/entryGroups/@dataplex/entries/"
+                                f"projects/{destination_project}/locations/global/entryGroups/@dataplex/entries/projects/"
                                 f"{destination_project}/locations/global/glossaries/{glossary_id}/terms/{destination_entry_id}"
                             )
                     link = build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id)
