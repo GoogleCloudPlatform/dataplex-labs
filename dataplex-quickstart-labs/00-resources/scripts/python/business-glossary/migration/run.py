@@ -13,23 +13,6 @@ logger = logging_utils.get_logger()
 MAX_EXPORT_WORKERS = 20
 MAX_BUCKETS = 20
 
-def set_gcloud_access_token():
-    """Fetches gcloud access token and sets it as an environment variable."""
-    logger.info("Attempting to fetch Google Cloud access token...")
-    try:
-        # Use Application Default Credentials to get the credentials object
-        credentials, project = google.auth.default()
-        auth_req = google.auth.transport.requests.Request()  
-        credentials.refresh(auth_req)
-        os.environ['GCLOUD_ACCESS_TOKEN'] = credentials.token
-
-    except Exception as e:
-        logger.error("FATAL: Could not get Google Cloud credentials.")
-        logger.error("Please ensure you have authenticated by running 'gcloud auth application-default login'.")
-        logger.error(f"Details: {e}")
-        sys.exit(1)
-
-
 def discover_glossaries(project_id: str, user_project: str) -> list[str]:
     """Uses the Catalog Search API to find all v1 glossaries in a project."""
     search_url = "https://datacatalog.googleapis.com/v1/catalog:search"
@@ -75,9 +58,9 @@ def run_export_worker(glossary_url: str, user_project: str, project_id: str) -> 
 
 def main():
     """Main orchestrator for the entire migration process."""
-    set_gcloud_access_token()
     project = input("Enter the GCP project Id that has glossaries to be migrated: ").strip()
-    user_project = input("Enter the GCP project Id to use for billing and API calls: ").strip()
+    _, user_project = google.auth.default()
+
     project_id = utils.get_project_id(project, user_project)
     buckets_str = input(f"Enter a comma-separated list of GCS bucket names (max {MAX_BUCKETS}): ").strip()
     buckets = [b.strip() for b in buckets_str.split(',') if b.strip()][:MAX_BUCKETS]
@@ -98,6 +81,7 @@ def main():
         sys.exit(0)
 
     successful_exports = 0
+
     with ThreadPoolExecutor(max_workers=MAX_EXPORT_WORKERS) as executor:
         future_to_url = {
             executor.submit(run_export_worker, url, user_project, project_id): url
@@ -120,7 +104,7 @@ def main():
 
     try:
         # Using importlib to dynamically import the 'import' module as 'import' is a reserved keyyword in python
-        importer = importlib.import_module("import")
+        importer = importlib.import_module(".import", package="migration") 
         importer.main(project_id, buckets)
         logger.info("Import process complete. Check logs for status of individual jobs.")
         logger.info("Migration finished :)")

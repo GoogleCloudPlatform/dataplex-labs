@@ -21,7 +21,7 @@ entrygroup_to_glossaryid_map = {} # This can remain global as it's a cache
 
 def ensure_output_folders_exist() -> (str, str):
     """Create (if necessary) and return the paths to the output folders."""
-    base_dir = os.path.join(os.getcwd(), "Exported_Files")
+    base_dir = os.path.join(os.getcwd(), "migration/Exported_Files")
     glossaries_dir = os.path.join(base_dir, "Glossaries")
     entrylinks_dir = os.path.join(base_dir, "EntryLinks")
     os.makedirs(glossaries_dir, exist_ok=True)
@@ -393,9 +393,7 @@ def export_combined_entry_links_json(
 def run_export(glossary_url: str, user_project: str) -> bool:
     """
     Executes the full export for a single glossary URL. This is the main entry point.
-    """
-    set_gcloud_access_token()
-    
+    """    
     try:
         # Parse the URL to get necessary IDs
         extracted = utils.parse_glossary_url(glossary_url)
