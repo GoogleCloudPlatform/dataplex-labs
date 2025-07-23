@@ -75,6 +75,7 @@ def run_export_worker(glossary_url: str, user_project: str, project_id: str) -> 
 
 def main():
     """Main orchestrator for the entire migration process."""
+    set_gcloud_access_token()
     project = input("Enter the GCP project Id that has glossaries to be migrated: ").strip()
     user_project = input("Enter the GCP project Id to use for billing and API calls: ").strip()
     project_id = utils.get_project_id(project, user_project)
