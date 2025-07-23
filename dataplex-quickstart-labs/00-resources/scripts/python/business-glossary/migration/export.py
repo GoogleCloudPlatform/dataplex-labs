@@ -1,36 +1,23 @@
-# export.py
-
 """
 This script exports all entries and entry links from a v1 Data Catalog glossary.
 It is refactored to be thread-safe by removing global variables.
 """
 
-# =====================================================================================
-# SECTION 1: IMPORTS
-# =====================================================================================
-from utils import logging_utils, api_call_utils, utils
-
 import json
 import re
 import os
 import subprocess
+import requests
+from utils import logging_utils, api_call_utils, utils
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, List, Dict, Tuple
-import requests
 
-# =====================================================================================
-# SECTION 2: SETUP
-# =====================================================================================
 logger = logging_utils.get_logger()
 MAX_WORKERS = 20
 GLOSSARY_EXPORT_LOCATION = "global"
 entrygroup_to_glossaryid_map = {} # This can remain global as it's a cache
 
-
-# =====================================================================================
-# SECTION 3: HELPER FUNCTIONS (Refactored to accept export_context)
-# =====================================================================================
 
 def ensure_output_folders_exist() -> (str, str):
     """Create (if necessary) and return the paths to the output folders."""
@@ -40,6 +27,7 @@ def ensure_output_folders_exist() -> (str, str):
     os.makedirs(glossaries_dir, exist_ok=True)
     os.makedirs(entrylinks_dir, exist_ok=True)
     return glossaries_dir, entrylinks_dir
+
 
 def get_entry_type_name(entry_type: str, export_context: Dict) -> str:
     """Returns the fully qualified entry type name."""
@@ -52,6 +40,7 @@ def get_entry_type_name(entry_type: str, export_context: Dict) -> str:
         return f"projects/{project_number}/locations/global/entryTypes/glossary"
     return ""
 
+
 def get_entry_link_type_name(entry_link_type: str, export_context: Dict) -> str:
     """Returns the fully qualified entry link type name."""
     project_number = export_context["project_number"]
@@ -63,10 +52,12 @@ def get_entry_link_type_name(entry_link_type: str, export_context: Dict) -> str:
         return f"projects/{project_number}/locations/global/entryLinkTypes/definition"
     return ""
 
+
 def get_entry_id(entry_name: str) -> str:
     """Extracts the entry id from the full entry name."""
     match = re.search(r"projects/[^/]+/locations/[^/]+/entryGroups/[^/]+/entries/(.+)$", entry_name)
     return match.group(1) if match else ""
+
 
 def get_export_resource_by_id(entry_id: str, entry_type: str, export_context: Dict) -> str:
     """Constructs the export resource name."""
@@ -83,6 +74,7 @@ def get_export_resource_by_id(entry_id: str, entry_type: str, export_context: Di
         return f"projects/{project}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{glossary}/{glossary_child_resources}/{entry_id}"
     else:
         return f"projects/{project}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{glossary}"
+
 
 def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
     """Fetches the glossary ID from an entry name. (No context needed here)"""
@@ -104,23 +96,6 @@ def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
         entrygroup_to_glossaryid_map[key] = glossary_id
     return utils.normalize_glossary_id(glossary_id)
 
-def is_entry_exists(linked_resource: str, user_project: str) -> bool:
-    """Checks if a linked resource exists as an asset using gcloud."""
-    try:
-        # Use gcloud asset search to verify the resource exists. It is reliable.
-        command = [
-            "gcloud", "asset", "search-all-resources",
-            f'--query=fullResourceName:"{linked_resource}"',
-            f"--project={user_project}",
-            "--format=json"
-        ]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        # The command returns an empty list '[]' if not found, and a list with a dict if found.
-        # json.loads will evaluate to True for a non-empty list and False for an empty one.
-        return bool(json.loads(result.stdout))
-    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
-        logger.warning(f"Could not verify existence of asset '{linked_resource}'. It may not exist or there could be a permission issue. Error: {e}")
-        return False
 
 def build_parent_mapping(
     entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]]
@@ -138,6 +113,7 @@ def build_parent_mapping(
                     parent_mapping[child_id] = parent_id
                     break
     return parent_mapping
+
 
 def compute_ancestors(
     child_id: str, parent_mapping: Dict[str, str], map_entry_id_to_entry_type: Dict[str, str], export_context: Dict
@@ -158,6 +134,7 @@ def compute_ancestors(
     ancestors.append({"name": glossary_entry_name, "type": get_entry_type_name("glossary", export_context)})
     ancestors.reverse()
     return ancestors
+
 
 def process_entry(
     entry: Dict[str, Any], parent_mapping: Dict[str, str], map_entry_id_to_entry_type: Dict[str, str], export_context: Dict
@@ -208,14 +185,17 @@ def process_entry(
         }
     }
 
+
 def Normalize_name(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_\-@]", "_", name or "")
+
 
 def get_entry_name(glossary_resource_name: str, entry_type: str, export_context: Dict) -> str:
     """Generates the full entry name."""
     entry_id = get_entry_id(glossary_resource_name)
     resource_name = get_export_resource_by_id(entry_id, entry_type, export_context)
     return f"{export_context['dataplex_entry_group']}/entries/{resource_name}"
+
 
 def export_glossary_entries_json(
     entries: List[Dict[str, Any]], output_json: str, parent_mapping: Dict[str, str], map_entry_id_to_entry_type: Dict[str, str], export_context: Dict
@@ -227,6 +207,7 @@ def export_glossary_entries_json(
             for future in as_completed(futures):
                 if result := future.result():
                     outputfile.write(json.dumps(result) + "\n")
+
 
 def write_links_to_file(links, filepath, glossary_id, mode="w"):
     """Writes a list of entry links to a file."""
@@ -291,8 +272,6 @@ def export_combined_entry_links_json(
                         term_links.append(link)
 
         return entry_links
-
-
     
     def process_term_entry_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
         entry_links: List[Dict[str, Any]] = []
@@ -389,7 +368,7 @@ def export_combined_entry_links_json(
         for future in as_completed(term_link_futures):
             result = future.result()
             if result:
-                term_links.extend(result) # <-- This is the main fix
+                term_links.extend(result)
 
         # Wait for definition link processing to complete.
         for future in as_completed(definition_futures):
@@ -410,14 +389,13 @@ def export_combined_entry_links_json(
             output_path = os.path.join(output_dir, filename)
             write_links_to_file(links, output_path, glossary_id)
 
-# =====================================================================================
-# SECTION 4: CORE EXPORT FUNCTION
-# =====================================================================================
 
 def run_export(glossary_url: str, user_project: str) -> bool:
     """
     Executes the full export for a single glossary URL. This is the main entry point.
     """
+    set_gcloud_access_token()
+    
     try:
         # Parse the URL to get necessary IDs
         extracted = utils.parse_glossary_url(glossary_url)
@@ -465,10 +443,10 @@ def run_export(glossary_url: str, user_project: str) -> bool:
         export_glossary_entries_json(entries, glossary_output_path, parent_mapping, map_entry_id_to_entry_type, export_context)
         utils.replace_with_new_glossary_id(glossary_output_path, glossary)
 
-        # 5. Export all related entry links
+        # 5. Export all entry links
         export_combined_entry_links_json(entries, relationships_data, user_project, entrylinks_folder, export_context)
 
-        # 6. Ensure the target v2 glossary exists in Dataplex
+        # 6. Ensure the glossary exists in Dataplex
         utils.create_glossary(user_project, project, location, entry_group, glossary)
 
         logger.info(f"Successfully finished export for glossary: '{glossary}'")

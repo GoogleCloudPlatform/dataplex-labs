@@ -1,24 +1,34 @@
-# migration.py
 import sys
 import os
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-sys.path.insert(0, project_root)
-
 import requests
 import argparse
 import time
-import export
-import import_script
+import importlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils import logging_utils, api_call_utils, utils
-import pprint
-import json
+from . import export
 
 logger = logging_utils.get_logger()
+
 MAX_EXPORT_WORKERS = 20
 MAX_BUCKETS = 20
+
+def set_gcloud_access_token():
+    """Fetches gcloud access token and sets it as an environment variable."""
+    logger.info("Attempting to fetch Google Cloud access token...")
+    try:
+        # Use Application Default Credentials to get the credentials object
+        credentials, project = google.auth.default()
+        auth_req = google.auth.transport.requests.Request()  
+        credentials.refresh(auth_req)
+        os.environ['GCLOUD_ACCESS_TOKEN'] = credentials.token
+
+    except Exception as e:
+        logger.error("FATAL: Could not get Google Cloud credentials.")
+        logger.error("Please ensure you have authenticated by running 'gcloud auth application-default login'.")
+        logger.error(f"Details: {e}")
+        sys.exit(1)
+
 
 def discover_glossaries(project_id: str, user_project: str) -> list[str]:
     """Uses the Catalog Search API to find all v1 glossaries in a project."""
@@ -108,7 +118,9 @@ def main():
     logger.info("All exports completed successfully.")
 
     try:
-        import_script.main(project_id, buckets)
+        # Using importlib to dynamically import the 'import' module as 'import' is a reserved keyyword in python
+        importer = importlib.import_module("import")
+        importer.main(project_id, buckets)
         logger.info("Import process complete. Check logs for status of individual jobs.")
         logger.info("Migration finished :)")
     except Exception as e:

@@ -1,29 +1,23 @@
-# import_script.py
 import os
 import sys
 import json
 import re
 import uuid
 import time
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-sys.path.insert(0, project_root)
-
-from concurrent.futures import ThreadPoolExecutor
-from itertools import cycle
-
-from google.cloud import storage
-import google.auth
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 import httplib2
 import google_auth_httplib2
-
+import google.auth
+from concurrent.futures import ThreadPoolExecutor
+from itertools import cycle
+from google.cloud import storage
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from utils import logging_utils
+
 
 logger = logging_utils.get_logger()
 
-BASE_DIR = os.path.join(os.getcwd(), "Exported_Files")
+BASE_DIR = os.path.join(os.getcwd(), "migration/Exported_Files")
 GLOSSARIES_DIR = os.path.join(BASE_DIR, "Glossaries")
 ENTRYLINKS_DIR = os.path.join(BASE_DIR, "EntryLinks")
 MAX_BUCKETS = 20
@@ -36,6 +30,7 @@ def get_dataplex_service():
     authorized_http = google_auth_httplib2.AuthorizedHttp(credentials, http=http_client)
     service = build('dataplex', 'v1', http=authorized_http, cache_discovery=False)
     return service
+
 
 def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> bool:
     """Polls the metadataJob itself until it completes or fails."""
@@ -77,6 +72,7 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
     logger.warning(f"Polling for job '{job_id}' timed out.")
     return False
 
+
 def create_and_monitor_job(service, project_id: str, location: str, payload: dict, job_id_prefix: str) -> bool:
     safe_prefix = re.sub(r'[^a-z0-9-]', '-', job_id_prefix.lower()).strip('-')
     truncated_prefix = safe_prefix[:50]
@@ -93,11 +89,13 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
         logger.error(f"Network timeout while trying to create job '{job_id}'. Check connection.")
         return False
 
+
 def upload_to_gcs(bucket_name: str, source_file_path: str, destination_blob_name: str):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_filename(source_file_path)
+
 
 def delete_all_bucket_objects(bucket_name: str):
     storage_client = storage.Client()
@@ -109,6 +107,7 @@ def delete_all_bucket_objects(bucket_name: str):
         bucket.delete_blobs(blobs)
     except Exception as e:
         logger.error(f"Failed to delete objects from bucket {bucket_name}: {e}")
+
 
 def get_referenced_scopes_from_file(file_path: str, main_project_id: str) -> list:
     project_scopes = set()
@@ -128,6 +127,7 @@ def get_referenced_scopes_from_file(file_path: str, main_project_id: str) -> lis
     project_scopes.add(f"projects/{main_project_id}")
     return list(project_scopes)
 
+
 def get_entry_group_from_file_content(file_path: str) -> str or None:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -141,6 +141,7 @@ def get_entry_group_from_file_content(file_path: str) -> str or None:
     except (IOError, json.JSONDecodeError, KeyError) as e:
         logger.error(f"Could not extract entry group from {file_path}: {e}")
         return None
+
 
 def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
     """Handles the entire import process for a single file in a thread-safe manner."""
@@ -196,10 +197,12 @@ def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
         logger.error(f"Critical error processing file {file_path}: {e}", exc_info=True)
         return False
 
+
 def get_files_from_dir(directory: str) -> list:
     if not os.path.isdir(directory):
         return []
     return sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.json')])
+
 
 def check_entrylink_dependency(file_path: str) -> bool:
     """
@@ -250,6 +253,7 @@ def check_entrylink_dependency(file_path: str) -> bool:
     # If the file does NOT exist, it was successfully imported and deleted.
     return True
 
+
 def main(project_id: str, buckets: list):
     """Main function to run the import process."""
     phases = {
@@ -289,6 +293,7 @@ def main(project_id: str, buckets: list):
             if successful_imports < len(files_to_process):
                 logger.warning("Some files failed to import. They remain in the 'Exported_Files' directory.")
                 logger.warning("Please review the errors above and re-run the script to retry importing the remaining files.")
+
 
 if __name__ == "__main__":
     project_id = input("Enter the GCP project ID to import into (e.g., my-gcp-project): ").strip()
