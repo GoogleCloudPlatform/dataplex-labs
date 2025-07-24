@@ -411,7 +411,7 @@ def run_export(glossary_url: str, user_project: str) -> bool:
         logger.info(f"Starting export for glossary: {glossary_normalized}")
 
         
-        result = subprocess.run(["gcloud", "organizations", "list", "--format=value(ID)"], capture_output=True, text=True)
+        result = subprocess.run(["gcloud", "organizations", "list", "--format=value(ID)"], capture_output=True, text=True, shell=True)
         org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
 
         export_context = {
