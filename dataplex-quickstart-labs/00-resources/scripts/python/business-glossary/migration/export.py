@@ -269,7 +269,6 @@ def export_combined_entry_links_json(
                     if link["entryLink"]["name"] not in seen_link_names:
                         seen_link_names.add(link["entryLink"]["name"])
                         entry_links.append(link)
-                        term_links.append(link)
 
         return entry_links
     
