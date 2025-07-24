@@ -36,7 +36,7 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
     """Polls the metadataJob itself until it completes or fails."""
     logger.info(f"Polling status for job '{job_id}' every {POLL_INTERVAL_MINUTES} minutes...")
     poll_interval_seconds = POLL_INTERVAL_MINUTES * 60
-    max_polls = 5
+    max_polls = 10
     queued_timeout_seconds = 600
     first_queued_time = None
     job_path = f"projects/{project_id}/locations/{location}/metadataJobs/{job_id}"
@@ -46,7 +46,7 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
         try:
             job = service.projects().locations().metadataJobs().get(name=job_path).execute()
             state = job.get("status", {}).get("state")
-            if state == "SUCCEEDED":
+            if state == "SUCCEEDED" or state == "SUCCEEDED_WITH_ERRORS":
                 logger.info(f"Job '{job_id}' SUCCEEDED.")
                 return True
             if state == "FAILED":
@@ -124,6 +124,7 @@ def get_referenced_scopes_from_file(file_path: str, main_project_id: str) -> lis
             except json.JSONDecodeError:
                 logger.warning(f"Could not parse JSON line in {file_path}: {line.strip()}")
                 continue
+    logger.info(project_scopes)
     project_scopes.add(f"projects/{main_project_id}")
     return list(project_scopes)
 
@@ -142,9 +143,20 @@ def get_entry_group_from_file_content(file_path: str) -> str or None:
         logger.error(f"Could not extract entry group from {file_path}: {e}")
         return None
 
+def get_link_type_from_file(file_path: str) -> str or None:
+    """Reads the first line of a file to determine the entryLinkType."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            first_line = f.readline()
+            if not first_line:
+                return None
+            data = json.loads(first_line)
+            return data.get("entryLink", {}).get("entryLinkType", "")
+    except (IOError, json.JSONDecodeError):
+        logger.warning(f"Could not read or parse link type from {os.path.basename(file_path)}.")
+        return None
 
 def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
-    """Handles the entire import process for a single file in a thread-safe manner."""
     service = get_dataplex_service()
     filename = os.path.basename(file_path)
     job_location = "global"
@@ -163,21 +175,27 @@ def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
         job_id_prefix = f"glossary-{glossary_id}"
         payload = {"type": "IMPORT", "import_spec": { **import_spec_base, "scope": { "glossaries": [f"projects/{project_id}/locations/global/glossaries/{glossary_id}"] } }}
     elif filename.startswith("entrylinks_"):
+        # Determine link type from file content, NOT filename
+        link_type = get_link_type_from_file(file_path)
+        if not link_type:
+            logger.warning(f"Could not determine link type from content of {filename}. Skipping.")
+            return False
+
         referenced_entry_scopes = get_referenced_scopes_from_file(file_path, project_id)
-        if "definition" in filename:
+
+        if "definition" in link_type:
             entry_group = get_entry_group_from_file_content(file_path)
             if entry_group:
                 match = re.search(r'locations/([^/]+)', entry_group)
                 if match:
                     job_location = match.group(1)
-                
                 glossary_id_match = re.search(r'entrylinks_definition_(.*?)_', filename)
                 glossary_id = glossary_id_match.group(1) if glossary_id_match else "unknown"
                 entry_group_name = entry_group.split('/')[-1]
                 job_id_prefix = f"entrylinks-definition-{glossary_id}-{entry_group_name}"
-
                 payload = {"type": "IMPORT", "import_spec": { **import_spec_base, "scope": { "entry_groups": [entry_group], "entry_link_types": ["projects/dataplex-types/locations/global/entryLinkTypes/definition"], "referenced_entry_scopes": referenced_entry_scopes } }}
-        elif "related" in filename or "synonym" in filename:
+        
+        elif "related" in link_type or "synonym" in link_type:
             glossary_id_match = re.search(r'entrylinks_related_synonyms_(.*?)\.json', filename)
             glossary_id = glossary_id_match.group(1) if glossary_id_match else "unknown"
             job_id_prefix = f"entrylinks-synonym-related-{glossary_id}"
