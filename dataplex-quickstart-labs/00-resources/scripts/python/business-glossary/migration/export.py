@@ -77,13 +77,13 @@ def get_export_resource_by_id(entry_id: str, entry_type: str, export_context: Di
 
 
 def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
-    """Fetches the glossary ID from an entry name. (No context needed here)"""
+    """ Given an entry name, fetch the glossary ID (entry ID) if not already cached. """
     match = re.search(r"(projects/[^/]+/locations/[^/]+)/entryGroups/([^/]+)/entries/([^/]+)", entry_full_name)
     if not match:
         return None
 
-    project_loc, _, entry_id = match.groups()
-    key = f"{project_loc}/entryGroups/{entry_id}"
+    project_loc, entry_group_id, entry_id = match.groups()
+    key = f"{project_loc}/entryGroups/{entry_group_id}"
     if key in entrygroup_to_glossaryid_map:
         return entrygroup_to_glossaryid_map[key]
 
@@ -95,7 +95,6 @@ def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
     if glossary_id:
         entrygroup_to_glossaryid_map[key] = glossary_id
     return utils.normalize_glossary_id(glossary_id)
-
 
 def build_parent_mapping(
     entries: List[Dict[str, Any]], relationships_data: Dict[str, List[Dict[str, Any]]]
