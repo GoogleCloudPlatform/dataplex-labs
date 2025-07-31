@@ -24,7 +24,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import api_call_utils
 import requests
-import subprocess
 import os
 import sys
 from collections import defaultdict
@@ -459,12 +458,11 @@ def export_combined_entry_links_json(
             "pageSize": 1000,
             "query": f"(term:{entry_id})",
             "scope": {
-                "includeGcpPublicDatasets": False,
-                "includeOrgIds": ORG_IDS,
+                "includeProjectIds": [PROJECT_ID],
             }
         }
 
-        logger.debug(f"Searching for entry links related to entry ID: {entry_id}")
+        logger.debug(f"Searching for entry links: {search_url} {request_body}")
         search_response = api_call_utils.fetch_api_response(requests.post, search_url, USER_PROJECT, request_body)
         logger.debug(f"Search response: {search_response}")
         results = search_response.get("json", {}).get("results", [])
@@ -621,9 +619,10 @@ def main():
     utils.maybe_override_args_from_url(args)
 
     
-    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, PROJECT_ID, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     USER_PROJECT = args.user_project if args.user_project else args.project
     PROJECT = get_project_number(args.project)
+    PROJECT_ID = utils.get_project_id(PROJECT, USER_PROJECT)
     LOCATION = args.location
     GLOSSARY = args.glossary
 
@@ -636,18 +635,6 @@ def main():
     # Create "Exported_Files" and compute glossary path
     export_folder = create_export_folder()
     glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
-
-    # Run gcloud to fetch organization IDs
-    result = subprocess.run(
-        ["gcloud", "organizations", "list", "--format=value(ID)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.stderr:
-        logger.error("Error:", result.stderr)
-    org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-    ORG_IDS = org_ids
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
