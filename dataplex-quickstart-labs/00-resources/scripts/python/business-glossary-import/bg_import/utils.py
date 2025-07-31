@@ -377,6 +377,12 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
         help="If true, use staging environment instead of prod"
     )
 
+    parser.add_argument(
+        "--debugging",
+        action="store_true",
+        help="If set, enables detailed logging to logs.txt in the current directory."
+    )
+
 
 def validate_export_v2_args(args: argparse.Namespace) -> None:
     """
