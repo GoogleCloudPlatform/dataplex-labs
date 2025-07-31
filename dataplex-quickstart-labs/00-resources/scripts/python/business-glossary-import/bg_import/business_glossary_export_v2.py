@@ -228,12 +228,13 @@ def process_entry(
 
     # Check if the UTF-8 encoded description exceeds the max size
     if len(description.encode('utf-8')) > MAX_DESC_SIZE_BYTES:
-        term_full_name = entry.get("name", "Unknown Term")
-        logger.warning(   
-        f"Please change the description for {term_full_name} with maximum size of 120kb and "
-         "rerun the export if you wish to have the description or you can continue with the "
-         "exported files generated but note that this term has empty description"
-           )
+        term_full_name = entry.get("name", "Unknown Term").replace("/entries/", "/terms/")
+        term_url = f"https://console.cloud.google.com/dataplex/glossaries/{term_full_name}"
+        logger.warning(
+            f"The description for {term_url} is too large (max: 120kb). "
+            "The export will proceed with an empty description for this term. "
+            "If you want to include it, please edit the description and run the export again"
+        )
         description = ""
     contacts_list = [
         {
@@ -465,7 +466,7 @@ def export_combined_entry_links_json(
 
         logger.debug(f"Searching for entry links: {search_url} {request_body}")
         search_response = api_call_utils.fetch_api_response(requests.post, search_url, USER_PROJECT, request_body)
-        logger.debug(f"Search response: {search_response}")
+        logger.debug(f"Search response: {search_response} for {request_body}")
         results = search_response.get("json", {}).get("results", [])
 
         for result in results:
@@ -638,11 +639,14 @@ def main():
     glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
 
     # Run gcloud to fetch organization IDs
+    env = os.environ.copy()
+    env["PATH"] += os.pathsep + "/path/to/gcloud/bin"
     result = subprocess.run(
         ["gcloud", "organizations", "list", "--format=value(ID)"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=env,
     )
     if result.stderr:
         logger.error("Error:", result.stderr)
