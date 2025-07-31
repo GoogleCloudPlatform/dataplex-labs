@@ -26,6 +26,7 @@ import api_call_utils
 import requests
 import os
 import sys
+import subprocess
 from collections import defaultdict
 
 logger = logging_utils.get_logger()
@@ -458,7 +459,7 @@ def export_combined_entry_links_json(
             "pageSize": 1000,
             "query": f"(term:{entry_id})",
             "scope": {
-                "includeProjectIds": [PROJECT_ID],
+                "includeOrgIds": ORG_IDS,
             }
         }
 
@@ -635,6 +636,18 @@ def main():
     # Create "Exported_Files" and compute glossary path
     export_folder = create_export_folder()
     glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
+
+    # Run gcloud to fetch organization IDs
+    result = subprocess.run(
+        ["gcloud", "organizations", "list", "--format=value(ID)"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.stderr:
+        logger.error("Error:", result.stderr)
+    org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+    ORG_IDS = org_ids
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
