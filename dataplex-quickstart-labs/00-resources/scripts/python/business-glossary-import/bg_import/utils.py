@@ -4,29 +4,16 @@
 import argparse
 import os
 import sys
-
 import error
 import import_mode as import_mode_lib
 import logging_utils
 from typing import Any, List, Dict
 import api_call_utils
 import requests
-
 import re
-import csv
-import os
-import requests
-import sys
-from typing import Any, List, Dict
-import glossary as dc_glossary
-import glossary_identification
-import api_call_utils
-import logging_utils
-import utils
 import time
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
 
 
 logger = logging_utils.get_logger()
@@ -284,6 +271,16 @@ def maybe_override_args_from_url(args):
             logger.error(str(ve))
             sys.exit(1)
 
+def parse_list_string(value: str) -> list[str]:
+    """
+    Custom type for argparse.
+    """
+    if not isinstance(value, str) or not value.startswith('[') or not value.endswith(']'):
+        raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"[id1,id2 id3]\".")
+    content = value[1:-1]
+    items = re.split(r'[\s,]+', content)
+
+    return [item for item in items if item]
 
 def validate_export_args(args: argparse.Namespace) -> None:
     """Validates script run arguments for exporting.
@@ -367,7 +364,14 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     ),
     metavar="[Glossary URL]",
     type=str
-)
+    )
+
+    parser.add_argument(
+        "--orgIds",
+        type=parse_list_string,  
+        default=[],
+        help="A list of org IDs enclosed in brackets. Delimiters can be spaces or commas. Example: --org-ids=\"[id1,id2 id3]\""
+    )
 
     parser.add_argument(
         "--testing",

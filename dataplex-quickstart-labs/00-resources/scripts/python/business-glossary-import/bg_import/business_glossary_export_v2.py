@@ -461,6 +461,7 @@ def export_combined_entry_links_json(
             "query": f"(term:{entry_id})",
             "scope": {
                 "includeOrgIds": ORG_IDS,
+                "includeProjectIds": [PROJECT],
             }
         }
 
@@ -638,20 +639,21 @@ def main():
     export_folder = create_export_folder()
     glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
 
-    # Run gcloud to fetch organization IDs
-    env = os.environ.copy()
-    env["PATH"] += os.pathsep + "/path/to/gcloud/bin"
-    result = subprocess.run(
-        ["gcloud", "organizations", "list", "--format=value(ID)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=env,
-    )
-    if result.stderr:
-        logger.error("Error:", result.stderr)
-    org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-    ORG_IDS = org_ids
+    # Set ORG_IDS: use --orgIds if provided, else fetch via gcloud
+    if getattr(args, "orgIds", None):
+        ORG_IDS = args.orgIds
+    else:
+        result = subprocess.run(
+            ["gcloud", "organizations", "list", "--format=value(ID)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        if result.stderr:
+            logger.error("Error fetching organization IDs: %s", result.stderr)
+        org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        ORG_IDS = org_ids
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
