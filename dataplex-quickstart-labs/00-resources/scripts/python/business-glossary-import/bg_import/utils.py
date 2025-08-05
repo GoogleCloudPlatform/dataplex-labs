@@ -271,16 +271,12 @@ def maybe_override_args_from_url(args):
             logger.error(str(ve))
             sys.exit(1)
 
-def parse_list_string(value: str) -> list[str]:
-    """
-    Custom type for argparse.
-    """
-    if not isinstance(value, str) or not value.startswith('[') or not value.endswith(']'):
-        raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"[id1,id2 id3]\".")
-    content = value[1:-1]
-    items = re.split(r'[\s,]+', content)
 
-    return [item for item in items if item]
+def parse_id_list(value):
+        if not isinstance(value, str):
+            raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"123,789\".")
+        items = [item.strip() for item in value.split(',') if item.strip()]
+        return items
 
 def validate_export_args(args: argparse.Namespace) -> None:
     """Validates script run arguments for exporting.
@@ -368,7 +364,7 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument(
         "--orgIds",
-        type=parse_list_string,  
+        type=parse_id_list,  
         default=[],
         help="A list of org IDs enclosed in brackets. Delimiters can be spaces or commas. Example: --org-ids=\"[id1,id2 id3]\""
     )

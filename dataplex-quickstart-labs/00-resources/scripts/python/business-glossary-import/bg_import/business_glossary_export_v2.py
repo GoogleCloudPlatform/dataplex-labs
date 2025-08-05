@@ -231,7 +231,7 @@ def process_entry(
         term_full_name = entry.get("name", "Unknown Term").replace("/entries/", "/terms/")
         term_url = f"https://console.cloud.google.com/dataplex/glossaries/{term_full_name}"
         logger.warning(
-            f"The description for {term_url} is too large (max: 120kb). "
+            f"The description for {term_url} is too large (max: 120KB). "
             "The export will proceed with an empty description for this term. "
             "If you want to include it, please edit the description and run the export again"
         )
@@ -653,6 +653,12 @@ def main():
         if result.stderr:
             logger.error("Error fetching organization IDs: %s", result.stderr)
         org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        if not org_ids:
+            logger.error(
+                "No organization IDs found. Please ensure you have permission to list organizations "
+                "or pass the --orgIds parameter. Exiting."
+            )
+            sys.exit(1)
         ORG_IDS = org_ids
 
     logger.info("Fetching entries in the Glossary...")

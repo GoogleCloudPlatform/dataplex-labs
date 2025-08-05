@@ -2,6 +2,7 @@
 """
 import logging
 import sys
+from datetime import datetime
 
 
 # Global instance of logger, instantiated only once. The instance is accessed by
@@ -54,9 +55,9 @@ def setup_file_logging():
     """
     logger = get_logger()
 
-    # 1. Add the file handler for logs.txt
     # This handler will write all DEBUG and higher messages to the file.
-    file_handler = logging.FileHandler("logs.txt", mode='w', encoding='utf-8')
+    log_filename = f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    file_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s'
     )
@@ -64,7 +65,6 @@ def setup_file_logging():
     file_handler.setLevel(logging.DEBUG)
     logger.addHandler(file_handler)
 
-    # 2. Find and reconfigure the default console handler to also hide DEBUG logs
     # This is a fallback in case the level on the handler was not enough
     for handler in logger.handlers:
         if handler.get_name() == "default_console":
