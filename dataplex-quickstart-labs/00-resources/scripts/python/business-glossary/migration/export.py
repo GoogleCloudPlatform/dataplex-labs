@@ -388,66 +388,76 @@ def export_combined_entry_links_json(
             write_links_to_file(links, output_path, glossary_id)
 
 
-def run_export(glossary_url: str, user_project: str) -> bool:
+def run_export(glossary_url: str, user_project: str, org_ids: list[str]) -> bool:
     """
     Executes the full export for a single glossary URL. This is the main entry point.
     """    
-    try:
-        # Parse the URL to get necessary IDs
-        extracted = utils.parse_glossary_url(glossary_url)
-        if not extracted:
-            logger.error(f"Could not parse required IDs from URL: {glossary_url}")
-            return False
-
-        # Create a local context for this specific export job
-        project = extracted["project"]
-        location = extracted["location"]
-        glossary = extracted["glossary"]
-        entry_group = extracted["entry_group"]
-
-        glossary_normalized = utils.normalize_glossary_id(glossary)
-        logger.info(f"Starting export for glossary: {glossary_normalized}")
-
-        
-        result = subprocess.run(["gcloud", "organizations", "list", "--format=value(ID)"], capture_output=True, text=True, shell=True)
-        org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-
-        export_context = {
-            "project": project,
-            "location": location,
-            "glossary": glossary,
-            "dataplex_entry_group": f"projects/{project}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex",
-            "project_number": "655216118709",  # TODO: Consider making this dynamic if needed
-            "org_ids": org_ids
-        }
-
-        # 1. Create output directories
-        glossaries_folder, entrylinks_folder = ensure_output_folders_exist()
-        glossary_output_path = os.path.join(glossaries_folder, f"glossary_{glossary}.json")
-        glossary_output_path = os.path.join(glossaries_folder, f"glossary_{glossary_normalized}.json") # <-- Uses the raw glossary ID
-
-
-        # 2. Fetch all entries and relationships for the glossary
-        entries = utils.fetch_entries(user_project, project, location, entry_group)
-        relationships_data = utils.fetch_all_relationships(entries, user_project, project)
-        
-        # 3. Prepare mappings for processing
-        map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
-        parent_mapping = build_parent_mapping(entries, relationships_data)
-
-        # 4. Export glossary entries (terms and categories)
-        export_glossary_entries_json(entries, glossary_output_path, parent_mapping, map_entry_id_to_entry_type, export_context)
-        utils.replace_with_new_glossary_id(glossary_output_path, glossary)
-
-        # 5. Export all entry links
-        export_combined_entry_links_json(entries, relationships_data, user_project, entrylinks_folder, export_context)
-
-        # 6. Ensure the glossary exists in Dataplex
-        utils.create_glossary(user_project, project, location, entry_group, glossary)
-
-        logger.info(f"Successfully finished export for glossary: '{glossary}'")
-        return True
-
-    except Exception as e:
-        logger.error(f"An error occurred during export for {glossary_url}: {e}", exc_info=True)
+    extracted = utils.parse_glossary_url(glossary_url)
+    if not extracted:
+        logger.error(f"Could not parse required IDs from URL: {glossary_url}")
         return False
+
+    # Create a local context for this specific export job
+    project = extracted["project"]
+    location = extracted["location"]
+    glossary = extracted["glossary"]
+    entry_group = extracted["entry_group"]
+
+    glossary_normalized = utils.normalize_glossary_id(glossary)
+    logger.info(f"Starting export for glossary: {glossary_normalized}")
+
+    # Set org_ids: use argument if provided, else fetch via gcloud
+    if org_ids:
+        org_ids = org_ids
+    else:
+        result = subprocess.run(
+            ["gcloud", "organizations", "list", "--format=value(ID)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.stderr:
+            logger.error("Error fetching organization IDs: %s", result.stderr)
+        org_ids_list = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        if not org_ids_list:
+            logger.error(
+                "No organization IDs found. Please ensure you have permission to list organizations "
+                "or pass the organization ids in the org_ids parameter. For example org_ids=['123','456']"
+            )
+            return False
+        org_ids = org_ids_list
+
+    export_context = {
+        "project": project,
+        "location": location,
+        "glossary": glossary,
+        "dataplex_entry_group": f"projects/{project}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex",
+        "project_number": "655216118709", 
+        "org_ids": org_ids
+    }
+
+    # 1. Create output directories
+    glossaries_folder, entrylinks_folder = ensure_output_folders_exist()
+    glossary_output_path = os.path.join(glossaries_folder, f"glossary_{glossary}.json")
+    glossary_output_path = os.path.join(glossaries_folder, f"glossary_{glossary_normalized}.json")
+
+    # 2. Fetch all entries and relationships for the glossary
+    entries = utils.fetch_entries(user_project, project, location, entry_group)
+    relationships_data = utils.fetch_all_relationships(entries, user_project, project)
+    
+    # 3. Prepare mappings for processing
+    map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
+    parent_mapping = build_parent_mapping(entries, relationships_data)
+
+    # 4. Export glossary entries (terms and categories)
+    export_glossary_entries_json(entries, glossary_output_path, parent_mapping, map_entry_id_to_entry_type, export_context)
+    utils.replace_with_new_glossary_id(glossary_output_path, glossary)
+
+    # 5. Export all entry links
+    export_combined_entry_links_json(entries, relationships_data, user_project, entrylinks_folder, export_context)
+
+    # 6. Ensure the glossary exists in Dataplex
+    utils.create_glossary(user_project, project, location, entry_group, glossary)
+
+    logger.info(f"Successfully finished export for glossary: '{glossary}'")
+    return True

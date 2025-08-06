@@ -12,19 +12,22 @@ from . import export
 logger = logging_utils.get_logger()
 MAX_EXPORT_WORKERS = 20
 
-def run_export_worker(glossary_url: str, user_project: str) -> bool:
+def run_export_worker(glossary_url: str, user_project: str, org_ids: list[str]) -> bool:
     """A worker function that a thread can execute to export one glossary."""
     try:
-        return export.run_export(glossary_url, user_project)
+        return export.run_export(glossary_url, user_project, org_ids)
     except Exception as e:
         logger.error(f"Export failed for {glossary_url} with error: {e}", exc_info=True)
         return False
 
-# --- CHANGE: main() now accepts the parsed arguments as a parameter ---
 def main(args, user_project: str):
     """Main orchestrator for the entire migration process."""
     project_id = args.project
     buckets = args.buckets
+    org_ids = args.orgIds
+
+    if args.debugging:
+        logging_utils.setup_file_logging()
 
     logger.info("="*50)
     logger.info("Starting Business Glossary Migration: V1 to V2")
@@ -37,12 +40,12 @@ def main(args, user_project: str):
     glossary_urls = utils.discover_glossaries(project_id, user_project)
     if not glossary_urls:
         logger.info("Halting migration as no glossaries were found.")
-        return # Use return instead of sys.exit to be test-friendly
+        return
     
     successful_exports = 0
     with ThreadPoolExecutor(max_workers=MAX_EXPORT_WORKERS) as executor:
         future_to_url = {
-            executor.submit(run_export_worker, url, user_project): url
+            executor.submit(run_export_worker, url, user_project, org_ids): url
             for url in glossary_urls
         }
         for future in as_completed(future_to_url):
