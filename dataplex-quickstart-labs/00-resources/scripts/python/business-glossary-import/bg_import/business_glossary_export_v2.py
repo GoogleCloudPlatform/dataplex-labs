@@ -16,6 +16,7 @@ The Entry Links JSON file contains the following fields:
 
 import json
 import logging_utils
+import logging
 import utils
 import re
 from typing import Any, List, Dict
@@ -23,9 +24,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import api_call_utils
 import requests
-import subprocess
 import os
 import sys
+import subprocess
 from collections import defaultdict
 
 logger = logging_utils.get_logger()
@@ -222,6 +223,19 @@ def process_entry(
     core_aspects = entry.get("coreAspects", {})
     business_context = core_aspects.get("business_context", {}).get("jsonContent", {})
     description = business_context.get("description", "")
+
+    MAX_DESC_SIZE_BYTES = 120 * 1024
+
+    # Check if the UTF-8 encoded description exceeds the max size
+    if len(description.encode('utf-8')) > MAX_DESC_SIZE_BYTES:
+        term_full_name = entry.get("name", "Unknown Term").replace("/entries/", "/terms/")
+        term_url = f"https://console.cloud.google.com/dataplex/glossaries/{term_full_name}"
+        logger.warning(
+            f"The description for {term_url} is too large (max: 120KB). "
+            "The export will proceed with an empty description for this term. "
+            "If you want to include it, please edit the description and run the export again"
+        )
+        description = ""
     contacts_list = [
         {
             "role": "steward",
@@ -393,13 +407,17 @@ def export_combined_entry_links_json(
     # group definition links by PROJECT_LOCATION_ENTRYGROUP
     definition_links_by_ple = defaultdict(list)
     term_links: List[Dict[str, Any]] = []
+    logger.debug("Processing entry links...")
 
     def process_term_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+        logger.debug(f"Processing entry: {entry.get('name', 'Unknown Entry')}")
         entry_links: List[Dict[str, Any]] = []
         entry_name = entry.get("name", "")
         relationships = relationships_data.get(entry_name, [])
+        logger.debug(f"Found {len(relationships)} relationships for entry: {entry_name}")
 
         for relationship in relationships:
+            logger.debug(f"Processing relationship: {relationship.get('name', 'Unknown Relationship')}")
             entry_link_id = get_entry_link_id(relationship.get("name", ""))
             link_type = relationship.get("relationshipType", "")
             if link_type not in entrylinktype_set:
@@ -420,13 +438,16 @@ def export_combined_entry_links_json(
                                 f"{destination_project}/locations/global/glossaries/{glossary_id}/terms/{destination_entry_id}"
                             )
                     link = build_entry_link(source_entry_name, destination_entry_name, link_type, entry_link_id)
+                    logger.debug(f"Adding link: {link['entryLink']['name']}")
                     if link["entryLink"]["name"] not in seen_link_names:
                         seen_link_names.add(link["entryLink"]["name"])
                         entry_links.append(link)
                         term_links.append(link)
+        logger.debug(f"Processed {len(entry_links)} links for entry: {entry_name}")
         return entry_links
 
     def process_term_entry_links(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+        logger.debug(f"Processing entry for term-entry links: {entry.get('name', 'Unknown Entry')}")
         entry_links: List[Dict[str, Any]] = []
         if entry.get("entryType") != "glossary_term":
             return entry_links
@@ -439,12 +460,14 @@ def export_combined_entry_links_json(
             "pageSize": 1000,
             "query": f"(term:{entry_id})",
             "scope": {
-                "includeGcpPublicDatasets": False,
                 "includeOrgIds": ORG_IDS,
+                "includeProjectIds": [PROJECT],
             }
         }
 
+        logger.debug(f"Searching for entry links: {search_url} {request_body}")
         search_response = api_call_utils.fetch_api_response(requests.post, search_url, USER_PROJECT, request_body)
+        logger.debug(f"Search response: {search_response} for {request_body}")
         results = search_response.get("json", {}).get("results", [])
 
         for result in results:
@@ -465,16 +488,20 @@ def export_combined_entry_links_json(
                 requested_project_name = f"projects/{project_id_from_relative_resource_name_v2}/locations/{location_from_relative_resource_name_v2}"
 
             entry_get_url = f"https://dataplex.googleapis.com/v1/{requested_project_name}:lookupEntry?entry={relative_resource_name_v2}"
+            logger.debug(f"Fetching entry for linked resource: {linked_resource} from URL: {entry_get_url}")
             entry_check = api_call_utils.fetch_api_response(requests.get, entry_get_url, USER_PROJECT)
+            logger.debug(f"Entry check response: {entry_check}")
             if not entry_check.get("json") or entry_check.get("error_msg"):
                 logger.warning(f"Dataplex entry not found for linked resource: {linked_resource}")
                 continue
 
             rel_url = f"https://datacatalog.googleapis.com/v2/{relative_resource_name}/relationships"
             response = api_call_utils.fetch_api_response(requests.get, rel_url, USER_PROJECT)
+            logger.debug(f"Relationships response for {rel_url}: {response}")
             relationships = response.get("json", {}).get("relationships", [])
 
             for rel in relationships:
+                logger.debug(f"Processing relationship: {rel.get('name', 'Unknown Relationship')}")
                 dest_entry = rel.get("destinationEntryName", "")
                 source_column = rel.get("sourceColumn", "")
                 if get_entry_id(dest_entry) == entry_uid:
@@ -506,10 +533,12 @@ def export_combined_entry_links_json(
                             "entryReferences": [entry_reference_source, entry_reference_target],
                         }
                     }
+                    logger.debug(f"Adding definition link: {link['entryLink']['name']}")
                     if link["entryLink"]["name"] not in seen_link_names:
                         seen_link_names.add(link["entryLink"]["name"])
                         definition_links_by_ple[ple].append(link)
                         entry_links.append(link)
+        logger.debug(f"Processed {entry_links} term-entry links for entry: {entry.get('name', 'Unknown Entry')}")
         return entry_links
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -585,12 +614,18 @@ def compute_glossary_path(export_folder: str, glossary_id: str) -> str:
 
 def main():
     args = utils.get_export_v2_arguments()
+
+    if args.debugging:
+        logging_utils.setup_file_logging()
+
     utils.validate_export_v2_args(args)
     utils.maybe_override_args_from_url(args)
 
-    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, PROJECT_ID, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     USER_PROJECT = args.user_project if args.user_project else args.project
     PROJECT = get_project_number(args.project)
+    PROJECT_ID = utils.get_project_id(PROJECT, USER_PROJECT)
     LOCATION = args.location
     GLOSSARY = args.glossary
 
@@ -604,17 +639,27 @@ def main():
     export_folder = create_export_folder()
     glossary_output_path = compute_glossary_path(export_folder, GLOSSARY)
 
-    # Run gcloud to fetch organization IDs
-    result = subprocess.run(
-        ["gcloud", "organizations", "list", "--format=value(ID)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.stderr:
-        logger.error("Error:", result.stderr)
-    org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-    ORG_IDS = org_ids
+    # Set ORG_IDS: use --orgIds if provided, else fetch via gcloud
+    if getattr(args, "orgIds", None):
+        ORG_IDS = args.orgIds
+    else:
+        result = subprocess.run(
+            ["gcloud", "organizations", "list", "--format=value(ID)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        if result.stderr:
+            logger.error("Error fetching organization IDs: %s", result.stderr)
+        org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        if not org_ids:
+            logger.error(
+                "No organization IDs found. Please ensure you have permission to list organizations "
+                "or pass the organization ids in the --orgIds parameter. For example --orgIds="123,456""
+            )
+            sys.exit(1)
+        ORG_IDS = org_ids
 
     logger.info("Fetching entries in the Glossary...")
     entries = utils.fetch_entries(USER_PROJECT,PROJECT, LOCATION, args.group)
@@ -659,7 +704,6 @@ def main():
             PROJECT,
             entrylinktype_set,
         )
-        logger.info(f"Entry links exported under {export_folder}/")
 
      # Create Glossary in Dataplex if it does not exist
     utils.create_glossary(USER_PROJECT, PROJECT, args.location, args.group, GLOSSARY)

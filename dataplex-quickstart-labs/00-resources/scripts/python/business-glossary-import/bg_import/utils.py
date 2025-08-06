@@ -4,29 +4,16 @@
 import argparse
 import os
 import sys
-
 import error
 import import_mode as import_mode_lib
 import logging_utils
 from typing import Any, List, Dict
 import api_call_utils
 import requests
-
 import re
-import csv
-import os
-import requests
-import sys
-from typing import Any, List, Dict
-import glossary as dc_glossary
-import glossary_identification
-import api_call_utils
-import logging_utils
-import utils
 import time
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
 
 
 logger = logging_utils.get_logger()
@@ -285,6 +272,12 @@ def maybe_override_args_from_url(args):
             sys.exit(1)
 
 
+def parse_id_list(value):
+        if not isinstance(value, str):
+            raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"123,789\".")
+        items = [item.strip() for item in value.split(',') if item.strip()]
+        return items
+
 def validate_export_args(args: argparse.Namespace) -> None:
     """Validates script run arguments for exporting.
 
@@ -367,7 +360,14 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
     ),
     metavar="[Glossary URL]",
     type=str
-)
+    )
+
+    parser.add_argument(
+        "--orgIds",
+        type=parse_id_list,  
+        default=[],
+        help="A list of org IDs enclosed in brackets. Delimiters can be spaces or commas. Example: --org-ids=\"[id1,id2 id3]\""
+    )
 
     parser.add_argument(
         "--testing",
@@ -375,6 +375,12 @@ def configure_export_v2_arg_parser(parser: argparse.ArgumentParser) -> None:
         type=lambda x: x.lower() == "true",
         default=False,
         help="If true, use staging environment instead of prod"
+    )
+
+    parser.add_argument(
+        "--debugging",
+        action="store_true",
+        help="If set, enables detailed logging to logs.txt in the current directory."
     )
 
 
@@ -566,3 +572,12 @@ def create_glossary(
         sys.exit(1)
 
     logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")
+
+def get_project_id(project:str, user_project:str) -> str:
+    """Fetches the project ID from the project number."""
+    url = f"https://cloudresourcemanager.googleapis.com/v3/projects/{project}"
+    response = api_call_utils.fetch_api_response(requests.get, url, user_project)
+    if response["error_msg"]:
+        logger.error(f"Failed to fetch project ID: {response['error_msg']}")
+        sys.exit(1)
+    return response["json"].get("projectId", "")
