@@ -297,7 +297,6 @@ def main(project_id: str, buckets: list):
         logger.info("="*50)
         
         files_to_process = files
-        # --- UPDATED: Dependency check now uses the file existence method ---
         if phase_name == "EntryLinks":
             logger.info("Checking EntryLink file dependencies against successfully imported glossaries...")
             files_to_process = [f for f in files if check_entrylink_dependency(f)]

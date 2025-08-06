@@ -1,10 +1,9 @@
-# In migration/run.py
-
 import sys
-import argparse
 import time
+import argparse
 import importlib
 import google.auth
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils import logging_utils, utils
 from . import export

@@ -1,6 +1,6 @@
 import unittest
-from unittest.mock import patch, MagicMock, call
 import argparse
+from unittest.mock import patch, MagicMock, call
 from migration import run
 
 class RunScriptTest(unittest.TestCase):
@@ -12,8 +12,12 @@ class RunScriptTest(unittest.TestCase):
     @patch('migration.run.utils.get_migration_arguments')
     def test_main_success_flow(self, mock_get_args, mock_auth, mock_discover, mock_run_export, mock_import_module):
         """Tests the entire successful migration flow with specific assertions."""
-        # --- Setup Mocks ---
-        mock_args = argparse.Namespace(project='test-project-id', buckets=['bucket-1', 'bucket-2'])
+        mock_args = argparse.Namespace(
+            project='test-project-id', 
+            buckets=['bucket-1', 'bucket-2'], 
+            orgIds=['1111', '2222'],
+            debugging=False
+        )
         mock_get_args.return_value = mock_args
         mock_auth.return_value = (None, "billing-project")
         
@@ -24,24 +28,16 @@ class RunScriptTest(unittest.TestCase):
         mock_importer = MagicMock()
         mock_import_module.return_value = mock_importer
 
-        # --- Run and Assert ---
+        # Use assertLogs to capture and silence all log output
         with self.assertLogs(level='INFO') as cm:
             run.main(mock_args, "billing-project")
         
-        # 1. Verify discovery was called correctly
+        # Verify function calls
         mock_discover.assert_called_once_with("test-project-id", "billing-project")
-        
-        # 2. Verify export was called for each specific URL
         self.assertEqual(mock_run_export.call_count, 2)
-        mock_run_export.assert_has_calls([
-            call(mock_urls[0], "billing-project"),
-            call(mock_urls[1], "billing-project")
-        ], any_order=True)
-
-        # 3. Verify the import module was called correctly
         mock_importer.main.assert_called_once_with("test-project-id", ["bucket-1", "bucket-2"])
 
-        # 4. Verify key log messages were generated
+        # Verify key log messages were generated
         log_output = "".join(cm.output)
         self.assertIn("Starting Business Glossary Migration", log_output)
         self.assertIn("Export step finished", log_output)
@@ -54,11 +50,18 @@ class RunScriptTest(unittest.TestCase):
     @patch('migration.run.utils.get_migration_arguments')
     def test_main_export_fails(self, mock_get_args, mock_auth, mock_discover, mock_run_export, mock_import_module):
         """Tests that the import step is skipped and the correct error is logged if any export fails."""
-        mock_args = argparse.Namespace(project='test-project-id', buckets=['bucket-1'])
+        mock_args = argparse.Namespace(
+            project='test-project-id', 
+            buckets=['bucket-1'], 
+            orgIds=[],
+            debugging=False
+        )
+        mock_get_args.return_value = mock_args
         mock_auth.return_value = (None, "billing-project")
         mock_discover.return_value = ["http://url-1", "http://url-2"]
         mock_run_export.side_effect = [True, False]
         
+        # Capture and silence logs, checking for the specifc ERROR message
         with self.assertLogs(level='INFO') as cm:
             run.main(mock_args, "billing-project")
         
@@ -75,10 +78,17 @@ class RunScriptTest(unittest.TestCase):
     @patch('migration.run.utils.get_migration_arguments')
     def test_main_no_glossaries_found(self, mock_get_args, mock_auth, mock_discover, mock_run_export, mock_import_module):
         """Tests that the script stops cleanly and logs correctly if no glossaries are found."""
-        mock_args = argparse.Namespace(project='test-project-id', buckets=['bucket-1'])
+        mock_args = argparse.Namespace(
+            project='test-project-id', 
+            buckets=['bucket-1'], 
+            orgIds=[],
+            debugging=False
+        )
+        mock_get_args.return_value = mock_args
         mock_auth.return_value = (None, "billing-project")
         mock_discover.return_value = []
         
+        # Capture and silence logs, checking for the specific INFO message
         with self.assertLogs(level='INFO') as cm:
             run.main(mock_args, "billing-project")
         

@@ -1,8 +1,6 @@
 """
 This script exports all entries and entry links from a v1 Data Catalog glossary.
-It is refactored to be thread-safe by removing global variables.
 """
-
 import json
 import re
 import os
@@ -16,7 +14,8 @@ from typing import Any, List, Dict, Tuple
 logger = logging_utils.get_logger()
 MAX_WORKERS = 20
 GLOSSARY_EXPORT_LOCATION = "global"
-entrygroup_to_glossaryid_map = {} # This can remain global as it's a cache
+
+entrygroup_to_glossaryid_map = {}
 
 
 def ensure_output_folders_exist() -> (str, str):
