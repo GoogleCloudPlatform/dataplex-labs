@@ -12,7 +12,7 @@ from itertools import cycle
 from google.cloud import storage
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from utils import logging_utils
+from utils import logging_utils, utils
 
 
 logger = logging_utils.get_logger()
@@ -25,6 +25,7 @@ POLL_INTERVAL_MINUTES = 5
 
 def get_dataplex_service():
     """Builds and returns an authenticated Dataplex service object."""
+    logger.debug("Initializing Dataplex service client.")
     credentials, _ = google.auth.default()
     http_client = httplib2.Http(timeout=300)
     authorized_http = google_auth_httplib2.AuthorizedHttp(credentials, http=http_client)
@@ -44,7 +45,10 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
     for i in range(max_polls):
         time.sleep(poll_interval_seconds)
         try:
+            logger.debug(f"Polling job status. GET {job_path}")
             job = service.projects().locations().metadataJobs().get(name=job_path).execute()
+            logger.debug(f"Job status response for '{job_id}': {json.dumps(job, indent=2)}")
+            
             state = job.get("status", {}).get("state")
             if state == "SUCCEEDED" or state == "SUCCEEDED_WITH_ERRORS":
                 logger.info(f"Job '{job_id}' SUCCEEDED.")
@@ -79,6 +83,9 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
     job_id = f"{truncated_prefix}-{uuid.uuid4().hex[:8]}"
     parent = f"projects/{project_id}/locations/{location}"
     try:
+        logger.debug(f"Creating metadata job '{job_id}' in parent '{parent}'.")
+        logger.debug(f"Request payload: {json.dumps(payload, indent=2)}")
+        
         service.projects().locations().metadataJobs().create(parent=parent, metadataJobId=job_id, body=payload).execute()
         logger.info(f"Job '{job_id}' submitted successfully.")
         return poll_metadata_job(service, project_id, location, job_id)
@@ -91,19 +98,24 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
 
 
 def upload_to_gcs(bucket_name: str, source_file_path: str, destination_blob_name: str):
+    logger.debug(f"Initializing Google Cloud Storage client.")
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
+    logger.debug(f"Uploading local file '{source_file_path}' to GCS path 'gs://{bucket_name}/{destination_blob_name}'.")
     blob.upload_from_filename(source_file_path)
 
 
 def delete_all_bucket_objects(bucket_name: str):
+    logger.debug(f"Initializing Google Cloud Storage client to clear bucket '{bucket_name}'.")
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blobs = list(bucket.list_blobs())
     if not blobs:
+        logger.debug(f"Bucket '{bucket_name}' is already empty. No objects to delete.")
         return
     try:
+        logger.debug(f"Found {len(blobs)} objects to delete in '{bucket_name}'.")
         bucket.delete_blobs(blobs)
     except Exception as e:
         logger.error(f"Failed to delete objects from bucket {bucket_name}: {e}")
@@ -120,11 +132,12 @@ def get_referenced_scopes_from_file(file_path: str, main_project_id: str) -> lis
                     ref_name = reference.get("name", "")
                     match = re.search(r"(projects/[^/]+)", ref_name)
                     if match:
+                        logger.debug(f"Found scope '{match.group(1)}' in file '{os.path.basename(file_path)}'")
                         project_scopes.add(match.group(1))
             except json.JSONDecodeError:
                 logger.warning(f"Could not parse JSON line in {file_path}: {line.strip()}")
                 continue
-    logger.info(project_scopes)
+
     project_scopes.add(f"projects/{main_project_id}")
     return list(project_scopes)
 
@@ -138,6 +151,7 @@ def get_entry_group_from_file_content(file_path: str) -> str or None:
             data = json.loads(first_line)
             entry_link_name = data["entryLink"]["name"]
             entry_group = entry_link_name.split('/entryLinks/')[0]
+            logger.debug(f"Extracted entry group '{entry_group}' from {os.path.basename(file_path)}.")
             return entry_group
     except (IOError, json.JSONDecodeError, KeyError) as e:
         logger.error(f"Could not extract entry group from {file_path}: {e}")
@@ -151,12 +165,15 @@ def get_link_type_from_file(file_path: str) -> str or None:
             if not first_line:
                 return None
             data = json.loads(first_line)
-            return data.get("entryLink", {}).get("entryLinkType", "")
+            link_type = data.get("entryLink", {}).get("entryLinkType", "")
+            logger.debug(f"Extracted link type '{link_type}' from {os.path.basename(file_path)}.")
+            return link_type
     except (IOError, json.JSONDecodeError):
         logger.warning(f"Could not read or parse link type from {os.path.basename(file_path)}.")
         return None
 
 def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
+    logger.debug(f"Starting to process file: {os.path.basename(file_path)}")
     service = get_dataplex_service()
     filename = os.path.basename(file_path)
     job_location = "global"
@@ -175,14 +192,11 @@ def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
         job_id_prefix = f"glossary-{glossary_id}"
         payload = {"type": "IMPORT", "import_spec": { **import_spec_base, "scope": { "glossaries": [f"projects/{project_id}/locations/global/glossaries/{glossary_id}"] } }}
     elif filename.startswith("entrylinks_"):
-        # Determine link type from file content, NOT filename
         link_type = get_link_type_from_file(file_path)
         if not link_type:
             logger.warning(f"Could not determine link type from content of {filename}. Skipping.")
             return False
-
         referenced_entry_scopes = get_referenced_scopes_from_file(file_path, project_id)
-
         if "definition" in link_type:
             entry_group = get_entry_group_from_file_content(file_path)
             if entry_group:
@@ -194,7 +208,6 @@ def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
                 entry_group_name = entry_group.split('/')[-1]
                 job_id_prefix = f"entrylinks-definition-{glossary_id}-{entry_group_name}"
                 payload = {"type": "IMPORT", "import_spec": { **import_spec_base, "scope": { "entry_groups": [entry_group], "entry_link_types": ["projects/dataplex-types/locations/global/entryLinkTypes/definition"], "referenced_entry_scopes": referenced_entry_scopes } }}
-        
         elif "related" in link_type or "synonym" in link_type:
             glossary_id_match = re.search(r'entrylinks_related_synonyms_(.*?)\.json', filename)
             glossary_id = glossary_id_match.group(1) if glossary_id_match else "unknown"
@@ -209,18 +222,19 @@ def process_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
         upload_to_gcs(gcs_bucket, file_path, filename)
         job_success = create_and_monitor_job(service, project_id, job_location, payload, job_id_prefix)
         if job_success:
+            logger.debug(f"Job for {filename} succeeded, deleting local file.")
             os.remove(file_path)
+        else:
+            logger.debug(f"Job for {filename} failed, local file will be kept for retry.")
         return job_success
     except Exception as e:
         logger.error(f"Critical error processing file {file_path}: {e}", exc_info=True)
         return False
 
-
 def get_files_from_dir(directory: str) -> list:
     if not os.path.isdir(directory):
         return []
     return sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.json')])
-
 
 def check_entrylink_dependency(file_path: str) -> bool:
     """
@@ -229,20 +243,16 @@ def check_entrylink_dependency(file_path: str) -> bool:
     """
     filename = os.path.basename(file_path)
     parent_glossary_id = None
-    
+    logger.debug(f"Checking dependency for '{filename}'...")
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             first_line = f.readline()
-            if not first_line:
-                return False
-            
+            if not first_line: return False
             data = json.loads(first_line)
             link_data = data.get("entryLink", {})
             link_type = link_data.get("entryLinkType", "")
             refs = link_data.get("entryReferences", [])
-            
             ref_to_check = None
-            
             if "definition" in link_type and len(refs) > 1:
                 ref_to_check = refs[1].get("name", "")  # The 2nd ref is the glossary term
             elif ("related" in link_type or "synonym" in link_type) and len(refs) > 0:
@@ -250,25 +260,23 @@ def check_entrylink_dependency(file_path: str) -> bool:
             
             if ref_to_check:
                 match = re.search(r'glossaries/([^/]+)', ref_to_check)
-                if match:
-                    parent_glossary_id = match.group(1)
-
+                if match: parent_glossary_id = match.group(1)
     except (IOError, json.JSONDecodeError):
         logger.warning(f"Could not read or parse dependency info from {filename}.")
         return False
-
+    
     if not parent_glossary_id:
         logger.warning(f"Could not determine parent glossary for {filename}.")
         return False
 
-    # Construct the expected path of the parent glossary's source file
     glossary_filename = f"glossary_{parent_glossary_id}.json"
     glossary_file_path = os.path.join(GLOSSARIES_DIR, glossary_filename)
-    # If the glossary file STILL EXISTS, its import was not successful.
-    if os.path.exists(glossary_file_path):
-        return False
+    logger.debug(f"Checking for existence of parent glossary file: {glossary_file_path}")
 
-    # If the file does NOT exist, it was successfully imported and deleted.
+    if os.path.exists(glossary_file_path):
+        logger.debug(f"Dependency check FAILED for '{filename}', parent file exists.")
+        return False
+    logger.debug(f"Dependency check PASSED for '{filename}', parent file does not exist.")
     return True
 
 
@@ -318,14 +326,8 @@ def main(project_id: str, buckets: list):
         if glossaries_empty and entrylinks_empty:
             logger.info("Migration finished successfully :)")
 
-
 if __name__ == "__main__":
-    project_id = input("Enter the GCP project ID to import into (e.g., my-gcp-project): ").strip()
-    buckets_str = input(f"Enter a comma-separated list of GCS bucket names (max {MAX_BUCKETS}): ").strip()
-    buckets = [b.strip() for b in buckets_str.split(',') if b.strip()][:MAX_BUCKETS]
-
-    if not project_id or not buckets:
-        logger.error("Project ID and at least one GCS bucket are required.")
-        sys.exit(1)
-        
-    main(project_id, buckets)
+    args = utils.get_migration_arguments()  
+    if args.debugging:
+        logging_utils.setup_file_logging()
+    main(args.project, args.buckets)
