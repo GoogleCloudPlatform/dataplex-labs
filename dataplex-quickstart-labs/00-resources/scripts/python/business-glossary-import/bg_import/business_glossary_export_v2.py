@@ -656,7 +656,7 @@ def main():
         if not org_ids:
             logger.error(
                 "No organization IDs found. Please ensure you have permission to list organizations "
-                "or pass the organization ids in the --orgIds parameter. For example --orgIds="123,456""
+                "or pass the organization ids in the --orgIds parameter. For example --orgIds=\"123,456\""
             )
             sys.exit(1)
         ORG_IDS = org_ids
