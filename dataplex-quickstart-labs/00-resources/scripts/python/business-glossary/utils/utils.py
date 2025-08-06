@@ -5,7 +5,6 @@ import argparse
 import os
 import sys
 
-# from . import error
 from . import logging_utils
 from typing import Any, List, Dict
 from . import api_call_utils
@@ -32,19 +31,6 @@ MAX_WORKERS = 20
 
 def access_token_exists() -> bool:
   return bool(os.environ.get("GCLOUD_ACCESS_TOKEN"))
-
-
-def csv_file_exists(path: str) -> bool:
-  """Verifies if the provided file path exists.
-
-  Args:
-    path: Path of the CSV file provided by the user.
-
-  Returns:
-    Boolean value indicating whether the file exists in the filesystem.
-  """
-  return os.path.isfile(path)
-
 
 def get_arguments() -> argparse.Namespace:
   """Gets arguments for the program.
@@ -220,6 +206,32 @@ def get_export_arguments() -> argparse.Namespace:
     glossary_argument_parser(parser)
     configure_export_argument_parser(parser)
     return parser.parse_args()
+
+
+def get_migration_arguments(argv=None) -> argparse.Namespace:
+    """Gets arguments for the migration program."""
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    configure_migration_argument_parser(parser)
+    return parser.parse_args(argv)
+
+def configure_migration_argument_parser(parser: argparse.ArgumentParser) -> None:
+    """Defines flags and parses arguments related to migration."""
+    parser.add_argument(
+        "--project",
+        help="Google Cloud Project ID that has the V1 glossaries to be migrated.",
+        metavar="[Project ID]",
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        "--buckets",
+        help="Comma-separated list of GCS bucket names for staging the import.",
+        type=lambda s: [item.strip() for item in s.split(",") if item.strip()],
+        required=True,
+        metavar="[bucket-1,bucket-2,...]"
+    )
 
 def configure_export_argument_parser(parser: argparse.ArgumentParser) -> None:
     """Defines flags and parses arguments related to export.
@@ -465,31 +477,29 @@ def fetch_entries(
 
     with ThreadPoolExecutor() as executor:
         futures = []
-        page_token = None
+        page_token = response["json"].get("nextPageToken", None)
+        
+        if "entries" in response["json"]:
+            entries.extend(response["json"]["entries"])
 
-        while True:
-            if page_token:
-                endpoint_url = f"{get_full_entry_url}&pageToken={page_token}"
-            else:
-                endpoint_url = get_full_entry_url
-
+        while page_token:
+            endpoint_url = f"{get_full_entry_url}&pageToken={page_token}"
+            
             future = executor.submit(
                 api_call_utils.fetch_api_response, requests.get, endpoint_url, user_project
             )
             futures.append(future)
+            response_page = future.result()
+            
+            if response_page["error_msg"]:
+                logger.error(f"Error fetching paginated entries: {response_page['error_msg']}")
+                sys.exit(1) 
+            
+            if "entries" in response_page["json"]:
+                entries.extend(response_page["json"]["entries"])
+            page_token = response_page["json"].get("nextPageToken", None)
 
-            # Wait for the current future to complete and process its results
-            for future in as_completed(futures):
-                response = future.result()
-                if response["error_msg"]:
-                    raise ValueError(response["error_msg"])
-                if "entries" in response["json"]:
-                    entries.extend(response["json"]["entries"])
-                page_token = response["json"].get("nextPageToken", None)
-                if not page_token:
-                    return entries
-            # clear the futures list to avoid any memory build-up
-            futures = []
+        return entries
 
 def normalize_glossary_id(glossary: str) -> str:
     """Converts a string to a valid Dataplex glossary_id (lowercase, numbers, hyphens only)."""
@@ -577,3 +587,39 @@ def get_project_id(project:str, user_project:str) -> str:
         logger.error(f"Failed to fetch project ID: {response['error_msg']}")
         sys.exit(1)
     return response["json"].get("projectId", "")
+
+
+def discover_glossaries(project_id: str, user_project: str) -> list[str]:
+    """Uses the Catalog Search API to find all v1 glossaries in a project."""
+    search_url = "https://datacatalog.googleapis.com/v1/catalog:search"
+    query = "type=glossary"
+    request_body = {
+        "query": query,
+        "scope": {
+            "includeProjectIds": [project_id]
+        },
+        "pageSize": 1000,
+    }
+
+    response = api_call_utils.fetch_api_response(
+        requests.post, search_url, user_project, request_body
+    )
+
+    if response.get("error_msg"):
+        logger.error(f"Failed to search for glossaries: {response['error_msg']}")
+        return []
+
+    results = response.get("json", {}).get("results", [])
+    if not results:
+        logger.warning(f"No datacatalog glossaries found in project '{project_id}'.")
+        return []
+
+    # Construct the full glossary URL from the 'linkedResource' field
+    glossary_urls = [
+        f"https:{res['linkedResource']}"
+        for res in results
+        if res.get("searchResultSubtype") == "entry.glossary"
+    ]
+
+    logger.info(f"Found {len(glossary_urls)} glossaries to migrate.")
+    return glossary_urls

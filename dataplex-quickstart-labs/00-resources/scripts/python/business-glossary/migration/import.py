@@ -312,6 +312,12 @@ def main(project_id: str, buckets: list):
                 logger.warning("Some files failed to import. They remain in the 'Exported_Files' directory.")
                 logger.warning("Please review the errors above and re-run the script to retry importing the remaining files.")
 
+        # Print migration finished only if both directories are empty
+        glossaries_empty = not get_files_from_dir(GLOSSARIES_DIR)
+        entrylinks_empty = not get_files_from_dir(ENTRYLINKS_DIR)
+        if glossaries_empty and entrylinks_empty:
+            logger.info("Migration finished successfully :)")
+
 
 if __name__ == "__main__":
     project_id = input("Enter the GCP project ID to import into (e.g., my-gcp-project): ").strip()
