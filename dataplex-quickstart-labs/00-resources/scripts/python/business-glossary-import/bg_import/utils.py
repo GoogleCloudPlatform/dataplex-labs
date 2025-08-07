@@ -572,12 +572,3 @@ def create_glossary(
         sys.exit(1)
 
     logger.info(f"Dataplex glossary created successfully: {glossary_creation_response['json'].get('name', '')}")
-
-def get_project_id(project:str, user_project:str) -> str:
-    """Fetches the project ID from the project number."""
-    url = f"https://cloudresourcemanager.googleapis.com/v3/projects/{project}"
-    response = api_call_utils.fetch_api_response(requests.get, url, user_project)
-    if response["error_msg"]:
-        logger.error(f"Failed to fetch project ID: {response['error_msg']}")
-        sys.exit(1)
-    return response["json"].get("projectId", "")

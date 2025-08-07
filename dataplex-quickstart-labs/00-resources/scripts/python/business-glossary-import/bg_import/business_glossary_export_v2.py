@@ -36,17 +36,6 @@ GLOSSARY_EXPORT_LOCATION = "global"
 entrygroup_to_glossaryid_map = {}
 
 
-def get_project_number(project_id: str) -> str:
-    """Call Cloud Resource Manager to look up the numeric project number."""
-    url = f"https://cloudresourcemanager.googleapis.com/v3/projects/{project_id}"
-    resp = api_call_utils.fetch_api_response(requests.get, url, "")
-    if resp["error_msg"]:
-        logger.error(f"Could not fetch project number for {project_id}: {resp['error_msg']}")
-        return project_id
-    name = resp["json"].get("name", "")
-    parts = name.split("/")
-    return parts[1] if len(parts) == 2 else project_id
-
 def get_entry_type_name(entry_type: str) -> str:
     """
     Returns the fully qualified entry type name based on the provided entry type.
@@ -461,7 +450,6 @@ def export_combined_entry_links_json(
             "query": f"(term:{entry_id})",
             "scope": {
                 "includeOrgIds": ORG_IDS,
-                "includeProjectIds": [PROJECT],
             }
         }
 
@@ -622,10 +610,9 @@ def main():
     utils.maybe_override_args_from_url(args)
 
     
-    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, PROJECT_ID, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     USER_PROJECT = args.user_project if args.user_project else args.project
-    PROJECT = get_project_number(args.project)
-    PROJECT_ID = utils.get_project_id(PROJECT, USER_PROJECT)
+    PROJECT = args.project
     LOCATION = args.location
     GLOSSARY = args.glossary
 
@@ -648,7 +635,6 @@ def main():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=env,
         )
         if result.stderr:
             logger.error("Error fetching organization IDs: %s", result.stderr)
