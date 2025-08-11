@@ -669,6 +669,7 @@ def main():
     if args.export_mode != "entry_links_only":
         map_entry_id_to_entry_type = {get_entry_id(e["name"]): e.get("entryType", "") for e in entries}
         parent_mapping = build_parent_mapping(entries, relationships_data)
+        logger.debug(f"Parent mapping: {parent_mapping}")
     else:
         map_entry_id_to_entry_type = {}
         parent_mapping = {}

@@ -160,7 +160,7 @@ def fetch_api_response(
           'json': data,
           'error_msg': error_msg
       }
-    logger.debug(f'Successful response JSON: {data}')
+    logger.debug(f'{context} Successful response JSON: {data},')
     return {
         'json': data,
         'error_msg': None
