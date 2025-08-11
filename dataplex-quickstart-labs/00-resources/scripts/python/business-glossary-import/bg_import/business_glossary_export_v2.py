@@ -171,6 +171,14 @@ def compute_ancestors(
         List[Dict[str, str]]: The ancestors array with at most two elements.
     """
     ancestors: List[Dict[str, str]] = []
+    glossary_entry_name = (
+        f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
+    )
+    ancestors.append({
+        "name": glossary_entry_name, 
+        "type": get_entry_type_name("glossary")
+    })
+    
     if child_id in parent_mapping:
         parent_id = parent_mapping[child_id]
         parent_type = map_entry_id_to_entry_type.get(parent_id, "glossary_category")    
@@ -181,14 +189,6 @@ def compute_ancestors(
             "type": get_entry_type_name(parent_type)
         })
 
-    glossary_entry_name = (
-        f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
-    )
-    ancestors.append({
-        "name": glossary_entry_name, 
-        "type": get_entry_type_name("glossary")
-    })
-    ancestors.reverse()
     return ancestors
 
 def process_entry(

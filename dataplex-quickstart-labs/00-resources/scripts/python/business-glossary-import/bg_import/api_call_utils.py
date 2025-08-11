@@ -130,28 +130,32 @@ def fetch_api_response(
   Returns:
     Dictionary with response and error if any.
   """
-
-  logger.debug(
-    f'Calling {method.__name__.upper()} {url} with project_id: {project_id} and request_body: {request_body}'
-  )
   data, error_msg = None, None
   method_name = 'GET' if method == requests.get else 'POST'
+  context = f'[{method_name} {url}]'
+
+  logger.debug(
+    f'{context} Initiating call with project_id: {project_id} and request_body: {request_body}'
+  )
+
   try:
     res = method(url, headers=_get_header(project_id), json=request_body)
-    logger.debug(f'Response status: {res.status_code}, Response text: {res.text}')
+    logger.debug(f'{context} Response status: {res.status_code}, Response text: {res.text}')
+
     try:
       data = res.json()
     except requests.exceptions.JSONDecodeError:
-      error_msg = f'{method_name} call to {url} returned non valid JSON.'
-      logger.debug(f'Error: {error_msg}')
+      error_msg = 'Call returned non-valid JSON.'
+      logger.debug(f'{context} Json decode error: {error_msg}')
       return {
           'json': None,
           'error_msg': error_msg
       }
+
     if not res.ok:
       # If the response is an error, capture the error message from the JSON
-      error_msg = data.get('error', {}).get('message') or f'{method_name} call to {url} returned HTTP {res.status_code}.'
-      logger.debug(f'Error: {error_msg}')
+      error_msg = data.get('error', {}).get('message') or f'Call returned HTTP {res.status_code}.'
+      logger.debug(f'{context} Bad response error: {error_msg}')
       return {
           'json': data,
           'error_msg': error_msg
@@ -163,7 +167,7 @@ def fetch_api_response(
     }
   except requests.exceptions.RequestException as err:
     error_msg = create_error_message(method_name, url, err)
-    logger.debug(f'Exception occurred: {error_msg}')
+    logger.debug(f'{context} Exception occurred: {error_msg}')
     return {
         'json': None,
         'error_msg': error_msg
