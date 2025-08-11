@@ -161,36 +161,35 @@ def compute_ancestors(
     map_entry_id_to_entry_type: Dict[str, str],
 ) -> List[Dict[str, str]]:
     """
-    Build the ancestors array for an entry (using entry IDs).
-    For each ancestor in the chain, construct its export resource using get_export_resource_by_id.
-    If no belongs_to exists, assume the glossary is the only ancestor.
+    Builds an ancestors array containing only the root glossary and the immediate parent.
 
     Args:
         child_id (str): The entry id of the child.
         parent_mapping (Dict[str, str]): The parent mapping.
         map_entry_id_to_entry_type (Dict[str, str]): The mapping of entry id to entry type.
     Returns:
-        List[Dict[str, str]]: The ancestors array.
+        List[Dict[str, str]]: The ancestors array with at most two elements.
     """
     ancestors: List[Dict[str, str]] = []
     if child_id in parent_mapping:
-        current = parent_mapping[child_id]
-        while True:
-            current_type = map_entry_id_to_entry_type.get(current, "glossary")
-            resource = get_export_resource_by_id(current, current_type)
-            glossary_child_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{resource}"
-            ancestors.append({"name": glossary_child_entry_name, "type": get_entry_type_name(current_type)})
-            if current not in parent_mapping:
-                break
-            current = parent_mapping[current]
+        parent_id = parent_mapping[child_id]
+        parent_type = map_entry_id_to_entry_type.get(parent_id, "glossary_category")    
+        resource = get_export_resource_by_id(parent_id, parent_type)
+        parent_entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{resource}"   
+        ancestors.append({
+            "name": parent_entry_name,
+            "type": get_entry_type_name(parent_type)
+        })
 
     glossary_entry_name = (
         f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
     )
-    ancestors.append({"name": glossary_entry_name, "type": get_entry_type_name("glossary")})
+    ancestors.append({
+        "name": glossary_entry_name, 
+        "type": get_entry_type_name("glossary")
+    })
     ancestors.reverse()
     return ancestors
-
 
 def process_entry(
     entry: Dict[str, Any],
@@ -486,6 +485,9 @@ def export_combined_entry_links_json(
             rel_url = f"https://datacatalog.googleapis.com/v2/{relative_resource_name}/relationships"
             response = api_call_utils.fetch_api_response(requests.get, rel_url, USER_PROJECT)
             logger.debug(f"Relationships response for {rel_url}: {response}")
+            if not response or not response.get("json"):
+                logger.warning(f"No relationships found for {relative_resource_name}")
+                continue
             relationships = response.get("json", {}).get("relationships", [])
 
             for rel in relationships:
