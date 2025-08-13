@@ -400,18 +400,19 @@ def validate_export_v2_args(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
-def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, Any]]:
+def fetch_relationships(entry_name: str, user_project: str, view:str = "FULL") -> List[Dict[str, Any]]:
     """Fetches relationships for a specific entry from the Data Catalog.
 
     Args:
         entry_name: The full resource name of the entry.
         project: The Google Cloud Project ID.
+        view: The view of the entry to fetch. Defaults to "FULL", possible values "BASIC", "ENTRY_BASIC", "FULL".
 
     Returns:
         A list of dictionaries containing the relationships.
     """
     fetch_relationships_url = (
-        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageSize={PAGE_SIZE}"
+        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view={view}&pageSize={PAGE_SIZE}"
     )
 
     response = api_call_utils.fetch_api_response(
@@ -425,7 +426,7 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
     while next_page_token:
         # Fetch the next page of relationships
         fetch_next_page_url = (
-            DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageSize={PAGE_SIZE}&pageToken={next_page_token}"
+            DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view={view}&pageSize={PAGE_SIZE}&pageToken={next_page_token}"
         )
         response = api_call_utils.fetch_api_response(
             requests.get, fetch_next_page_url, user_project

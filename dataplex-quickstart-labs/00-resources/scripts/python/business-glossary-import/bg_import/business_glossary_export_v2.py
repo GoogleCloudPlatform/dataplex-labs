@@ -483,10 +483,8 @@ def export_combined_entry_links_json(
                 logger.warning(f"Dataplex entry not found for linked resource: {linked_resource}")
                 continue
 
-            rel_url = f"https://datacatalog.googleapis.com/v2/{relative_resource_name}/relationships"
-            response = api_call_utils.fetch_api_response(requests.get, rel_url, USER_PROJECT)
-            logger.debug(f"Relationships response for {rel_url}: {response}")
-            relationships = response.get("json", {}).get("relationships", [])
+            relationships = utils.fetch_relationships(relative_resource_name, USER_PROJECT, "BASIC")
+            logger.debug(f"Relationships response for {relative_resource_name}: {relationships}")
 
             for rel in relationships:
                 logger.debug(f"Processing relationship: {rel.get('name', 'Unknown Relationship')}")
