@@ -411,11 +411,8 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
         A list of dictionaries containing the relationships.
     """
     fetch_relationships_url = (
-        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL"
+        DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageSize={PAGE_SIZE}"
     )
-    request_body = {
-        "pageSize": 1000
-    }
 
     response = api_call_utils.fetch_api_response(
         requests.get, fetch_relationships_url, user_project, request_body
@@ -428,7 +425,7 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
     while next_page_token:
         # Fetch the next page of relationships
         fetch_next_page_url = (
-            DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageToken={next_page_token}"
+            DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageSize={PAGE_SIZE}&pageToken={next_page_token}"
         )
         response = api_call_utils.fetch_api_response(
             requests.get, fetch_next_page_url, user_project, request_body
