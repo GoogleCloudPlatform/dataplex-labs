@@ -414,7 +414,7 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
         DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL"
     )
     request_body = {
-        "page_size": 1000
+        "pageSize": 1000
     }
 
     response = api_call_utils.fetch_api_response(
