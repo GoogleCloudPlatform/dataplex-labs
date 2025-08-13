@@ -413,14 +413,34 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
     fetch_relationships_url = (
         DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL"
     )
+    request_body = {
+        "page_size": 1000
+    }
 
     response = api_call_utils.fetch_api_response(
-        requests.get, fetch_relationships_url, user_project
+        requests.get, fetch_relationships_url, user_project, request_body
     )
     if response["error_msg"]:
         logger.error(f"Error fetching relationships: {response['error_msg']}")
         sys.exit(1)
-    return response["json"].get("relationships", [])
+    relationships = response["json"].get("relationships", [])
+    next_page_token = response["json"].get("nextPageToken", None)
+    while next_page_token:
+        # Fetch the next page of relationships
+        fetch_next_page_url = (
+            DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageToken={next_page_token}"
+        )
+        response = api_call_utils.fetch_api_response(
+            requests.get, fetch_next_page_url, user_project, request_body
+        )
+        if response["error_msg"]:
+            logger.error(f"Error fetching relationships: {response['error_msg']}")
+            sys.exit(1)
+
+        relationships.extend(response["json"].get("relationships", []))
+        next_page_token = response["json"].get("nextPageToken", None)
+
+    return relationships
 
 def fetch_all_relationships(
     entries: List[Dict[str, Any]], user_project: str,project: str, max_workers: int = MAX_WORKERS
