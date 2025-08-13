@@ -415,7 +415,7 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
     )
 
     response = api_call_utils.fetch_api_response(
-        requests.get, fetch_relationships_url, user_project, request_body
+        requests.get, fetch_relationships_url, user_project
     )
     if response["error_msg"]:
         logger.error(f"Error fetching relationships: {response['error_msg']}")
@@ -428,7 +428,7 @@ def fetch_relationships(entry_name: str, user_project: str) -> List[Dict[str, An
             DATACATALOG_BASE_URL + f"/{entry_name}/relationships?view=FULL&pageSize={PAGE_SIZE}&pageToken={next_page_token}"
         )
         response = api_call_utils.fetch_api_response(
-            requests.get, fetch_next_page_url, user_project, request_body
+            requests.get, fetch_next_page_url, user_project
         )
         if response["error_msg"]:
             logger.error(f"Error fetching relationships: {response['error_msg']}")
