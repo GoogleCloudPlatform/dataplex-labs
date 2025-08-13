@@ -412,10 +412,13 @@ def export_combined_entry_links_json(
             if link_type not in entrylinktype_set:
                 continue
             if link_type in ["is_synonymous_to", "is_related_to"]:
+                if not relationship.get("sourceEntry") or not relationship.get("destinationEntry"):
+                    logger.warning(f"Skipping relationship {relationship.get('name', 'Unknown Relationship')} due to missing source or destination entry.")
+                    continue
                 destination_entry = relationship.get("destinationEntry", {}).get("name", "")
-                source_entry = relationship.get("sourceEntry", {}).get("name", "")
-                source_entry_type = relationship.get("sourceEntry", {}).get("entryType", "")
-                glossary_entry = relationship.get("destinationEntry", {}).get("coreRelationships", {})[0].get("destinationEntryName", {})
+                source_entry = relationship.get("sourceEntry").get("name", "")
+                source_entry_type = relationship.get("sourceEntry").get("entryType", "")
+                glossary_entry = relationship.get("destinationEntry").get("coreRelationships", [])[0].get("destinationEntryName", "")
                 if destination_entry:
                     source_entry_name = get_entry_name(source_entry, source_entry_type)
                     destination_entry_id = get_entry_id(destination_entry)
