@@ -565,6 +565,8 @@ def create_glossary(
     glossary_creation_response = api_call_utils.fetch_api_response(
         requests.get, dataplex_get_url, user_project
     )
+
+    logger.info(glossary_creation_response)
     if glossary_creation_response["error_msg"]:
         logger.warning(
             f"Error occurred while creating the glossary {glossary_creation_response['error_msg']}. Please try again manually."
