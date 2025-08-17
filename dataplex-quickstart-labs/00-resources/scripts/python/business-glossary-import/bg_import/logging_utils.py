@@ -56,7 +56,7 @@ def setup_file_logging():
     logger = get_logger()
 
     # This handler will write all DEBUG and higher messages to the file.
-    log_filename = f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    log_filename = f"logs_{datetime.now().strftime('%B-%d-%Y_%I-%M-%S%p')}.txt"
     file_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s'
@@ -71,7 +71,7 @@ def setup_file_logging():
             handler.addFilter(ConsoleLogFilter())
             break
     
-    logger.info("Debug logging to logs.txt is enabled.")
+    logger.info("Debug logging is active. Logs will be saved in %s", log_filename)
 
 
 class _LogFormatter(logging.Formatter):
