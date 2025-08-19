@@ -102,9 +102,9 @@ def get_export_resource_by_id(entry_id: str, entry_type: str) -> str:
         glossary_child_resources = "categories"
 
     if glossary_child_resources:
-        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}/{glossary_child_resources}/{entry_id}"
+        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{NORMALIZED_GLOSSARY}/{glossary_child_resources}/{entry_id}"
     else:
-        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
+        return f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{NORMALIZED_GLOSSARY}"
 
 def fetch_glossary_id(entry_full_name: str, user_project: str) -> str:
     """
@@ -185,7 +185,7 @@ def compute_ancestors(
             current = parent_mapping[current]
 
     glossary_entry_name = (
-        f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
+        f"{DATAPLEX_ENTRY_GROUP}/entries/projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{NORMALIZED_GLOSSARY}"
     )
     ancestors.append({"name": glossary_entry_name, "type": get_entry_type_name("glossary")})
     ancestors.reverse()
@@ -237,7 +237,7 @@ def process_entry(
 
     glossary_resource = get_export_resource_by_id(child_id, entry_type)
     entry_name = f"{DATAPLEX_ENTRY_GROUP}/entries/{glossary_resource}"
-    glossary_entry_id = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{GLOSSARY}"
+    glossary_entry_id = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/glossaries/{NORMALIZED_GLOSSARY}"
     parent_entry_name = get_entry_name(glossary_entry_id, "glossary")
 
     ancestors = compute_ancestors(child_id, parent_mapping, map_entry_id_to_entry_type)
@@ -353,10 +353,11 @@ def ensure_directory_exists(path: str):
 
 
 def write_links_to_file(links, filepath, mode="w"):
+    """Write entry links to file with normalized glossary IDs in entryReferences."""
     with open(filepath, mode=mode, encoding="utf-8") as outputfile:
         for link in links:
-            outputfile.write(json.dumps(link) + "\n")
-    utils.replace_with_new_glossary_id(filepath, GLOSSARY)
+            updated_link = utils.normalize_entry_references(link)
+            outputfile.write(json.dumps(updated_link) + "\n")
 
 def parse_entrylinktype_arg(raw_entrylinktype: str) -> set:
     """
@@ -611,11 +612,12 @@ def main():
     utils.maybe_override_args_from_url(args)
 
     
-    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
+    global DATAPLEX_ENTRY_GROUP, USER_PROJECT, PROJECT, LOCATION, GLOSSARY, NORMALIZED_GLOSSARY, PROJECT_NUMBER, DATACATALOG_BASE_URL, ORG_IDS
     USER_PROJECT = args.user_project if args.user_project else args.project
     PROJECT = args.project
     LOCATION = args.location
     GLOSSARY = args.glossary
+    NORMALIZED_GLOSSARY = utils.normalize_glossary_id(GLOSSARY)
 
     DATAPLEX_ENTRY_GROUP = f"projects/{PROJECT}/locations/{GLOSSARY_EXPORT_LOCATION}/entryGroups/@dataplex"
     if args.testing:
@@ -681,7 +683,6 @@ def main():
             map_entry_id_to_entry_type,
         )
         logger.info(f"Glossary exported to {glossary_output_path}")
-        utils.replace_with_new_glossary_id(glossary_output_path, GLOSSARY)
 
     # Export entry links if requested
     if args.export_mode in ["entry_links_only", "all"]:
