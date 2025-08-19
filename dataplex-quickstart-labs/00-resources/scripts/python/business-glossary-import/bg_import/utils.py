@@ -541,14 +541,14 @@ def normalize_glossary_id(glossary: str) -> str:
 def normalize_entry_references(entry_link: dict) -> dict:
     """Normalize glossary IDs in entryReferences"""
     for entry_reference in entry_link["entryLink"]["entryReferences"]:
-        resource_name = entry_reference["name"]
-        if GLOSSARY_PATH_REGEX in resource_name:
-            resource_prefix, resource_tail = resource_name.split(GLOSSARY_PATH_REGEX, 1)
-            glossary_id_segment, *remaining_path = resource_tail.split("/", 1)
-            normalized_glossary_id = normalize_glossary_id(glossary_id_segment)
-            resource_suffix = "/" + remaining_path[0] if remaining_path else ""
+        entry_resource_name = entry_reference["name"]
+        if GLOSSARY_PATH_REGEX in entry_resource_name:
+            glossary_path_prefix, glossary_path_suffix = entry_resource_name.split(GLOSSARY_PATH_REGEX, 1)
+            glossary_id, *remaining_path = glossary_path_suffix.split("/", 1)
+            normalized_glossary_id = normalize_glossary_id(glossary_id)
+            entry_resource_suffix = "/" + remaining_path[0] if remaining_path else ""
             entry_reference["name"] = (
-                f"{resource_prefix}{GLOSSARY_PATH_REGEX}{normalized_glossary_id}{resource_suffix}"
+                f"{glossary_path_prefix}{GLOSSARY_PATH_REGEX}{normalized_glossary_id}{entry_resource_suffix}"
             )
     return entry_link
 
