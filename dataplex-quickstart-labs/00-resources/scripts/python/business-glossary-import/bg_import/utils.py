@@ -21,6 +21,7 @@ DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
 DATAPLEX_BASE_URL = "https://dataplex.googleapis.com/v1"
 PAGE_SIZE = 1000
 MAX_WORKERS = 20
+GLOSSARY_PATH_REGEX = "glossaries/"
 
 def access_token_exists() -> bool:
   return bool(os.environ.get("GCLOUD_ACCESS_TOKEN"))
@@ -537,14 +538,19 @@ def normalize_glossary_id(glossary: str) -> str:
     glossary_id = glossary_id.strip("-")
     return glossary_id
 
-def replace_with_new_glossary_id(file_path, glossary_id: str) -> None:
-    new_glossary_id = normalize_glossary_id(glossary_id)
-    pattern = re.compile(rf"glossaries/{re.escape(glossary_id)}")
-    with open(file_path, "r") as file:
-        content = file.read()
-    new_content = pattern.sub(f"glossaries/{new_glossary_id}", content)
-    with open(file_path, "w") as file:
-        file.write(new_content)
+def normalize_entry_references(entry_link: dict) -> dict:
+    """Normalize glossary IDs in entryReferences"""
+    for entry_reference in entry_link["entryLink"]["entryReferences"]:
+        resource_name = entry_reference["name"]
+        if GLOSSARY_PATH_REGEX in resource_name:
+            resource_prefix, resource_tail = resource_name.split(GLOSSARY_PATH_REGEX, 1)
+            glossary_id_segment, *remaining_path = resource_tail.split("/", 1)
+            normalized_glossary_id = normalize_glossary_id(glossary_id_segment)
+            resource_suffix = "/" + remaining_path[0] if remaining_path else ""
+            entry_reference["name"] = (
+                f"{resource_prefix}{GLOSSARY_PATH_REGEX}{normalized_glossary_id}{resource_suffix}"
+            )
+    return entry_link
 
 def create_glossary(
     user_project: str,
