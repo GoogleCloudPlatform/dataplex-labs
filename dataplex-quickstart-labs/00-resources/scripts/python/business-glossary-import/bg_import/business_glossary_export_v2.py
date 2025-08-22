@@ -26,9 +26,6 @@ import api_call_utils
 import requests
 import os
 import sys
-import uuid
-import random
-import string
 import subprocess
 from collections import defaultdict
 
@@ -270,14 +267,16 @@ def process_entry(
     }
 
 
-def get_entry_link_id() -> str:
-    """Generate a unique entry link ID: starts with a lowercase letter, contains only lowercase letters and numbers."""
-    entrylink_id = uuid.uuid4().hex  # already lowercase, only letters & numbers
-    
-    if entrylink_id[0].isdigit():
-        # prepend a random lowercase letter if first char is a digit
-        entrylink_id = random.choice(string.ascii_lowercase) + entrylink_id[1:]
-    return entrylink_id
+def get_entry_link_id(relationship_name: str) -> str:
+    """Extracts the id from the full relationship name."""
+    match = re.search(
+        r"projects/[^/]+/locations/[^/]+/entryGroups/[^/]+/entries/[^/]+/relationships/(.+)$",
+        relationship_name,
+    )
+    if match:
+        return "g"+ match.group(1) # adding prefix 'g' to ensure entrylink_id always starts with a letter
+    return ""
+
 
 def get_entry_name(glossary_resource_name: str, entry_type: str) -> str:
     """Generates the full entry name."""
@@ -308,7 +307,7 @@ def build_entry_links(entry: Dict[str, Any], relationships_data: Dict[str, List[
     relationships = relationships_data.get(entry_name, [])
 
     for relationship in relationships:
-        entry_link_id = get_entry_link_id()
+        entry_link_id = get_entry_link_id(relationship.get("name", ""))
         link_type = relationship.get("relationshipType", "")
         if link_type in ["is_synonymous_to", "is_related_to"]:
             destination_entry = relationship.get("destinationEntry", {}).get("name", "")
@@ -409,7 +408,7 @@ def export_combined_entry_links_json(
 
         for relationship in relationships:
             logger.debug(f"Processing relationship: {relationship.get('name', 'Unknown Relationship')}")
-            entry_link_id = get_entry_link_id()
+            entry_link_id = get_entry_link_id(relationship.get("name", ""))
             link_type = relationship.get("relationshipType", "")
             if link_type not in entrylinktype_set:
                 continue
@@ -496,7 +495,7 @@ def export_combined_entry_links_json(
                 dest_entry = rel.get("destinationEntryName", "")
                 source_column = rel.get("sourceColumn", "")
                 if get_entry_id(dest_entry) == entry_uid:
-                    rel_id = get_entry_link_id()
+                    rel_id = get_entry_link_id(rel.get("name", ""))
                     # extract project & location from the relative resource name
                     m = re.match(r"projects/([^/]+)/locations/([^/]+)/", relative_resource_name_v2)
                     proj = m.group(1) if m else PROJECT
