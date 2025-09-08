@@ -9,10 +9,11 @@ import argparse
 import re
 import subprocess
 import sys
+import uuid
+import json
 from typing import Dict, List, Optional, Tuple
 
 import logging_utils
-
 logger = logging_utils.get_logger()
 
 
@@ -54,15 +55,14 @@ def get_export_arguments() -> argparse.ArgumentParser:
     parser.add_argument("--url", help="Full Data Catalog Glossary URL.", required=True)
     parser.add_argument("--user-project", help="Google Cloud Project ID for billing/quota.", type=str)
     parser.add_argument("--orgIds", type=_parse_id_list, default=[], help='Comma-separated org IDs, e.g., "123,456"')
-    parser.add_argument("--debugging", action="store_true", help="Enable detailed file logging.")
     return parser
 
 
 def parse_glossary_url(url: str) -> Dict[str, str]:
     """Extracts components from a Data Catalog glossary URL."""
     pattern = (
-        r"projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/"
-        r"entryGroups/(?P<group>[^/]+)/glossaries/(?P<glossary>[^/?#]+)"
+        r"projects/(?P<project>[^/]+)/locations/(?P<location_id>[^/]+)/"
+        r"entryGroups/(?P<entry_group_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+)"
     )
     match = re.search(pattern, url)
     if not match:
@@ -73,6 +73,14 @@ def parse_glossary_url(url: str) -> Dict[str, str]:
         sys.exit(1)
     return match.groupdict()
 
+def build_glossary_id_from_entry_group_id(entry_group_id: str) -> str:
+    """Constructs a glossary ID from the entry group ID."""
+    prefix = "dc_glossary_"
+    if entry_group_id.startswith(prefix):
+        entry_group_id = entry_group_id[len(prefix):]
+    normalized_id = normalize_id(entry_group_id)
+    return normalized_id
+    
 
 def normalize_id(name: str) -> str:
     """Converts a string to a valid Dataplex ID (lowercase, numbers, hyphens)."""
@@ -82,23 +90,33 @@ def normalize_id(name: str) -> str:
     normalized_name = re.sub(r"[^a-z0-9\-]", "-", normalized_name)
     normalized_name = re.sub(r"-+", "-", normalized_name)
     return normalized_name.strip("-")
-    
+  
+def trim_spaces_in_display_name(display_name: str) -> str:
+    return display_name.strip()
 
-def get_entry_id(resource_name: str) -> str:
+
+def get_dc_glossary_taxonomy_id(glossary_taxonomy_name: str) -> str:
     """
-    Extracts the final entry id from a Data Catalog resource name.
+    Extracts the final dc_entry id from a Data Catalog resource name.
 
     e.g. "projects/x/locations/y/entryGroups/z/entries/ENTRYID" -> "ENTRYID"
     """
-    if not resource_name:
+    if not glossary_taxonomy_name:
         return ""
-    match = re.search(r"entries/([^/]+)$", resource_name)
-    return match.group(1) if match else resource_name.split("/")[-1]
+    match = re.search(r"entries/([^/]+)$", glossary_taxonomy_name)
+    # nornalize as well IMPORATANT
+    return match.group(1) if match else ""
+
+
+def get_entry_link_id() -> str:
+    """Generate a unique dc_entry link ID: starts with a lowercase letter, contains only lowercase letters and numbers."""
+    entrylink_id = 'g' + uuid.uuid4().hex
+    return entrylink_id
 
 
 def extract_entry_parts(entry_full_name: str) -> Optional[Tuple[str, str, str]]:
     """
-    Extracts (project_location, entry_group_id, entry_id) from an entry resource.
+    Extracts (project_location, entry_group_id, entry_id) from an dc_entry resource.
 
     Returns None if the pattern doesn't match.
     """
@@ -106,25 +124,96 @@ def extract_entry_parts(entry_full_name: str) -> Optional[Tuple[str, str, str]]:
     match = re.search(pattern, entry_full_name)
     return match.groups() if match else None
 
+def get_migration_arguments(argv=None) -> argparse.Namespace:
+    """Gets arguments for the migration program."""
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    configure_migration_argument_parser(parser)
+    return parser.parse_args(argv)
 
-def build_entry_key(project_loc: str, entry_group_id: str) -> str:
-    """Builds cache key used by API layer for mapping entryGroups to glossary IDs."""
-    return f"{project_loc}/entryGroups/{entry_group_id}"
+def configure_migration_argument_parser(parser: argparse.ArgumentParser) -> None:
+    """Defines flags and parses arguments related to migration."""
+    parser.add_argument(
+        "--project",
+        help="Google Cloud Project ID that has the V1 glossaries to be migrated.",
+        metavar="[Project ID]",
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        "--user-project",
+        type=str,
+        required=True,
+        help="Google Cloud Project used for billing/quota."
+    )
+    parser.add_argument(
+        "--buckets",
+        help="Comma-separated list of GCS bucket ids. Example: --buckets=\"bucket-1,bucket-2\"",
+        type=lambda s: [item.strip() for item in s.split(",") if item.strip()],
+        required=True,
+        metavar="[bucket-1,bucket-2,...]"
+    )
+    parser.add_argument(
+        "--orgIds",
+        type=parse_id_list,  
+        default=[],
+        help="A list of org IDs where glossaries and entries are present. Delimiters can be spaces or commas. Example: --org-ids=\"[id1,id2 id3]\""
+    )
+    parser.add_argument(
+        "--resume-import",
+        action="store_true",
+        help="Skip the export step and resume directly with the import step."
+    )
 
+def parse_id_list(value):
+        if not isinstance(value, str):
+            raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"123,789\".")
+        items = [item.strip() for item in value.split(',') if item.strip()]
+        return items
 
-def clean_linked_resource(linked_resource: str) -> str:
-    """Removes leading slashes from a linked resource."""
-    return linked_resource.lstrip("/") if linked_resource else ""
-
-
-def update_relative_resource_name(relative_name: str, new_entry_id: str) -> str:
-    """Replaces the last 'entries/...' component in a relative resource name."""
-    return re.sub(r"entries/[^/]+$", f"entries/{new_entry_id}", relative_name)
-
-
-def extract_project_location_from_relative(relative_resource_name: str) -> Optional[Tuple[str, str]]:
-    """Extracts project and location from a relative resource name, returns (project, location)."""
-    match = re.match(r"projects/([^/]+)/locations/([^/]+)/", relative_resource_name)
+def parse_entry_url(url: str) -> dict:
+    pattern = (
+        r"projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/"
+        r"entryGroups/(?P<entry_group>[^/]+)/entries/(?P<glossary>[^/?#]+)"
+    )
+    match = re.search(pattern, url)
     if not match:
+        raise ValueError("Invalid glossary URL provided. It must contain the pattern: "
+                         "projects/.../locations/.../entryGroups/.../entries/...")
+    return match.groupdict()
+
+def read_first_json_line(file_path: str) -> dict | None:
+    """Returns the JSON object from the first line of a file, or None if unreadable."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            first_line = f.readline()
+            if not first_line:
+                return None
+            return json.loads(first_line)
+    except (IOError, json.JSONDecodeError):
         return None
-    return match.group(1), match.group(2)
+
+def parse_json_line(line: str) -> dict | None:
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    
+def normalize_linked_resource(linked_resource: str) -> str:
+    """Remove the leading forwarded slahes from linkedResource field of the search result."""
+    return re.sub(r"^/+", "", linked_resource)
+
+def extract_project_number(glossary_resource_name: str) -> str:
+    """Extracts the project number from a Data Catalog resource name."""
+    project_match = re.search(r"projects/([^/]+)/", glossary_resource_name)
+    extracted_project_number = project_match.group(1) if project_match else ""
+    return extracted_project_number
+
+def build_destination_entry_name_with_project_number(glossary_resource_name: str, glossary_resource_name_with_project_number: str) -> str:
+    """Constructs the destination entry name with project number."""
+    destination_project_number = extract_project_number(glossary_resource_name_with_project_number)
+    project_pattern = r"projects/[^/]+/"
+    project_with_number = f"projects/{destination_project_number}/"
+    updated_entry_name = re.sub(project_pattern, project_with_number, glossary_resource_name, count=1)
+    return updated_entry_name

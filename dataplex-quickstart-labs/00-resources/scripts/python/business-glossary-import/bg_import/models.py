@@ -20,7 +20,7 @@ class EntrySource:
     ancestors: List[Ancestor] = field(default_factory=list)
 
 @dataclass
-class GlossaryEntry:
+class GlossaryEntry: #CHECK - GLOSSRAY TAXONOMY ENTRY - reduce dicts and use this
     """Represents a complete glossary term or category for export."""
     name: str
     entryType: str
@@ -49,3 +49,55 @@ class EntryLink:
     def to_dict(self) -> Dict[str, Any]:
         """Recursively converts the object to a dictionary for JSON serialization."""
         return {"entryLink": asdict(self)}
+        
+@dataclass
+class Context:
+    """Represents the configuration for glossary export."""
+    user_project: str
+    org_ids: List[str]
+    dataplex_entry_group: str
+    project: str
+    location_id: str
+    entry_group_id: str
+    dc_glossary_id: str
+    dp_glossary_id: str
+
+
+@dataclass
+class CoreAspects:
+    """Core aspect associated with a glossary entry."""
+    description: str = ""                                   # Optional description
+    contacts: List[str] = field(default_factory=list)        # Steward or contact list
+
+@dataclass
+class GlossaryTaxonomyEntry:
+    """Represents a glossary entry (term or category) in taxonomy."""
+    name: str = ""                                         # Full resource name
+    entryType: str = ""                                     # e.g. "TERM" / "CATEGORY"
+    uid: str = ""                                        # Unique identifier
+    displayName: str = ""                                   # Human-readable name
+    description: str = ""                                   # Optional description
+    coreAspects: CoreAspects = field(default_factory=CoreAspects)
+    
+
+@dataclass
+class GlossaryTaxonomyRelationship:
+    """Represents a relationship between glossary entries."""
+    name: str = ""                                          # Full resource name
+    sourceEntryName: str = ""                                 # ID of source entry
+    destinationEntryName: str = ""                                 # ID of target entry
+    relationshipType: str = ""                              # e.g. "is_related_to", "is_synonymous_to"
+
+@dataclass
+class DcEntryRelationship:
+    """Represents a relationship between Data Catalog entries."""
+    name: str = ""                                          # Full resource name
+    sourceColumn: str = ""               # Source entry object
+    destinationEntryName: str = ""          # Destination entry object
+    relationshipType: str = ""                              # e.g. "is_related_to", "is_synonymous_to"
+
+@dataclass
+class SearchEntryResult:
+    """Represents the result of searching for an entry in Dataplex."""
+    relativeResourceName: str = ""                          # Full Dataplex resource path
+    linkedResource: str = ""                                # Linked resource path

@@ -3,390 +3,522 @@ Transforms raw Data Catalog data into structured models for export.
 """
 
 import re
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from models import GlossaryEntry, EntryLink, Ancestor, EntrySource, EntryReference
-from api_layer import (
-    search_catalog,
-    lookup_dataplex_entry,
-    fetch_glossary_id,
-    fetch_relationships_for_entry,
-    fetch_all_relationships
-)
-from migration_utils import get_entry_id, build_entry_key
+from constants import *
+from models import *
+from api_layer import *
+from migration_utils import *
 import logging_utils
 
 logger = logging_utils.get_logger()
 
-MAX_DESC_SIZE_BYTES = 120 * 1024
-PROJECT_NUMBER = "655216118709"
-MAX_WORKERS = 20
 
-
-def _get_export_resource(cfg: dict, entry_id: str, entry_type: str) -> str:
-    """Constructs the target resource path with normalized IDs."""
-    child = "terms" if entry_type == "glossary_term" else "categories"
-    return (
-        f"projects/{cfg['project']}/locations/global/glossaries/"
-        f"{cfg['normalized_glossary']}/{child}/{entry_id}"
-    )
-
-
-def _get_qualified_type_name(entry_type: str) -> str:
+def _get_dp_entry_type_name(dc_entry_type: str) -> str:
     """Returns the fully qualified entry type name."""
-    type_map = {"glossary_term": "glossary-term", "glossary_category": "glossary-category"}
-    suffix = type_map.get(entry_type, entry_type)
-    return f"projects/{PROJECT_NUMBER}/locations/global/entryTypes/{suffix}"
+    dp_entry_type = TYPE_MAP.get(dc_entry_type)
+    return f"projects/{PROJECT_NUMBER}/locations/global/entryTypes/{dp_entry_type}"
 
 
-def _get_qualified_link_type_name(link_type: str) -> str:
+def _get_dp_entry_link_type_name(dc_link_type: str) -> str:
     """Returns the fully qualified link type name."""
-    type_map = {"is_synonymous_to": "synonym", "is_related_to": "related", "is_described_by": "definition"}
-    suffix = type_map.get(link_type, link_type)
-    return f"projects/{PROJECT_NUMBER}/locations/global/entryLinkTypes/{suffix}"
+    dp_entry_link_type = LINK_TYPE_MAP.get(dc_link_type)
+    return f"projects/{PROJECT_NUMBER}/locations/global/entryLinkTypes/{dp_entry_link_type}"
 
 
-from typing import List
-
-def _compute_ancestors(cfg: dict, child_id: str, p_map: dict, t_map: dict) -> List[Ancestor]:
-    """Computes ancestors for an entry: only root glossary and immediate parent."""
+def _compute_ancestors(context: Context, glossary_taxonomy_entry_name: str, entry_to_parent_map: dict, entry_id_to_type_map: dict) -> List[Ancestor]:
+    """Computes ancestors for an entry: only immediate parent."""
     ancestors: List[Ancestor] = []
-
     # Always include the glossary root
+    dp_glossary_id = f"projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
     glossary_ancestor = Ancestor(
-        name=(
-            f"{cfg['dataplex_entry_group']}/entries/"
-            f"projects/{cfg['project']}/locations/global/glossaries/{cfg['normalized_glossary']}"
-        ),
-        type=_get_qualified_type_name("glossary"),
+        name=f"{context.dataplex_entry_group}/entries/{dp_glossary_id}",
+        type=_get_dp_entry_type_name(DC_TYPE_GLOSSARY),
     )
     ancestors.append(glossary_ancestor)
 
-    # Add immediate parent if it exists
-    parent_id = p_map.get(child_id)
-    if parent_id:
-        parent_type = t_map.get(parent_id, "glossary_category")
-        resource = _get_export_resource(cfg, parent_id, parent_type)
+    # Include immediate parent if exists
+    glossary_taxonomy_entry_id = get_dc_glossary_taxonomy_id(glossary_taxonomy_entry_name)
+    parent_dc_glossary_taxonomy_id = entry_to_parent_map.get(glossary_taxonomy_entry_id)
+    if parent_dc_glossary_taxonomy_id:
+        logger.debug(f"Computing ancestor for entry: {glossary_taxonomy_entry_name}, parent: {parent_dc_glossary_taxonomy_id}")
+        parent_type = entry_id_to_type_map.get(parent_dc_glossary_taxonomy_id)
+        dp_glossary_taxonomy_id = f"projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}/categories/{parent_dc_glossary_taxonomy_id}"
         parent_ancestor = Ancestor(
-            name=f"{cfg['dataplex_entry_group']}/entries/{resource}",
-            type=_get_qualified_type_name(parent_type),
+            name=f"{context.dataplex_entry_group}/entries/{dp_glossary_taxonomy_id}",
+            type=_get_dp_entry_type_name(parent_type),
         )
-        ancestors.append(parent_ancestor)
+        logger.debug(f"parent type: {parent_type}, resource: {parent_ancestor}")
 
+        ancestors.append(parent_ancestor)
     return ancestors
 
 
-def _extract_description(entry: dict) -> str:
+def _extract_description(dc_glossary_entry: GlossaryTaxonomyEntry) -> str:
     """Extracts and validates the description from an entry."""
-    desc = (
-        entry.get("coreAspects", {})
-        .get("business_context", {})
-        .get("jsonContent", {})
-        .get("description", "")
-    )
-    if len(desc.encode("utf-8")) > MAX_DESC_SIZE_BYTES:
-        _log_large_description(entry)
+    description_content = dc_glossary_entry.coreAspects.description
+    if len(description_content.encode("utf-8")) > MAX_DESC_SIZE_BYTES:
+        _log_large_description(dc_glossary_entry)
         return ""
-    return desc
+    return description_content
 
 
-def _log_large_description(entry: dict) -> None:
+def _log_large_description(entry: GlossaryTaxonomyEntry) -> None:
     """Logs a warning when entry description exceeds allowed size."""
-    entry_name = entry.get("name")
-    if not entry_name:  # if missing or empty, just return
+    entry_name = entry.name
+    if not entry_name:
         return
-    child_path = "terms" if entry.get("entryType") == "glossary_term" else "categories"
+    child_path = "terms" if entry.entryType == DC_TYPE_GLOSSARY_TERM else "categories"
     console_name = entry_name.replace("/entries/", f"/{child_path}/")
     console_url = f"https://console.cloud.google.com/dataplex/glossaries/{console_name}"
     logger.warning("Description for %s exceeds 120KB; omitting.", console_url)
 
 
-def _build_entry_source(config: dict, entry: dict, entry_id: str, parent_map: dict, type_map: dict) -> EntrySource:
+def _build_entry_source(context: Context,dc_glossary_entry: GlossaryTaxonomyEntry, entry_to_parent_map: dict, entry_id_to_type_map: dict) -> EntrySource:
     """Constructs the EntrySource object for an entry."""
-    resource_path = _get_export_resource(config, entry_id, entry["entryType"])
-    ancestors = _compute_ancestors(config, entry_id, parent_map, type_map)
+    logger.debug("checking again: %s", dc_glossary_entry)
+    resource_path = _convert_to_dp_entry_id(dc_glossary_entry.name, dc_glossary_entry.entryType)
+    ancestors = _compute_ancestors(context, dc_glossary_entry.name, entry_to_parent_map, entry_id_to_type_map)
     return EntrySource(
         resource=resource_path,
-        displayName=entry.get("displayName", "").strip(),
+        displayName=trim_spaces_in_display_name(dc_glossary_entry.displayName),
         description="",
         ancestors=ancestors,
     )
 
+def _build_contacts_list(core_aspects: CoreAspects) -> List[dict]:
+    """
+    Build the list of contact identities from the provided CoreAspects.
+    """
+    contacts = []
+    for raw_contact_string in core_aspects.contacts:
+        match = re.search(r"<([^>]+)>", raw_contact_string)
+        contact_id = match.group(1) if match else ""
+        contact_name = re.sub(r"<([^>]+)>", "", raw_contact_string).strip()
+        contacts.append({"role": ROLE_STEWARD, "name": contact_name, "id": contact_id})
+    return contacts
 
-def _get_aspects(entry_type: str, description: str) -> dict:
-    """Builds aspects dictionary for glossary entry."""
-    aspect_type = "glossary-term-aspect" if entry_type == "glossary_term" else "glossary-category-aspect"
-    return {
-        f"{PROJECT_NUMBER}.global.{aspect_type}": {"data": {}},
-        f"{PROJECT_NUMBER}.global.overview": {"data": {"content": f"<p>{description}</p>"}},
+
+def _build_aspects(dc_glossary_entry: GlossaryTaxonomyEntry) -> dict:
+    """
+    Build and return the complete aspects dictionary for the entry.
+    """
+    dc_entry_type = dc_glossary_entry.entryType
+    dataplex_aspect_type = ASPECT_TYPE_TERM if dc_entry_type == DC_TYPE_GLOSSARY_TERM else ASPECT_TYPE_CATEGORY
+    description = _extract_description(dc_glossary_entry)
+    contacts_list = _build_contacts_list(dc_glossary_entry.coreAspects)
+
+    aspects = {
+        f"{PROJECT_NUMBER}.global.{dataplex_aspect_type}": {"data": {}},
+        f"{PROJECT_NUMBER}.global.{ASPECT_OVERVIEW}": {"data": {"content": f"<p>{description}</p>"}},
+        f"{PROJECT_NUMBER}.global.{ASPECT_CONTACTS}": {"data": {"identities": contacts_list}},
+
     }
+    return aspects
 
 
-def process_entry(config: dict, entry: dict, parent_map: dict, type_map: dict) -> Optional[GlossaryEntry]:
+def process_glossary_taxonomy(context: Context, dc_glossary_entry: GlossaryTaxonomyEntry, entry_to_parent_map: dict, entry_id_to_type_map: dict) -> Optional[GlossaryEntry]:
     """
     Transforms a raw entry into a GlossaryEntry model.
     Returns None if entry is not a glossary term or category.
     """
-    entry_type = entry.get("entryType")
-    if entry_type not in ["glossary_term", "glossary_category"]:
+    logger.debug(f"Processing glossary taxonomy entry objeect: {dc_glossary_entry}")
+    dc_entry_type = dc_glossary_entry.entryType
+    if dc_entry_type not in [DC_TYPE_GLOSSARY_TERM, DC_TYPE_GLOSSARY_CATEGORY]:
         return None
 
-    entry_id = get_entry_id(entry.get("name"))
-    description = _extract_description(entry)
-    entry_source = _build_entry_source(config, entry, entry_id, parent_map, type_map)
+    dataplex_entry_source = _build_entry_source(context, dc_glossary_entry, entry_to_parent_map, entry_id_to_type_map)
+    dataplex_parent_entry_name = f"{context.dataplex_entry_group}/entries/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
 
     return GlossaryEntry(
-        name=f"{config['dataplex_entry_group']}/entries/{entry_source.resource}",
-        entryType=_get_qualified_type_name(entry_type),
-        parentEntry=f"{config['dataplex_entry_group']}/entries/projects/{config['project']}/locations/global/glossaries/{config['normalized_glossary']}",
-        aspects=_get_aspects(entry_type, description),
-        entrySource=entry_source
+        name=f"{context.dataplex_entry_group}/entries/{dataplex_entry_source.resource}",
+        entryType=_get_dp_entry_type_name(dc_entry_type),
+        parentEntry=dataplex_parent_entry_name,
+        aspects=_build_aspects(dc_glossary_entry),
+        entrySource=dataplex_entry_source
     )
 
 
-def _build_target_name(rel: dict, config: dict, dest_entry_id: str, dest_entry_name: str) -> str | None:
-    """Builds target name for a relationship link."""
-    glossary_id = fetch_glossary_id(dest_entry_name, config["user_project"])
-    if not glossary_id:
-        logger.warning("Unable to resolve glossary ID for %s. Skipping relationship link.", dest_entry_name)
-        return None
-
-    dest_project = re.sub(r"^projects/([^/]+)/.*", r"\1", dest_entry_name)
-    return (
-        f"projects/{dest_project}/locations/global/entryGroups/@dataplex/entries/projects/"
-        f"{dest_project}/locations/global/glossaries/{glossary_id}/terms/{dest_entry_id}"
-    )
-
-
-def _process_term_relationship(config: dict, rel: dict, source_name: str) -> Optional[EntryLink]:
+def convert_term_relationship(context: Context, dc_relationship: GlossaryTaxonomyRelationship) -> Optional[EntryLink]:
     """Processes a single term-term relationship into an EntryLink, if valid."""
 
-    if not _is_supported_relationship(rel):
-        return None
-        
-    dest_entry_name = _get_destination_entry_name(rel)
-    if not dest_entry_name:
+    if not _is_supported_relationship(dc_relationship):
         return None
 
-    target_name = _resolve_target_name(config, rel, dest_entry_name)
-    if not target_name:
+    dc_source_entry_name = dc_relationship.sourceEntryName
+    dc_destination_entry_name = dc_relationship.destinationEntryName
+    logger.debug(f"Converting relationship: {dc_relationship.name} from {dc_source_entry_name} to {dc_destination_entry_name}")
+    dataplex_source_entry_name = build_dataplex_entry_name(dc_source_entry_name)
+    dataplex_target_entry_name = build_dataplex_entry_name(dc_destination_entry_name)
+    dataplex_entry_link_name = _build_entry_link_name(context)
+
+    if not dataplex_source_entry_name or not dataplex_target_entry_name or not dataplex_entry_link_name:
+        logger.debug(f"Skipping relationship {dc_relationship.name} due to missing source or target entry or entry link name.")
         return None
-
-    entry_link_name = _build_entry_link_name(config, rel)
-
+    
     return EntryLink(
-        name=entry_link_name,
-        entryLinkType=_get_qualified_link_type_name(rel["relationshipType"]),
+        name=dataplex_entry_link_name,
+        entryLinkType=_get_dp_entry_link_type_name(dc_relationship.relationshipType),
         entryReferences=[
-            EntryReference(name=source_name),
-            EntryReference(name=target_name),
+            EntryReference(name=dataplex_target_entry_name),
+            EntryReference(name=dataplex_source_entry_name),
         ],
     )
 
 
-def _is_supported_relationship(rel: dict) -> bool:
-    """Check if the relationship type is supported."""
-    return rel.get("relationshipType") in ["is_synonymous_to", "is_related_to"]
+def _is_supported_relationship(glossary_taxonomy_relationship: GlossaryTaxonomyRelationship) -> bool:
+    """Check if the relationship type is supported and both entry names are present."""
+    if not glossary_taxonomy_relationship.sourceEntryName or not glossary_taxonomy_relationship.destinationEntryName:
+        return False
+    return glossary_taxonomy_relationship.relationshipType in [DC_RELATIONSHIP_TYPE_SYNONYMOUS, DC_RELATIONSHIP_TYPE_RELATED]
+
+def get_dc_ids_from_entry_name(dc_entry_name: str) -> tuple[str, str, str]:
+    """Extracts projectId, glossaryId, entryId from a Data Catalog entry name."""
+    pattern = r"projects/([^/]+)/locations/[^/]+/entryGroups/([^/]+)/entries/([^/]+)"
+    match = re.match(pattern, dc_entry_name)
+    if not match:
+        raise ValueError(f"Invalid entry name format: {dc_entry_name}")
+    project_id = match.group(1)
+    entry_group_id = match.group(2)
+    entry_id = match.group(3)
+    glossary_id = build_glossary_id_from_entry_group_id(entry_group_id)
+    logger.debug(f"Extracting IDs from entry name: {dc_entry_name}, output: {project_id}, {glossary_id}, {entry_id}")
+
+    return project_id, glossary_id, entry_id
 
 
-def _get_destination_entry_name(rel: dict) -> Optional[str]:
-    """Extract destination entry name, logging if missing."""
-    dest_entry_name = rel.get("destinationEntry", {}).get("name")
-    if not dest_entry_name:
-        logger.debug("Skipping relationship %s due to missing destination.", rel.get("name"))
-    return dest_entry_name
+def _convert_to_dp_entry_id(dc_entry_resource_name: str, entry_type: str) -> str:
+    """Extracts source and target entry names for a term relationship."""
+    logger.debug(f"Converting DC entry resource name to Dataplex entry ID: {dc_entry_resource_name} of type {entry_type}")
+    project_id, glossary_id, dc_entry_id =  get_dc_ids_from_entry_name(dc_entry_resource_name)
+    resource_type_segment = TERMS if entry_type == DC_TYPE_GLOSSARY_TERM else CATEGORIES
+    return (
+        f"projects/{project_id}/locations/global/glossaries/"
+        f"{glossary_id}/{resource_type_segment}/{dc_entry_id}"
+    )
+
+def _build_entry_group(dc_entry_resource_name: str) -> str:
+    """Extracts source and target entry names for a term relationship."""
+    project_id, _, _ = get_dc_ids_from_entry_name(dc_entry_resource_name)
+    return f"projects/{project_id}/locations/global/entryGroups/@dataplex"
+
+def build_dataplex_entry_name(dc_entry_resource_name) -> str:
+    """Extracts source and target entry names for a term relationship."""
+    dataplex_entry_id = _convert_to_dp_entry_id(dc_entry_resource_name, DC_TYPE_GLOSSARY_TERM)
+    entry_group = _build_entry_group(dc_entry_resource_name)
+
+    logger.debug(f"Input DC entry: {dc_entry_resource_name}, Output: {entry_group} and {dataplex_entry_id}")
+    return f"{entry_group}/entries/{dataplex_entry_id}"
 
 
-def _resolve_target_name(config: dict, rel: dict, dest_entry_name: str) -> Optional[str]:
-    """Resolve the target entry name for the relationship."""
-    dest_entry_id = get_entry_id(dest_entry_name)
-    target_name = _build_target_name(rel, config, dest_entry_id, dest_entry_name)
-    if not target_name:
-        logger.debug("Skipping relationship %s due to unresolved target name.", rel.get("name"))
-    return target_name
+def _build_entry_link_name(context: Context) -> str:
+    """Build the entry link name based on the relationship and context."""
+    generated_link_id = get_entry_link_id()
+    return f"{context.dataplex_entry_group}/entryLinks/{generated_link_id}"
 
 
-def _build_entry_link_name(config: dict, rel: dict) -> str:
-    """Build the entry link name based on the relationship and config."""
-    link_id = get_entry_id(rel.get("name"))
-    return f"{config['dataplex_entry_group']}/entryLinks/{'g' + link_id if link_id else ''}"
+def _fetch_term_relationships(context: Context, dc_glossary_entry: GlossaryTaxonomyEntry, dc_relationships_map: Optional[Dict[str, List[GlossaryTaxonomyRelationship]]] = None) -> List[GlossaryTaxonomyRelationship]:
+    """
+    Returns relationships for the entry.
+
+    Prefer the provided dc_relationships_map (prefetched by fetch_all_relationships).
+    If not provided, fall back to calling the relationships API for that single entry.
+    """
+    if dc_relationships_map:
+        return dc_relationships_map.get(dc_glossary_entry.name, [])
+    return []
 
 
-def transform_term_term_links(config: dict, entry: dict, rels: List[dict]) -> List[EntryLink]:
-    """Transforms term-term relationships into EntryLink objects."""
-    links = []
-    source_resource = _get_export_resource(config, get_entry_id(entry.get("name")), entry.get("entryType"))
-    source_name = f"{config['dataplex_entry_group']}/entries/{source_resource}"
-    for rel in rels:
-        logger.debug(f"Processing term-term relationship: {rel.get('name', 'Unknown')}")
-        link = _process_term_relationship(config, rel, source_name)
-        if link:
-            logger.debug(f"Created term-term link: {link.name}")
-            links.append(link)
+def _build_term_to_term_entry_links(context: Context, dc_glossary_entry: GlossaryTaxonomyEntry, dc_relationships: List[GlossaryTaxonomyRelationship]) -> List[EntryLink]:
+    """Transform raw relationships into EntryLink objects for a single entry."""
+    links: List[EntryLink] = []
+    for dc_relationship in dc_relationships:
+        logger.debug(f"Processing term-term dc_relationship: {dc_relationship.name}")
+        dataplex_entry_link = convert_term_relationship(context, dc_relationship)
+        if dataplex_entry_link:
+            logger.debug(f"Adding term-term link: {dataplex_entry_link.name}")
+            links.append(dataplex_entry_link)
     return links
 
 
-def _search_assets_for_term(config: dict, entry_id: str) -> List[dict]:
+def transform_term_term_links(context: Context, dc_glossary_entry: GlossaryTaxonomyEntry, dc_relationships_map: Optional[Dict[str, List[GlossaryTaxonomyRelationship]]] = None) -> List[EntryLink]:
+    """
+    Fetches relationships for a single data catalog glossary taxonomy entry (from the provided map if any)
+    and transforms them into EntryLink objects.
+    """
+    dc_relationships: List[GlossaryTaxonomyRelationship] = _fetch_term_relationships(context, dc_glossary_entry, dc_relationships_map) #build term relationships
+    return _build_term_to_term_entry_links(context, dc_glossary_entry, dc_relationships)
+
+
+def _search_related_dc_entries(context: Context, dc_glossary_term_id: str) -> List[SearchEntryResult]:
     """Searches for catalog assets linked to a given glossary term."""
-    logger.debug(f"Searching for assets linked to term: {entry_id}")
-    results = search_catalog(config, query=f"(term:{entry_id})")
-    logger.debug(f"Found {len(results)} potential assets for term {entry_id}")
-    return results
+    logger.debug(f"Searching for assets linked to term: {dc_glossary_term_id}")
+    search_results = search_dc_entries_for_term(context, query=f"(term:{dc_glossary_term_id})")
+    logger.debug(f"Found {search_results} potential assets for term {dc_glossary_term_id}")
+    return search_results
 
+def _extract_entry_link_params(dc_entry_name: str) -> Tuple[str, str, str]:
+    """Extract project, location, entry_group from entry name."""
+    match = re.match(r"projects/([^/]+)/locations/([^/]+)/entryGroups/([^/]+)", dc_entry_name)
+    if not match:
+        logger.error(f"Invalid entry name format: {dc_entry_name}")
+        return None, None, None
+    return match.group(1), match.group(2), match.group(3)
 
-def _create_asset_link_if_applicable(config: dict, entry: dict, entry_id: str, rel: dict, fqn: str) -> Optional[EntryLink]:
-    """Creates an EntryLink for an asset relationship if applicable."""
-    if rel.get("relationshipType") != "is_described_by":
+def _build_entry_link_name_from_params(project: str, location: str, entry_group: str) -> str:
+    """Build a unique entry link name for an entry-to-term relationship."""
+    entry_link_id = get_entry_link_id()
+    return f"projects/{project}/locations/{location}/entryGroups/{entry_group}/entryLinks/{entry_link_id}"
+
+def _build_dp_entry_name_from_params(project: str, location: str, entry_group: str, dp_entry_id: str) -> str:
+    """Build the Dataplex entry name from params."""
+    return f"projects/{project}/locations/{location}/entryGroups/{entry_group}/entries/{dp_entry_id}"
+
+def _create_entry_to_term_entrylink(
+    context: Context,
+    dc_glossary_term_entry: GlossaryTaxonomyEntry,
+    dc_entry_relationship: DcEntryRelationship,
+    dp_entry_id: str
+) -> Optional[EntryLink]:
+    """Create an EntryLink for an entry relationship if applicable."""
+    if not all([dp_entry_id, dc_entry_relationship, dc_glossary_term_entry]):
+        logger.debug("One or more required parameters are None, skipping.")
         return None
-    if get_entry_id(rel.get("destinationEntryName")) != entry.get("entryUid"):
+    if dc_entry_relationship.relationshipType != DC_RELATIONSHIP_TYPE_DESCRIBED_BY:
+        logger.debug("Relationship type is not DESCRIBED_BY, skipping.")
         return None
-    proj, loc, eg = re.match(r"projects/([^/]+)/locations/([^/]+)/entryGroups/([^/]+)", fqn).groups()
-    return EntryLink(
-        name=f"projects/{proj}/locations/{loc}/entryGroups/{eg}/entryLinks/{get_entry_id(rel.get('name')) and 'g' + get_entry_id(rel.get('name')) or ''}",
-        entryLinkType=_get_qualified_link_type_name("is_described_by"),
-        entryReferences=[
-            EntryReference(name=fqn, path=f"Schema.{rel.get('sourceColumn', '')}" if rel.get("sourceColumn") else "", type="SOURCE"),
-            EntryReference(name=f"{config['dataplex_entry_group']}/entries/{_get_export_resource(config, entry_id, 'glossary_term')}", type="TARGET")
-        ]
+    if get_dc_glossary_taxonomy_id(dc_entry_relationship.destinationEntryName) != dc_glossary_term_entry.uid:
+        logger.debug("Destination entry UID does not match glossary term UID, skipping.")
+        return None
+
+    project, location, entry_group = _extract_entry_link_params(dc_entry_relationship.name)
+    entry_link_name = _build_entry_link_name_from_params(project, location, entry_group)
+    dp_entry_name = _build_dp_entry_name_from_params(project, location, entry_group, dp_entry_id)
+    if not entry_link_name or not dp_entry_name:
+        logger.debug("Entry link name or Dataplex entry name could not be built, skipping.")
+        return None
+
+    entry_link = build_entry_link_for_entry_to_term(context, dc_glossary_term_entry, dc_entry_relationship, entry_link_name, dp_entry_name)
+    logger.debug(f"Created EntryLink: {entry_link}")
+    return entry_link
+
+def build_entry_link_for_entry_to_term(context, dc_glossary_term_entry, dc_entry_relationship, entry_link_name, dp_entry_name):
+    entry_references = [
+        EntryReference(
+            name=dp_entry_name,
+            path=f"Schema.{dc_entry_relationship.sourceColumn}" if dc_entry_relationship.sourceColumn else "",
+            type="SOURCE"
+        ),
+        EntryReference(
+            name=f"{context.dataplex_entry_group}/entries/{_convert_to_dp_entry_id(dc_glossary_term_entry.name, DC_TYPE_GLOSSARY_TERM)}",
+            type="TARGET"
+        )
+    ]
+
+    entry_link = EntryLink(
+        name=entry_link_name,
+        entryLinkType=_get_dp_entry_link_type_name(DC_RELATIONSHIP_TYPE_DESCRIBED_BY),
+        entryReferences=entry_references
     )
+    
+    return entry_link
 
 
-def _process_asset_relationships(config: dict, entry: dict, entry_id: str, result: dict, grouped_links: Dict[str, List[EntryLink]]) -> Dict[str, List[EntryLink]]:
-    """Processes asset relationships and updates grouped_links."""
-    if not lookup_dataplex_entry(config, result):
-        return grouped_links
-    fqn = result.get("relativeResourceName", "")
-    relationships = fetch_relationships_for_entry(fqn, config["user_project"])
-    logger.debug(f"Found {len(relationships)} relationships for asset {fqn}")
-    for rel in relationships:
-        logger.debug(f"Processing asset relationship: {rel.get('name')}")
-        link = _create_asset_link_if_applicable(config, entry, entry_id, rel, fqn)
-        if link:
-            proj, loc, eg = re.match(r"projects/([^/]+)/locations/([^/]+)/entryGroups/([^/]+)", fqn).groups()
-            ple_key = f"{proj}_{loc}_{eg}"
-            logger.debug(f"Created term-asset link: {link.name} for group {ple_key}")
-            grouped_links[ple_key].append(link)
-    return grouped_links
+def _process_entry_to_term_entrylinks(context: Context, dc_glossary_term_entry: GlossaryTaxonomyEntry, search_entry_result: SearchEntryResult) -> List[EntryLink]:
+    """Processes asset relationships for a given search result and returns flat list of EntryLink objects."""
+    dataplex_entry_links: List[EntryLink] = []
+    if not lookup_dataplex_entry(context, search_entry_result):
+        return dataplex_entry_links
+
+    dc_asset_entry_name = search_entry_result.relativeResourceName
+    dc_linked_resource = normalize_linked_resource(search_entry_result.linkedResource)
+    dc_asset_relationships = fetch_relationships_dc_glossary_entry(dc_asset_entry_name, context.user_project)
+    logger.debug(f"Found {len(dc_asset_relationships)} relationships for asset {dc_asset_entry_name}")
+
+    for dc_relationship in dc_asset_relationships:
+        logger.debug(f"Processing asset dc_relationship: {dc_relationship.name}")
+        dataplex_entry_link = _create_entry_to_term_entrylink(context, dc_glossary_term_entry, dc_relationship, dc_linked_resource)
+        if dataplex_entry_link:
+            logger.debug(f"Created term-asset link: {dataplex_entry_link.name} for asset {dc_asset_entry_name}")
+            dataplex_entry_links.append(dataplex_entry_link)
+
+    return dataplex_entry_links
 
 
-def transform_term_entry_links(config: dict, entry: dict) -> Dict[str, List[EntryLink]]:
-    """Transforms glossary term-to-asset relationships into EntryLinks."""
-    if entry.get("entryType") != "glossary_term":
-        return {}
-    grouped_links = defaultdict(list)
-    entry_id = get_entry_id(entry.get("name"))
-    for result in _search_assets_for_term(config, entry_id):
-        grouped_links = _process_asset_relationships(config, entry, entry_id, result, grouped_links)
-    return grouped_links
+def transform_term_entry_links(context: Context, dc_glossary_term_entry: GlossaryTaxonomyEntry) -> List[EntryLink]:
+    """Transforms glossary term-to-asset relationships into a flat list of EntryLinks for an entry."""
+    dataplex_entry_links: List[EntryLink] = []
+    if dc_glossary_term_entry.entryType != DC_TYPE_GLOSSARY_TERM:
+        return dataplex_entry_links
+
+    dc_glossary_term_id = get_dc_glossary_taxonomy_id(dc_glossary_term_entry.name)
+    for search_entry_result in _search_related_dc_entries(context, dc_glossary_term_id):
+        dataplex_links_from_result = _process_entry_to_term_entrylinks(context, dc_glossary_term_entry, search_entry_result)
+        if dataplex_links_from_result:
+            dataplex_entry_links.extend(dataplex_links_from_result)
+    return dataplex_entry_links
 
 
-def _build_parent_map(raw_entries: List[dict], relationships: dict) -> dict:
+def _build_parent_map(dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry], dc_relationships_map: Dict[str, List[GlossaryTaxonomyRelationship]]) -> dict:
     """Builds mapping of entry IDs to parent IDs."""
-    parent_map = {
-        get_entry_id(e["name"]): get_entry_id(r.get("destinationEntry", {}).get("name"))
-        for e in raw_entries
-        for r in relationships.get(e.get("name"), [])
-        if r.get("relationshipType") == "belongs_to"
-    }
-    logger.debug(
-        "_build_parent_map input: raw_entries=%s, relationships=%s\noutput: parent_map=%s",
-        raw_entries,
-        relationships,
-        parent_map
-    )
-    return parent_map
+    entry_to_parent_map = {}
+    for dc_glossary_taxonomy_entry in dc_glossary_taxonomy_entries:
+        dc_glossary_taxonomy_entry_name = dc_glossary_taxonomy_entry.name
+        for dc_relationship in dc_relationships_map.get(dc_glossary_taxonomy_entry_name, []):
+            if dc_relationship.relationshipType == DC_RELATIONSHIP_TYPE_BELONGS_TO:
+                parent_dc_glossary_taxonomy_name = dc_relationship.destinationEntryName
+                if parent_dc_glossary_taxonomy_name:
+                    dc_glossary_taxonomy_entry_id = get_dc_glossary_taxonomy_id(dc_glossary_taxonomy_entry_name)
+                    parent_dc_glossary_taxonomy_id = get_dc_glossary_taxonomy_id(parent_dc_glossary_taxonomy_name)
+                    if dc_glossary_taxonomy_entry_id and parent_dc_glossary_taxonomy_id:
+                        entry_to_parent_map[dc_glossary_taxonomy_entry_name] = parent_dc_glossary_taxonomy_name
+                    break  # Assuming one BELONGS_TO relationship per entry
+    return entry_to_parent_map
 
 
-def _build_type_map(raw_entries: List[dict]) -> dict:
+def _build_type_map(dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry]) -> dict:
     """Builds mapping of entry IDs to their types."""
-    return {get_entry_id(e.get("name")): e.get("entryType") for e in raw_entries}
+    return {get_dc_glossary_taxonomy_id(entry.name): entry.entryType for entry in dc_glossary_taxonomy_entries}
 
-
-def _submit_transform_tasks(executor, config, raw_entries, parent_map, type_map, initial_relationships):
-    """Submits parallel transformation tasks."""
-    return {
-        "glossary": {executor.submit(process_entry, config, e, parent_map, type_map): e for e in raw_entries},
-        "term_links": {executor.submit(transform_term_term_links, config, e, initial_relationships.get(e.get("name"), [])): e for e in raw_entries},
-        "entry_links": {executor.submit(transform_term_entry_links, config, e): e for e in raw_entries},
-    }
-
-
-def _collect_transform_results(futures, glossary_objs, term_term_links, grouped_links):
-    """Collects results from futures into aggregated lists and dicts."""
-    for future in as_completed(futures["glossary"]):
-        result = future.result()
-        if result:
-            glossary_objs.append(result)
-    for future in as_completed(futures["term_links"]):
-        term_term_links.extend(future.result())
-    for future in as_completed(futures["entry_links"]):
-        for key, val in future.result().items():
-            grouped_links[key].extend(val)
-    return glossary_objs, term_term_links, grouped_links
-
-
-def process_raw_entries(
-    config: Dict[str, Any], raw_entries: List[dict]
-) -> Tuple[List[GlossaryEntry], List[EntryLink], Dict[str, List[EntryLink]]]:
-    """
-    Orchestrates the full processing pipeline: 
-    builds relationship maps, executes transformations in parallel, and collects results.
-    """
-    logger.info("Step 2: Fetching relationships...")
-    parent_map, type_map, initial_relationships = _prepare_relationship_maps(
-        raw_entries, config["user_project"]
-    )
-
-    logger.info("Step 3: Transforming data...")
-    return _execute_parallel_transforms(
-        config, raw_entries, parent_map, type_map, initial_relationships
-    )
-
-
-def _prepare_relationship_maps(
-    raw_entries: List[dict], user_project: str
-) -> Tuple[Dict[str, str], Dict[str, str], List[EntryLink]]:
-    """
-    Prepares the parent map, type map, and initial relationships 
-    required before starting parallel transformations.
-    """
-    initial_relationships = fetch_all_relationships(raw_entries, user_project)
-    parent_map = _build_parent_map(raw_entries, initial_relationships)
-    type_map = _build_type_map(raw_entries)
-    return parent_map, type_map, initial_relationships
-
-
-def _execute_parallel_transforms(
-    config: Dict[str, Any],
-    raw_entries: List[dict],
-    parent_map: Dict[str, str],
-    type_map: Dict[str, str],
-    initial_relationships: List[EntryLink],
-) -> Tuple[List[GlossaryEntry], List[EntryLink], Dict[str, List[EntryLink]]]:
-    """
-    Executes transformation tasks in parallel and aggregates results.
-    """
-    glossary_objs, term_term_links, grouped_term_entry_links = [], [], defaultdict(list)
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = _submit_transform_tasks(
-            executor, config, raw_entries, parent_map, type_map, initial_relationships
-        )
-        glossary_objs, term_term_links, grouped_term_entry_links = _collect_transform_results(
-            futures, glossary_objs, term_term_links, grouped_term_entry_links
-        )
+def _build_maps(
+    dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
+    dc_relationships_map: Dict[str, List[GlossaryTaxonomyRelationship]],
+) -> Tuple[dict, dict]:
+    """Build parent and type maps used by processing steps."""
+    entry_to_parent_map = _build_parent_map(dc_glossary_taxonomy_entries, dc_relationships_map)
+    entry_id_to_type_map = _build_type_map(dc_glossary_taxonomy_entries)
     logger.debug(
-        "Parallel transform completed | "
-        "raw_entries=%s, config=%s | "
-        "glossary_objs=%s\n"
-        "term_term_links=%s\n"
-        "grouped_term_entry_links_keys=%s",
-        raw_entries,
-        config,
-        glossary_objs,
-        term_term_links,
-        list(grouped_term_entry_links.keys()),
+        "_build_maps input: dc_glossary_taxonomy_entries=%s, dc_relationships_map=%s\noutput: entry_to_parent_map=%s, entry_id_to_type_map=%s",
+        dc_glossary_taxonomy_entries,
+        dc_relationships_map,
+        entry_to_parent_map,
+        entry_id_to_type_map
     )
-    return glossary_objs, term_term_links, grouped_term_entry_links
+    return entry_to_parent_map, entry_id_to_type_map
+
+#rename convert_dc_glossary_taxonomy_entries_to_dp_entries
+def _process_glossary_entries(
+    context: Context,
+    dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
+    entry_to_parent_map: dict,
+    entry_id_to_type_map: dict,
+) -> List[GlossaryEntry]:
+    """Process glossary taxonomy entries serially into GlossaryEntry objects."""
+    dataplex_glossary_entries: List[GlossaryEntry] = []
+    for dc_glossary_entry in dc_glossary_taxonomy_entries:
+        dataplex_glossary_entry = process_glossary_taxonomy(context, dc_glossary_entry, entry_to_parent_map, entry_id_to_type_map)
+        if dataplex_glossary_entry:
+            dataplex_glossary_entries.append(dataplex_glossary_entry)
+    return dataplex_glossary_entries
+
+
+def _build_term_to_term_links(
+    context: Context,
+    dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
+    dc_term_relationships_map: Dict[str, List[GlossaryTaxonomyRelationship]],
+) -> List[EntryLink]:
+    """Build all term-term (term ↔ term) links serially using provided relationships map."""
+    dataplex_term_to_term_links: List[EntryLink] = []
+    for dc_glossary_entry in dc_glossary_taxonomy_entries:
+        dataplex_links = transform_term_term_links(context, dc_glossary_entry, dc_term_relationships_map)
+        if dataplex_links:
+            dataplex_term_to_term_links.extend(dataplex_links)
+    return dataplex_term_to_term_links
+
+
+def _build_entry_to_term_links(
+    context: Context,
+    dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
+    max_workers: int = 10,
+) -> List[EntryLink]:
+    """Collect ungrouped list of entry-term links (dc_entry -> dc_glossary_taxonomy) for all entries using threads."""
+    dataplex_entry_to_term_links: List[EntryLink] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_entry_to_term_links = {
+            executor.submit(transform_term_entry_links, context, dc_glossary_entry): dc_glossary_entry
+            for dc_glossary_entry in dc_glossary_taxonomy_entries
+        }
+
+        for future in as_completed(future_entry_to_term_links):
+            dataplex_links_for_entry = future.result()
+            if dataplex_links_for_entry:
+                dataplex_entry_to_term_links.extend(dataplex_links_for_entry)
+    return dataplex_entry_to_term_links
+
+
+def _extract_project_location_entrygroup(resource_name: str) -> str | None:
+    """Extract project, location, entryGroup from entry reference using regex."""
+    pattern = r"projects/([^/]+)/locations/([^/]+)/entryGroups/([^/]+)"
+    match = re.match(pattern, resource_name)
+    if match:
+        return f"{match.group(1)}_{match.group(2)}_{match.group(3)}"
+    return None
+
+def _deduplicate_term_to_term_links(term_to_term_links: List[EntryLink]) -> List[EntryLink]:
+    """
+    Deduplicate EntryLinks: keep only one entry link for each unique set of entryReferences (ignoring order) but matching entrylinktype.
+    """
+    seen_entry_link_keys = set()
+    unique_entrylinks = []
+    for term_to_term_entry_link in term_to_term_links:
+        entry_link_references_set = frozenset(ref.name for ref in term_to_term_entry_link.entryReferences)
+        link_type = term_to_term_entry_link.entryLinkType
+        entry_link_key = (link_type, entry_link_references_set)
+        if entry_link_key not in seen_entry_link_keys:
+            seen_entry_link_keys.add(entry_link_key)
+            unique_entrylinks.append(term_to_term_entry_link)
+        link_type = term_to_term_entry_link.entryLinkType
+        entry_link_key = (link_type, entry_link_references_set)
+        if entry_link_key not in seen_entry_link_keys:
+            seen_entry_link_keys.add(entry_link_key)
+            unique_entrylinks.append(term_to_term_entry_link)
+    return unique_entrylinks
+
+def _group_entry_links_by_project_location_entry_group(
+    dataplex_entry_links: List[EntryLink],
+) -> Dict[str, List[EntryLink]]:
+    """Group entry-term links centrally by project_location_entryGroup."""
+    grouped_dataplex_entry_links: Dict[str, List[EntryLink]] = defaultdict(list)
+
+    for dataplex_entry_link in dataplex_entry_links:
+        source_entry_resource_name = dataplex_entry_link.entryReferences[0].name if dataplex_entry_link.entryReferences else None
+        grouping_key = _extract_project_location_entrygroup(source_entry_resource_name) if source_entry_resource_name else None
+        if grouping_key:
+            grouped_dataplex_entry_links[grouping_key].append(dataplex_entry_link)
+
+    return grouped_dataplex_entry_links
+
+
+def process_dc_glossary_entries(
+    context: Context,
+    dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
+    dc_relationships_map: Dict[str, List[GlossaryTaxonomyRelationship]],
+) -> Tuple[List[GlossaryEntry], List[EntryLink], Dict[str, List[EntryLink]]]:
+    """
+    Orchestrates processing:
+    1) build glossary objects
+    2) build term-term links using provided glossary_taxonomy_relationships
+    3) build entry-term links (using threads), collect ungrouped entry links list
+    4) group entry-term links based on project,location,entrygroup and return grouped structure
+    """
+    logger.info(f"Step 2: Transforming raw entries into export models for glossary '{context.dp_glossary_id}'...")
+
+    entry_to_parent_map, entry_id_to_type_map = _build_maps(dc_glossary_taxonomy_entries, dc_relationships_map)
+
+    dataplex_glossary_entries = _process_glossary_entries(context, dc_glossary_taxonomy_entries, entry_to_parent_map, entry_id_to_type_map)
+    dataplex_term_to_term_links = _build_term_to_term_links(context, dc_glossary_taxonomy_entries, dc_relationships_map)
+    dataplex_term_to_entry_links = _build_entry_to_term_links(context, dc_glossary_taxonomy_entries)
+    deduplicated_term_to_term_links = _deduplicate_term_to_term_links(dataplex_term_to_term_links)
+    grouped_dataplex_term_to_entry_links = _group_entry_links_by_project_location_entry_group(dataplex_term_to_entry_links)
+
+    logger.debug(
+    "Processing complete | dataplex_glossary_entries=%s, dataplex_term_to_term_links=%s, grouped_dataplex_term_to_entry_links=%s",
+    dataplex_glossary_entries,
+    deduplicated_term_to_term_links,
+    grouped_dataplex_term_to_entry_links,
+)
+
+    return dataplex_glossary_entries, deduplicated_term_to_term_links, grouped_dataplex_term_to_entry_links
