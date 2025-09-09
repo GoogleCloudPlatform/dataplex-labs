@@ -41,6 +41,8 @@ def read_first_json_line(file_path: str) -> dict | None:
 
 
 def is_file_empty(file_path: str) -> bool:
+    if not os.path.exists(file_path):
+        return True
     return os.path.getsize(file_path) == 0
 
 

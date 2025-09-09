@@ -167,6 +167,13 @@ def fetch_api_response(
         backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
         continue
 
+      # Retry if connection is lost (e.g., requests.ConnectionError)
+      if res.status_code == 0:
+        logger.info(f"{context} Retrying in {backoff} seconds due to connection lost (status 0)...")
+        time.sleep(backoff + random.uniform(0, 0.5))
+        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
+        continue
+
       # For client errors (e.g., 400, 401), do not retry
       return {'json': data, 'error_msg': error_msg}
 

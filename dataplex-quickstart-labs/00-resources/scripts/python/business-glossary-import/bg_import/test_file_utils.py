@@ -358,3 +358,85 @@ def test_move_file_to_imported_folder_remove_exception(tmp_path):
             patch("os.remove", side_effect=Exception("remove error")):
         move_file_to_imported_folder(str(test_file))
         assert mock_logger.error.call_args[0][0].startswith("Failed to delete local file")
+
+def test_is_file_empty_nonexistent(tmp_path):
+    non_existent_file = tmp_path / "does_not_exist.json"
+    assert is_file_empty(str(non_existent_file)) is True
+
+def test_is_file_empty_empty_file(tmp_path):
+    empty_file = tmp_path / "empty.json"
+    empty_file.write_text("")
+    assert is_file_empty(str(empty_file)) is True
+
+def test_is_file_empty_non_empty_file(tmp_path):
+    non_empty_file = tmp_path / "not_empty.json"
+    non_empty_file.write_text("some content")
+    assert is_file_empty(str(non_empty_file)) is False
+
+def test_is_file_empty_zero_byte_file(tmp_path):
+    zero_byte_file = tmp_path / "zero_byte.json"
+    zero_byte_file.write_bytes(b"")
+    assert is_file_empty(str(zero_byte_file)) is True
+
+def test_is_file_empty_file_with_whitespace(tmp_path):
+    whitespace_file = tmp_path / "whitespace.json"
+    whitespace_file.write_text("   \n")
+    # File is not zero bytes, so should return False
+    assert is_file_empty(str(whitespace_file)) is False
+    
+def test_get_file_paths_from_directory_nonexistent(tmp_path):
+    non_existent_dir = tmp_path / "does_not_exist"
+    result = get_file_paths_from_directory(str(non_existent_dir))
+    assert result == []
+
+def test_get_file_paths_from_directory_empty(tmp_path):
+    empty_dir = tmp_path / "empty_dir"
+    empty_dir.mkdir()
+    result = get_file_paths_from_directory(str(empty_dir))
+    assert result == []
+
+def test_get_file_paths_from_directory_json_files(tmp_path):
+    test_dir = tmp_path / "json_dir"
+    test_dir.mkdir()
+    file1 = test_dir / "a.json"
+    file2 = test_dir / "b.json"
+    file1.write_text("{}")
+    file2.write_text("{}")
+    result = get_file_paths_from_directory(str(test_dir))
+    expected = sorted([str(file1), str(file2)])
+    assert result == expected
+
+def test_get_file_paths_from_directory_mixed_files(tmp_path):
+    test_dir = tmp_path / "mixed_dir"
+    test_dir.mkdir()
+    json_file = test_dir / "file.json"
+    txt_file = test_dir / "file.txt"
+    json_file.write_text("{}")
+    txt_file.write_text("text")
+    result = get_file_paths_from_directory(str(test_dir))
+    assert result == [str(json_file)]
+
+def test_get_file_paths_from_directory_subdirectories(tmp_path):
+    test_dir = tmp_path / "parent_dir"
+    test_dir.mkdir()
+    sub_dir = test_dir / "sub"
+    sub_dir.mkdir()
+    json_file = test_dir / "file.json"
+    json_file.write_text("{}")
+    result = get_file_paths_from_directory(str(test_dir))
+    assert result == [str(json_file)]
+
+def test_get_file_paths_from_directory_sorted_order(tmp_path):
+    test_dir = tmp_path / "sort_dir"
+    test_dir.mkdir()
+    file_a = test_dir / "a.json"
+    file_b = test_dir / "b.json"
+    file_c = test_dir / "c.json"
+    file_b.write_text("{}")
+    file_c.write_text("{}")
+    file_a.write_text("{}")
+    result = get_file_paths_from_directory(str(test_dir))
+    expected = sorted([str(file_a), str(file_b), str(file_c)])
+    assert result == expected
+
+
