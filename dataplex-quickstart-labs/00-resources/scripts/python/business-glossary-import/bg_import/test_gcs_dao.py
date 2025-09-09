@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from gcs_dao import upload_to_gcs, clear_bucket
-from gcs_dao import prepare_gcs_bucket
+from gcs_dao import upload_to_gcs, clear_bucket, prepare_gcs_bucket
 
 @pytest.fixture
 def mock_storage_client(monkeypatch):
@@ -85,7 +84,7 @@ def test_upload_to_gcs_failure(monkeypatch, mock_storage_client, mock_logger):
     result = upload_to_gcs("my-bucket", "/path/to/file.txt", "file.txt")
     mock_logger.error.assert_called_once()
     assert result is False
-    
+
 def test_prepare_gcs_bucket_success(monkeypatch):
     clear_bucket_called = []
     upload_to_gcs_called = []
