@@ -47,7 +47,7 @@ def clear_bucket(bucket_name: str) -> bool:
         return False
 
 
-def check_gcs_permissions(bucket_name: str) -> bool:
+def check_gcs_permissions(bucket_name: str, project_number: str) -> bool:
     """
     Checks if the current credentials have permission to upload and delete objects in the specified GCS bucket.
     Attempts to upload and delete a small test file.
@@ -63,17 +63,18 @@ def check_gcs_permissions(bucket_name: str) -> bool:
         logger.debug(f"Permission check succeeded for bucket '{bucket_name}'.")
         return True
     except Exception as error:
+        logger.error(f"Permission check failed for bucket '{bucket_name}' with error: {error}")
         logger.error(
             f"Permission check failed for bucket '{bucket_name}'. Grant the Storage Admin IAM role to the service account running the migration: "
-            "service-MIGRATION_PROJECT_NUMBER@gcp-sa-dataplex.iam.gserviceaccount.com"
+            f"service-{project_number}@gcp-sa-dataplex.iam.gserviceaccount.com"
         )
         return False
 
-def check_all_buckets_permissions(buckets: list[str]) -> bool:
+def check_all_buckets_permissions(buckets: list[str], project_number: str) -> bool:
     """
     Checks GCS permissions for all buckets. Returns True if all checks pass.
     """
     for bucket in buckets:
-        if not check_gcs_permissions(bucket):
+        if not check_gcs_permissions(bucket, project_number):
             return False
     return True

@@ -106,9 +106,10 @@ def main(args: argparse.Namespace) -> None:
     log_migration_start(project_id)
     start_time = time.time()
 
+    project_number = api_layer.get_project_number(project_id, user_project=user_project)  
     # Check GCS permissions before starting export/import
-    # if not check_all_buckets_permissions(buckets):
-    #     sys.exit(1)
+    if not check_all_buckets_permissions(buckets, project_number):
+        sys.exit(1)
 
     export_status = True
     if not args.resume_import:
