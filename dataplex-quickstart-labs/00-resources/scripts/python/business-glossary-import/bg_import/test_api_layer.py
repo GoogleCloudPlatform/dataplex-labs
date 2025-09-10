@@ -213,41 +213,6 @@ class DummyContext:
         self.dc_glossary_id = dc_glossary_id
         self.dp_glossary_id = dp_glossary_id
 
-def test_create_dataplex_glossary_success(monkeypatch):
-    logs = []
-    context = DummyContext()
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda ctx: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda ctx, display_name: {"json": {}, "error_msg": None})
-    monkeypatch.setattr(api_layer.time, "sleep", lambda x: None)
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": None})
-    monkeypatch.setattr(api_layer.time, "sleep", lambda *_: None)
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
-    api_layer.create_dataplex_glossary(context)
-    assert any("Successfully initiated creation of glossary" in msg for msg in logs)
-
-def test_create_dataplex_glossary_already_exists(monkeypatch):
-    logs = []
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", 
-        lambda *_: {"json": {"error": {"status": "ALREADY_EXISTS"}}, "error_msg": None})
-    monkeypatch.setattr(api_layer.time, "sleep", lambda *_: None)
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-
-    api_layer.create_dataplex_glossary(DummyContext())
-    assert any("already exists" in msg.lower() for msg in logs)
-
-def test_create_dataplex_glossary_error(monkeypatch):
-    logs = []
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": "Some error"})
-    monkeypatch.setattr(api_layer.time, "sleep", lambda *_: None)
-    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
-    api_layer.create_dataplex_glossary(DummyContext())
-    assert any("Error creating Dataplex glossary" in msg for msg in logs)
-
 def test_fetch_relationships_dc_glossary_entry_single_page(monkeypatch):
     # Simulate a single page response with relationships
     dummy_relationships = [{"id": "rel1"}, {"id": "rel2"}]
@@ -366,7 +331,7 @@ def test__build_project_url_numeric_id():
     project_id = "123456789"
     expected_url = "https://cloudresourcemanager.googleapis.com/v3/projects/123456789"
     assert api_layer._build_project_url(project_id) == expected_url
-    
+
 def test__post_dataplex_glossary_success(monkeypatch):
     class DummyContext:
         project = "test-project"
@@ -519,7 +484,96 @@ def test__build_dataplex_lookup_entry_url_complex_linked_resource():
         "?entry=projects/proj-3/locations/asia-east1/entryGroups/egid/entries/complex-id-123_ABC"
     )
     assert result == expected_url
+    # Remove old tests for create_dataplex_glossary and its sub-methods
 
+def test_create_dataplex_glossary_already_exists(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {"error": {"code": 409, "status": "ALREADY_EXISTS"}}, "error_msg": None})
+    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", lambda *_: {"json": {}, "error_msg": None})
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
+    api_layer.create_dataplex_glossary(DummyContext())
+    assert any("already exists" in msg.lower() for msg in logs)
+
+def test_create_dataplex_glossary_success(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": None})
+    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", lambda *_: {"json": {"result": "ok"}, "error_msg": None})
+    monkeypatch.setattr(api_layer.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
+    api_layer.create_dataplex_glossary(DummyContext())
+    assert any("created successfully" in msg.lower() for msg in logs)
+
+def test_create_dataplex_glossary_unexpected_response(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": "Some error"})
+    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
+    api_layer.create_dataplex_glossary(DummyContext())
+    assert any("unexpected response" in msg.lower() for msg in logs)
+
+def test__is_glossary_already_exists_true():
+    resp = {"json": {"error": {"code": 409, "status": "ALREADY_EXISTS"}}}
+    assert api_layer._is_glossary_already_exists(resp) is True
+
+def test__is_glossary_already_exists_false():
+    resp = {"json": {"error": {"code": 400, "status": "FAILED_PRECONDITION"}}}
+    assert api_layer._is_glossary_already_exists(resp) is False
+    resp = {"json": {}}
+    assert api_layer._is_glossary_already_exists(resp) is False
+
+def test__is_glossary_creation_successful_true():
+    resp = {"error_msg": None}
+    assert api_layer._is_glossary_creation_successful(resp) is True
+
+def test__is_glossary_creation_successful_false():
+    resp = {"error_msg": "Some error"}
+    assert api_layer._is_glossary_creation_successful(resp) is False
+
+def test__wait_for_glossary_creation(monkeypatch):
+    called = []
+    monkeypatch.setattr(api_layer.time, "sleep", lambda x: called.append(x))
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: called.append(msg))
+    api_layer._wait_for_glossary_creation()
+    assert any(isinstance(x, str) and "initiated" in x for x in called)
+    assert 60 in called
+
+def test__handle_unexpected_dataplex_response(monkeypatch):
+    logs = []
+    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
+    api_layer._handle_unexpected_dataplex_response({"json": {}, "error_msg": "Some error"})
+    assert any("unexpected response" in msg.lower() for msg in logs)
+
+def test__handle_dataplex_glossary_response_success(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
+    api_layer._handle_dataplex_glossary_response({"json": {"result": "ok"}, "error_msg": None}, DummyContext())
+    assert any("created successfully" in msg.lower() for msg in logs)
+
+def test__handle_dataplex_glossary_response_error(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
+    api_layer._handle_dataplex_glossary_response({"json": {}, "error_msg": "Some error"}, DummyContext())
+    assert any("failed to fetch" in msg.lower() for msg in logs)
+
+def test__handle_dataplex_glossary_response_unexpected(monkeypatch):
+    logs = []
+    class DummyContext:
+        dp_glossary_id = "glossary1"
+    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
+    api_layer._handle_dataplex_glossary_response({"json": {}, "error_msg": None}, DummyContext())
+    assert any("unexpected response" in msg.lower() for msg in logs)
 
 
 

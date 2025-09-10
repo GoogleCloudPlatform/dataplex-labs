@@ -98,6 +98,10 @@ def _fetch_glossary_display_name(context: Context) -> str:
         sys.exit(1)
     return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
 
+def _get_dataplex_glossary(context):
+    get_url = f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
+    api_response = api_call_utils.fetch_api_response(requests.get, get_url, context.user_project)
+    return api_response
 
 def _post_dataplex_glossary(context: Context, display_name: str) -> dict:
     """Sends request to create glossary in Dataplex."""
@@ -229,17 +233,51 @@ def lookup_dataplex_entry(context: Context, search_entry_result: SearchEntryResu
 
 
 def create_dataplex_glossary(context: Context) -> None:
-    """Create glossary in Dataplex"""
-    logger.info(f"Step 5: Creating destination glossary '{context.dp_glossary_id}' in Dataplex...")
+    """Create glossary in Dataplex."""
     display_name = _fetch_glossary_display_name(context)
     dataplex_api_response = _post_dataplex_glossary(context, display_name)
-    time.sleep(60)
-    if dataplex_api_response.get("json", {}).get("error", {}).get("status") == "ALREADY_EXISTS":
-        logger.info(f"Dataplex glossary '{context.dp_glossary_id}' already exists.")
-    elif dataplex_api_response["error_msg"]:
-        logger.error(f"Error creating Dataplex glossary: {dataplex_api_response['error_msg']}")
+
+    if _is_glossary_already_exists(dataplex_api_response):
+        logger.info(f"Glossary '{context.dp_glossary_id}' already exists in Dataplex.")
+        return
+
+    if _is_glossary_creation_successful(dataplex_api_response):
+        _wait_for_glossary_creation()
     else:
-        logger.info(f"Successfully initiated creation of glossary '{context.dp_glossary_id}'.")
+        _handle_unexpected_dataplex_response(dataplex_api_response)
+        return
+
+    api_response = _get_dataplex_glossary(context)
+    _handle_dataplex_glossary_response(api_response, context)
+
+
+def _is_glossary_already_exists(api_response: dict) -> bool:
+    error = api_response.get("json", {}).get("error")
+    return error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS"
+
+def _is_glossary_creation_successful(api_response: dict) -> bool:
+    return api_response.get("error_msg") is None
+
+
+def _wait_for_glossary_creation() -> None:
+    logger.info("Glossary creation initiated. Waiting for operation to complete...")
+    time.sleep(60)
+
+def _handle_unexpected_dataplex_response(api_response: dict) -> None:
+    logger.error(f"Unexpected response from Dataplex API: {api_response}")
+
+def _handle_dataplex_glossary_response(api_response, context):
+    """Handles the response from fetching a Dataplex glossary."""
+    if api_response.get("error_msg"):
+        logger.error(f"Failed to fetch Dataplex glossary: {api_response['error_msg']}")
+        return
+
+    if api_response.get("error_msg") is None and api_response.get("json"):
+        logger.info(f"Dataplex glossary '{context.dp_glossary_id}' created successfully.")
+        return
+    else:
+        logger.error(f"Unexpected response when fetching Dataplex glossary: {api_response}")
+        return
 
 #TODO: Add pagination handling
 def discover_glossaries(project_id: str, user_project: str) -> list[str]:

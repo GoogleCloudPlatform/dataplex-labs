@@ -93,7 +93,6 @@ def write_files(
     term_entry_data: Dict[str, List[EntryLink]]
 ):
     """Writes all transformed data objects to their respective files."""
-    logger.info(f"Step 3: Writing transformed data to files for glossary '{context.dc_glossary_id}'...")
 
     write_glossary_file(glossary_data, f"glossary_{context.dp_glossary_id}.json")
     write_term_term_links_file(term_term_data, f"entrylinks_related_synonyms_{context.dp_glossary_id}.json")
@@ -120,13 +119,15 @@ def move_file_to_imported_folder(file_path: str):
             os.replace(file_path, imported_entry_link_file_path)
             logger.debug(f"Moved file to: {imported_entry_link_file_path}")
         except Exception as e:
-            logger.error(f"Failed to move file {file_path} to {imported_entry_link_file_path}: {e}", exc_info=True)
+            logger.error(f"Failed to move file {file_path} to {imported_entry_link_file_path}: {e}")
+            logger.debug(f"Failed to move file {file_path} to {imported_entry_link_file_path}: {e}", exc_info=True)
     else:
         try:
             os.remove(file_path)
             logger.debug(f"Deleted local file: {file_path}")
         except Exception as e:
-            logger.error(f"Failed to delete local file {file_path}: {e}", exc_info=True)
+            logger.error(f"Failed to delete local file {file_path}: {e}")
+            logger.debug(f"Failed to delete local file {file_path}: {e}", exc_info=True)
 
 
 # EntryLink / glossary relationship helpers

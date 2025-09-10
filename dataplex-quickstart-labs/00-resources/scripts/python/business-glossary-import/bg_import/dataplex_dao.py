@@ -55,7 +55,7 @@ def create_metadata_job(service, project_id: str, location: str, payload: dict, 
         return generated_job_id
     except HttpError as error:
         logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
-        logger.error(f"Failed to create metadata job '{generated_job_id}' with error: {error}")
+        logger.error(f"Failed to create metadata job '{generated_job_id}'")
         return ""
     except Exception as error:
         logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
@@ -69,7 +69,8 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
         if job_id:
             return poll_metadata_job(service, project_id, location, job_id)
     except Exception as e:
-        logger.error(f"Failed to create or monitor job '{job_prefix}': {e}", exc_info=True)
+        logger.error(f"Failed to create or monitor job '{job_prefix}': {e}")
+        logger.debug(f"create_and_monitor_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={job_prefix} | output: {e}")
         return False
 
 
@@ -81,6 +82,7 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
     job_path = f"projects/{project_id}/locations/{location}/metadataJobs/{job_id}"
 
     for i in range(max_polls):
+        time.sleep(poll_interval)
         job, state = get_job_and_state(service, job_path, job_id)
         if job is None:
             return False
@@ -90,7 +92,6 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
         if is_job_failed(state):
             log_job_failure(job, job_id)
             return False
-        time.sleep(poll_interval)
         logger.info(f"Job '{job_id}' is {state}. Continuing to wait... (check {i+1}/{max_polls})")
     logger.warning(f"Polling timed out for job '{job_id}'.")
     return False
@@ -99,7 +100,7 @@ def get_job_and_state(service, job_path: str, job_id: str):
     try:
         job = service.projects().locations().metadataJobs().get(name=job_path).execute()
         state = job.get("status", {}).get("state")
-        logger.debug(f"Job '{job_id}' status: {state}")
+        logger.debug(f"Job '{job_id}' and entire job: {job}")
         return job, state
     except HttpError as err:
         logger.error(f"Error polling job '{job_id}'")

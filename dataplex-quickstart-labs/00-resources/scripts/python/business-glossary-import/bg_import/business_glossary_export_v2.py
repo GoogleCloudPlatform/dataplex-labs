@@ -53,7 +53,6 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
 
 def _run_export_workflow(context: Context):
     """Executes the core data processing steps: fetch, transform, write, and create."""
-    logger.info(f"Step 1: Fetching all entries from the glossary '{context.dp_glossary_id}'...")
     glossary_taxonomy_entries = fetch_dc_glossary_taxonomy_entries(context)
     if not glossary_taxonomy_entries:
         logger.info(f"No entries found in glossary '{context.dp_glossary_id}'. Nothing to export.")

@@ -108,13 +108,15 @@ def test_run_export_worker_success(monkeypatch):
 
 def test_run_export_worker_failure(monkeypatch):
     # Mock execute_export to raise an exception
-    def mock_execute_export(url, user_project, org_ids):
+    def mock_execute_export(_, __, ___):
         raise Exception("Export error")
     monkeypatch.setattr(run, "execute_export", mock_execute_export)
 
     class DummyLogger:
-        def error(self, msg, exc_info=None): 
+        def error(self, *args, **kwargs): 
             DummyLogger.called = True
+        def debug(self, *args, **kwargs):
+            pass
     DummyLogger.called = False
     monkeypatch.setattr(run, "logger", DummyLogger())
 
@@ -243,14 +245,16 @@ def test_perform_imports_success(monkeypatch):
 def test_perform_imports_exception(monkeypatch):
     called = {}
 
-    def mock_main(project_id, buckets):
+    def mock_main(*args, **kwargs):
         raise Exception("Import error")
 
     monkeypatch.setattr(run.business_glossary_import_v2, "main", mock_main)
 
     class DummyLogger:
         def error(self, msg, exc_info=None): 
-            called['error'] = (msg, exc_info)
+            called['error'] = (msg, True)
+        def debug(self, *args, **kwargs): 
+            pass
     monkeypatch.setattr(run, "logger", DummyLogger())
 
     run.perform_imports("test-project", ["bucket1"])
@@ -265,15 +269,17 @@ def test_main_full_migration(monkeypatch):
     monkeypatch.setattr(run.logging_utils, "setup_file_logging", lambda: called.setdefault("setup_file_logging", True))
     # Mock log_migration_start
     monkeypatch.setattr(run, "log_migration_start", lambda project_id: called.setdefault("log_migration_start", project_id))
-    # Mock export_and_validate_glossaries
-    def mock_export_and_validate_glossaries(project_id, user_project, org_ids, start_time):
-        called["export_and_validate_glossaries"] = (project_id, user_project, org_ids, start_time)
+    # Mock export_glossaries
+    def mock_export_glossaries(project_id, user_project, org_ids, start_time):
+        called["export_glossaries"] = (project_id, user_project, org_ids, start_time)
         return True
-    monkeypatch.setattr(run, "export_and_validate_glossaries", mock_export_and_validate_glossaries)
+    monkeypatch.setattr(run, "export_glossaries", mock_export_glossaries)
     # Mock perform_imports
     monkeypatch.setattr(run, "perform_imports", lambda project_id, buckets: called.setdefault("perform_imports", (project_id, buckets)))
     # Mock time.time
     monkeypatch.setattr(run.time, "time", lambda: 123.45)
+    # Mock check_all_buckets_permissions to always return True
+    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets: True)
 
     args = types.SimpleNamespace(
         project="proj1",
@@ -287,7 +293,7 @@ def test_main_full_migration(monkeypatch):
 
     assert called["setup_file_logging"] is True
     assert called["log_migration_start"] == "proj1"
-    assert called["export_and_validate_glossaries"] == ("proj1", "user-proj", ["org1", "org2"], 123.45)
+    assert called["export_glossaries"] == ("proj1", "user-proj", ["org1", "org2"], 123.45)
     assert called["perform_imports"] == ("proj1", ["bucket1", "bucket2"])
 
 def test_main_resume_import(monkeypatch):
@@ -295,10 +301,11 @@ def test_main_resume_import(monkeypatch):
 
     monkeypatch.setattr(run.logging_utils, "setup_file_logging", lambda: called.setdefault("setup_file_logging", True))
     monkeypatch.setattr(run, "log_migration_start", lambda project_id: called.setdefault("log_migration_start", project_id))
-    # Should NOT call export_and_validate_glossaries
-    monkeypatch.setattr(run, "export_and_validate_glossaries", lambda *a, **kw: called.setdefault("export_and_validate_glossaries", True))
+    # Should NOT call export_glossaries
+    monkeypatch.setattr(run, "export_glossaries", lambda *a, **kw: called.setdefault("export_glossaries", True))
     monkeypatch.setattr(run, "perform_imports", lambda project_id, buckets: called.setdefault("perform_imports", (project_id, buckets)))
     monkeypatch.setattr(run.time, "time", lambda: 999.99)
+    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets: True)
 
     args = types.SimpleNamespace(
         project="proj2",
@@ -312,7 +319,7 @@ def test_main_resume_import(monkeypatch):
 
     assert called["setup_file_logging"] is True
     assert called["log_migration_start"] == "proj2"
-    assert "export_and_validate_glossaries" not in called
+    assert "export_glossaries" not in called
     assert called["perform_imports"] == ("proj2", ["bucketA"])
     
 def test_export_and_validate_glossaries_all_success(monkeypatch):
@@ -327,7 +334,7 @@ def test_export_and_validate_glossaries_all_success(monkeypatch):
         def error(self, msg): pass
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_and_validate_glossaries("proj", "user_proj", ["org1"], 123.0)
+    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
     assert result is True
 
 def test_export_and_validate_glossaries_some_fail(monkeypatch):
@@ -343,7 +350,7 @@ def test_export_and_validate_glossaries_some_fail(monkeypatch):
         def error(self, msg): DummyLogger.called = True
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_and_validate_glossaries("proj", "user_proj", ["org1"], 123.0)
+    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
     assert result is False
     assert DummyLogger.called is True
 
@@ -360,7 +367,7 @@ def test_export_and_validate_glossaries_none_found(monkeypatch):
         def error(self, msg): pass
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_and_validate_glossaries("proj", "user_proj", ["org1"], 123.0)
+    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
     assert result is False
     assert DummyLogger.called is True
 

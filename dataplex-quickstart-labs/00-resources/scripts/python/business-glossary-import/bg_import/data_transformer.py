@@ -398,7 +398,6 @@ def _build_maps(
     )
     return entry_to_parent_map, entry_id_to_type_map
 
-#rename convert_dc_glossary_taxonomy_entries_to_dp_entries
 def _process_glossary_entries(
     context: Context,
     dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
@@ -504,7 +503,6 @@ def process_dc_glossary_entries(
     3) build entry-term links (using threads), collect ungrouped entry links list
     4) group entry-term links based on project,location,entrygroup and return grouped structure
     """
-    logger.info(f"Step 2: Transforming raw entries into export models for glossary '{context.dp_glossary_id}'...")
 
     entry_to_parent_map, entry_id_to_type_map = _build_maps(dc_glossary_taxonomy_entries, dc_relationships_map)
 

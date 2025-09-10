@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from gcs_dao import upload_to_gcs, clear_bucket, prepare_gcs_bucket
+from gcs_dao import *
 
 @pytest.fixture
 def mock_storage_client(monkeypatch):
@@ -132,5 +132,66 @@ def test_prepare_gcs_bucket_upload_to_gcs_fails(monkeypatch):
     # prepare_gcs_bucket always returns True, even if upload_to_gcs fails
     result = prepare_gcs_bucket("bucket3", "/tmp/file3.txt", "file3.txt")
     assert result is True
+def test_check_all_buckets_permissions_all_success(monkeypatch):
+    called_buckets = []
+
+    def mock_check_gcs_permissions(bucket):
+        called_buckets.append(bucket)
+        return True
+
+    monkeypatch.setattr("gcs_dao.check_gcs_permissions", mock_check_gcs_permissions)
+    buckets = ["bucket1", "bucket2", "bucket3"]
+    result = check_all_buckets_permissions(buckets)
+    assert result is True
+    assert called_buckets == buckets
+
+def test_check_all_buckets_permissions_one_failure(monkeypatch):
+    def mock_check_gcs_permissions(bucket):
+        return bucket != "bucket2"
+
+    monkeypatch.setattr("gcs_dao.check_gcs_permissions", mock_check_gcs_permissions)
+    buckets = ["bucket1", "bucket2", "bucket3"]
+    result = check_all_buckets_permissions(buckets)
+    assert result is False
+
+def test_check_all_buckets_permissions_empty_list(monkeypatch):
+    # Should return True for empty list
+    result = check_all_buckets_permissions([])
+    assert result is True
+    
+def test_check_gcs_permissions_success(monkeypatch):
+    mock_storage_client = MagicMock()
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_logger = MagicMock()
+
+    monkeypatch.setattr("gcs_dao.storage.Client", MagicMock(return_value=mock_storage_client))
+    monkeypatch.setattr("gcs_dao.logger", mock_logger)
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.blob.return_value = mock_blob
+
+    result = check_gcs_permissions("test-bucket")
+    mock_blob.upload_from_string.assert_called_once_with(b"permission check")
+    mock_blob.delete.assert_called_once()
+    mock_logger.debug.assert_called_once_with("Permission check succeeded for bucket 'test-bucket'.")
+    assert result is True
+
+def test_check_gcs_permissions_failure(monkeypatch):
+    mock_storage_client = MagicMock()
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_logger = MagicMock()
+
+    monkeypatch.setattr("gcs_dao.storage.Client", MagicMock(return_value=mock_storage_client))
+    monkeypatch.setattr("gcs_dao.logger", mock_logger)
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.blob.return_value = mock_blob
+    mock_blob.upload_from_string.side_effect = Exception("Permission denied")
+
+    result = check_gcs_permissions("fail-bucket")
+    mock_logger.error.assert_called_once()
+    assert result is False
+
+
 
 

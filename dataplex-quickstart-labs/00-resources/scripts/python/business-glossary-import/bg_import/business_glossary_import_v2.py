@@ -55,7 +55,8 @@ def process_import_file(file_path: str, project_id: str, gcs_bucket: str) -> boo
             move_file_to_imported_folder(file_path)
         return job_success
     except Exception as e:
-        logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
+        logger.error(f"Error processing file {file_path}: {e}")
+        logger.debug(f"Error processing file {file_path}: {e}", exc_info=True)
         return False
 
 
@@ -66,7 +67,8 @@ def _process_files_for_bucket(files_for_bucket: List[str], project_id: str, buck
         try:
             result = process_import_file(f, project_id, bucket)
         except Exception as e:
-            logger.error("Unhandled exception processing %s with bucket %s: %s", f, bucket, e, exc_info=True)
+            logger.error(f"Error processing file {f} in bucket {bucket}: {e}")
+            logger.debug(f"Error processing file {f} in bucket {bucket}: {e}", exc_info=True)
             result = False
         results.append(result)
     return results
@@ -128,9 +130,10 @@ def process_phase(phase_name: str, files: List[str], project_id: str, buckets: L
         logger.warning("Some files failed to import. Retry remaining files later.")
 
 
-def log_migration_complete():
+def import_status():
     if not get_file_paths_from_directory(GLOSSARIES_DIRECTORY_PATH) and not get_file_paths_from_directory(ENTRYLINKS_DIRECTORY_PATH):
-        logger.info("Migration finished successfully :)")
+        return True
+    return False
 
 
 def main(project_id: str, buckets: List[str]):
@@ -138,8 +141,6 @@ def main(project_id: str, buckets: List[str]):
         "Glossaries": get_file_paths_from_directory(GLOSSARIES_DIRECTORY_PATH),
         "EntryLinks": get_file_paths_from_directory(ENTRYLINKS_DIRECTORY_PATH)
     }
-
     for phase_name, files in phases.items():
         process_phase(phase_name, files, project_id, buckets)
-
-    log_migration_complete()
+    return import_status()

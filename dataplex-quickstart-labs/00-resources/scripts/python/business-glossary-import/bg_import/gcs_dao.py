@@ -45,3 +45,35 @@ def clear_bucket(bucket_name: str) -> bool:
     except Exception as error:
         logger.error("Failed to clear GCS bucket '%s' withoooiii error as '%s'", bucket_name, error)
         return False
+
+
+def check_gcs_permissions(bucket_name: str) -> bool:
+    """
+    Checks if the current credentials have permission to upload and delete objects in the specified GCS bucket.
+    Attempts to upload and delete a small test file.
+    """
+    test_blob_name = f"permission_check_{uuid.uuid4().hex}.txt"
+    test_content = b"permission check"
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(test_blob_name)
+        blob.upload_from_string(test_content)
+        blob.delete()
+        logger.debug(f"Permission check succeeded for bucket '{bucket_name}'.")
+        return True
+    except Exception as error:
+        logger.error(
+            f"Permission check failed for bucket '{bucket_name}'. Grant the Storage Admin IAM role to the service account running the migration: "
+            "service-MIGRATION_PROJECT_NUMBER@gcp-sa-dataplex.iam.gserviceaccount.com"
+        )
+        return False
+
+def check_all_buckets_permissions(buckets: list[str]) -> bool:
+    """
+    Checks GCS permissions for all buckets. Returns True if all checks pass.
+    """
+    for bucket in buckets:
+        if not check_gcs_permissions(bucket):
+            return False
+    return True
