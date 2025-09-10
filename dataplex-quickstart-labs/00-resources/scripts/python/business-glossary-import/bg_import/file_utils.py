@@ -56,6 +56,9 @@ def write_jsonl_file(export_list: List[Union[GlossaryEntry, EntryLink]], filepat
     """Writes a list of dataclass objects to a JSON file."""
     valid_items = [item for item in export_list if item]
     
+    if(len(valid_items) == 0):
+        return
+    
     with open(filepath, "w", encoding="utf-8") as f:
         for item in valid_items:
             f.write(json.dumps(item.to_dict()) + "\n")

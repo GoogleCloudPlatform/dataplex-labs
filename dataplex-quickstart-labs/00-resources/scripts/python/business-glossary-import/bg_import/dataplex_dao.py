@@ -55,7 +55,7 @@ def create_metadata_job(service, project_id: str, location: str, payload: dict, 
         return generated_job_id
     except HttpError as error:
         logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
-        logger.error(f"Failed to create metadata job '{generated_job_id}'")
+        logger.error(f"Failed to create metadata job '{generated_job_id}' with error: {error}")
         return ""
     except Exception as error:
         logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
