@@ -43,7 +43,7 @@ def clear_bucket(bucket_name: str) -> bool:
         logger.debug(f"Deleted {len(blobs)} objects from bucket '{bucket_name}'.")
         return True
     except Exception as error:
-        logger.error("Failed to clear GCS bucket '%s' withoooiii error as '%s'", bucket_name, error)
+        logger.error("Failed to clear GCS bucket '%s' with error as '%s'", bucket_name, error)
         return False
 
 
