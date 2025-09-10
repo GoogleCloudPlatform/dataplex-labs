@@ -107,9 +107,9 @@ def main(args: argparse.Namespace) -> None:
     start_time = time.time()
 
     # Check GCS permissions before starting export/import
-    if not check_all_buckets_permissions(buckets):
-        sys.exit(1)
-        
+    # if not check_all_buckets_permissions(buckets):
+    #     sys.exit(1)
+
     export_status = True
     if not args.resume_import:
         export_status = export_glossaries(project_id, user_project, org_ids, start_time)
