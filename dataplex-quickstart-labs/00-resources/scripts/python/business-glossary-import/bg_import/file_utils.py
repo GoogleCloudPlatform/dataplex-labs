@@ -55,14 +55,12 @@ def get_file_paths_from_directory(directory: str) -> list[str]:
 def write_jsonl_file(export_list: List[Union[GlossaryEntry, EntryLink]], filepath: str):
     """Writes a list of dataclass objects to a JSON file."""
     valid_items = [item for item in export_list if item]
-    
-    if(len(valid_items) == 0):
+    if len(valid_items) == 0:
         return
-    
     with open(filepath, "w", encoding="utf-8") as f:
         for item in valid_items:
             f.write(json.dumps(item.to_dict()) + "\n")
-    
+
     logger.info(f"Successfully exported {len(valid_items)} items to {filepath}")
 
 
