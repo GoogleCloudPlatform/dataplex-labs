@@ -8,7 +8,8 @@ import google_auth_httplib2
 import google.auth
 from googleapiclient.discovery import build
 import logging_utils
-from constants import POLL_INTERVAL_MINUTES, MAX_POLLS, QUEUED_TIMEOUT_MINUTES
+from constants import POLL_INTERVAL_MINUTES, MAX_POLLS
+from file_utils import extract_error_detail
 
 logger = logging_utils.get_logger()
 
@@ -21,7 +22,7 @@ def get_dataplex_service():
     return build('dataplex', 'v1', http=authorized_http, cache_discovery=False)
 
 def is_job_succeeded(state: str) -> bool:
-    return state in ("SUCCEEDED", "SUCCEEDED_WITH_ERRORS") #Check with Saurabh
+    return state in ("SUCCEEDED", "SUCCEEDED_WITH_ERRORS")
 
 def is_job_failed(state: str) -> bool:
     return state == "FAILED"
@@ -34,7 +35,7 @@ def log_job_failure(job: dict, job_id: str):
     logger.error(f"Job '{job_id}' FAILED. Reason: {error_msg}")
 
 
-def create_metadata_job(service, project_id: str, location: str, payload: dict, job_prefix: str) -> str:
+def create_metadata_job(service, project_id: str, location: str, payload: dict, job_prefix: str, fake_job: bool = False) -> str:
     """Generates a unique job ID and creates a metadata job with error handling."""
     normalized_job_id = re.sub(r'[^a-z0-9-]', '-', job_prefix.lower()).strip('-')[:50]
     generated_job_id = f"{normalized_job_id}-{uuid.uuid4().hex[:8]}"
@@ -54,11 +55,19 @@ def create_metadata_job(service, project_id: str, location: str, payload: dict, 
         logger.info(f"Job '{generated_job_id}' submitted successfully.")
         return generated_job_id
     except HttpError as error:
+        error_detail = extract_error_detail(error)
+        if fake_job:
+            return error_detail
         logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
-        logger.error(f"Failed to create metadata job '{generated_job_id}' with error: {error}")
+        logger.error(f"Failed to create metadata job '{generated_job_id}' with error: {error_detail}")
         return ""
+
     except Exception as error:
-        logger.debug(f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}")
+        if fake_job:
+            return str(error)
+        logger.debug(
+            f"create_metadata_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={generated_job_id} | output: {error}"
+        )
         logger.error(f"Unexpected error during metadata job creation for job id {generated_job_id} - {error}")
         return ""
 
@@ -105,5 +114,5 @@ def get_job_and_state(service, job_path: str, job_id: str):
     except HttpError as err:
         logger.error(f"Error polling job '{job_id}'")
         logger.debug(f"input: service={service}, job_path={job_path}, job_id={job_id} | output: {err}")
-        return None, "huhaaa"
+        return None, None
 
