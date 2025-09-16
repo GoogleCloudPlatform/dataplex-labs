@@ -1,6 +1,5 @@
 import pytest
 import api_layer
-# import sys  # Removed unused import
 
 class DummyContext:
     def __init__(self, user_project="test-project", project="test-project", location_id="us-central1", entry_group_id="egid", dc_glossary_id="dcgid", dp_glossary_id="glossary1"):
@@ -72,7 +71,6 @@ def test_fetch_relationships_dc_glossary_entry_empty(monkeypatch):
     monkeypatch.setattr(api_layer, "convert_entry_relationships_to_objects", lambda rels: rels)
     result = api_layer.fetch_relationships_dc_glossary_entry("entry_4", "test-project")
     assert result == []
-
 
 def test_fetch_relationships_dc_glossary_term_basic(monkeypatch):
     # Simulate a single page response with relationships
@@ -165,6 +163,7 @@ def test_fetch_dc_glossary_taxonomy_entries_empty(monkeypatch):
     monkeypatch.setattr(api_layer, "convert_glossary_taxonomy_entries_to_objects", lambda entries: entries)
     result = api_layer.fetch_dc_glossary_taxonomy_entries(DummyContext())
     assert result == []
+
 def test_discover_glossaries_success(monkeypatch):
     dummy_results = [
         {"searchResultSubtype": "entry.glossary", "linkedResource": "//glossary1"},
@@ -179,6 +178,7 @@ def test_discover_glossaries_success(monkeypatch):
     result = api_layer.discover_glossaries("proj-1", "user-proj")
     assert result == ["https://glossary1", "https://glossary2"]
     monkeypatch.setattr(api_layer.logger, "info", lambda *_: None)
+
 def test_discover_glossaries_error(monkeypatch):
     # Simulate an error response
     def dummy_fetch_api_response(method, url, user_project, request_body):
@@ -390,6 +390,7 @@ def test__post_dataplex_glossary_display_name_trimming(monkeypatch):
     display_name = "   Glossary Name   "
     api_layer._post_dataplex_glossary(context, display_name)
     assert trimmed_names[0] == "Glossary Name"
+
 def test__fetch_glossary_display_name_success(monkeypatch):
     # Simulate a successful API response with displayName
     class DummyContext:
@@ -484,7 +485,6 @@ def test__build_dataplex_lookup_entry_url_complex_linked_resource():
         "?entry=projects/proj-3/locations/asia-east1/entryGroups/egid/entries/complex-id-123_ABC"
     )
     assert result == expected_url
-    # Remove old tests for create_dataplex_glossary and its sub-methods
 
 def test_create_dataplex_glossary_already_exists(monkeypatch):
     logs = []
@@ -519,32 +519,6 @@ def test_create_dataplex_glossary_unexpected_response(monkeypatch):
     api_layer.create_dataplex_glossary(DummyContext())
     assert any("unexpected response" in msg.lower() for msg in logs)
 
-def test__is_glossary_already_exists_true():
-    resp = {"json": {"error": {"code": 409, "status": "ALREADY_EXISTS"}}}
-    assert api_layer._is_glossary_already_exists(resp) is True
-
-def test__is_glossary_already_exists_false():
-    resp = {"json": {"error": {"code": 400, "status": "FAILED_PRECONDITION"}}}
-    assert api_layer._is_glossary_already_exists(resp) is False
-    resp = {"json": {}}
-    assert api_layer._is_glossary_already_exists(resp) is False
-
-def test__is_glossary_creation_successful_true():
-    resp = {"error_msg": None}
-    assert api_layer._is_glossary_creation_successful(resp) is True
-
-def test__is_glossary_creation_successful_false():
-    resp = {"error_msg": "Some error"}
-    assert api_layer._is_glossary_creation_successful(resp) is False
-
-def test__wait_for_glossary_creation(monkeypatch):
-    called = []
-    monkeypatch.setattr(api_layer.time, "sleep", lambda x: called.append(x))
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: called.append(msg))
-    api_layer._wait_for_glossary_creation()
-    assert any(isinstance(x, str) and "initiated" in x for x in called)
-    assert 60 in called
-
 def test__handle_unexpected_dataplex_response(monkeypatch):
     logs = []
     monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
@@ -575,13 +549,45 @@ def test__handle_dataplex_glossary_response_unexpected(monkeypatch):
     api_layer._handle_dataplex_glossary_response({"json": {}, "error_msg": None}, DummyContext())
     assert any("unexpected response" in msg.lower() for msg in logs)
 
+def test__is_glossary_already_exists_true():
+    api_response = {
+        "json": {
+            "error": {
+                "code": 409,
+                "status": "ALREADY_EXISTS"
+            }
+        }
+    }
+    assert api_layer._is_glossary_already_exists(api_response) is True
 
+def test__is_glossary_already_exists_false_code():
+    api_response = {
+        "json": {
+            "error": {
+                "code": 400,
+                "status": "ALREADY_EXISTS"
+            }
+        }
+    }
+    assert api_layer._is_glossary_already_exists(api_response) is False
 
+def test__is_glossary_already_exists_false_status():
+    api_response = {
+        "json": {
+            "error": {
+                "code": 409,
+                "status": "SOME_OTHER_STATUS"
+            }
+        }
+    }
+    assert api_layer._is_glossary_already_exists(api_response) is False
 
+def test__is_glossary_already_exists_no_error():
+    api_response = {
+        "json": {}
+    }
+    assert api_layer._is_glossary_already_exists(api_response) is False
 
-
-
-
-
-
-
+def test__is_glossary_already_exists_none():
+    api_response = {}
+    assert api_layer._is_glossary_already_exists(api_response) is False

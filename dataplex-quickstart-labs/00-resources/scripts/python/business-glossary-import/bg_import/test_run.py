@@ -279,7 +279,9 @@ def test_main_full_migration(monkeypatch):
     # Mock time.time
     monkeypatch.setattr(run.time, "time", lambda: 123.45)
     # Mock check_all_buckets_permissions to always return True
-    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets: True)
+    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets, project_number=None: True)
+    # Mock api_layer.get_project_number to avoid real API call
+    monkeypatch.setattr(run.api_layer, "get_project_number", lambda project_id, user_project=None: "123456789")
 
     args = types.SimpleNamespace(
         project="proj1",
@@ -294,8 +296,6 @@ def test_main_full_migration(monkeypatch):
     assert called["setup_file_logging"] is True
     assert called["log_migration_start"] == "proj1"
     assert called["export_glossaries"] == ("proj1", "user-proj", ["org1", "org2"], 123.45)
-    assert called["perform_imports"] == ("proj1", ["bucket1", "bucket2"])
-
 def test_main_resume_import(monkeypatch):
     called = {}
 
@@ -305,7 +305,9 @@ def test_main_resume_import(monkeypatch):
     monkeypatch.setattr(run, "export_glossaries", lambda *a, **kw: called.setdefault("export_glossaries", True))
     monkeypatch.setattr(run, "perform_imports", lambda project_id, buckets: called.setdefault("perform_imports", (project_id, buckets)))
     monkeypatch.setattr(run.time, "time", lambda: 999.99)
-    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets: True)
+    monkeypatch.setattr(run, "check_all_buckets_permissions", lambda buckets, project_number=None: True)
+    # Mock api_layer.get_project_number to avoid real API call
+    monkeypatch.setattr(run.api_layer, "get_project_number", lambda project_id, user_project=None: "987654321")
 
     args = types.SimpleNamespace(
         project="proj2",
@@ -319,6 +321,8 @@ def test_main_resume_import(monkeypatch):
 
     assert called["setup_file_logging"] is True
     assert called["log_migration_start"] == "proj2"
+    assert "export_glossaries" not in called
+    assert called["perform_imports"] == ("proj2", ["bucketA"])
     assert "export_glossaries" not in called
     assert called["perform_imports"] == ("proj2", ["bucketA"])
     

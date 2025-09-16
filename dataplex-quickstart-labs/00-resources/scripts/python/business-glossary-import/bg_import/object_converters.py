@@ -9,7 +9,7 @@ import logging_utils
 
 logging = logging_utils.get_logger()
 
-def _convert_to_core_aspect(core_aspect: Dict[str, Any]) -> CoreAspects:
+def convert_to_core_aspect(core_aspect: Dict[str, Any]) -> CoreAspects:
     """Converts a dict to a CoreAspect object."""
     business_context = core_aspect.get("jsonContent", {}).get("businessContext", {})
     return CoreAspects(
@@ -30,7 +30,7 @@ def convert_glossary_taxonomy_entries_to_objects(dc_entries: List[Dict[str, Any]
                 displayName=dc_entry.get("displayName", ""),
                 entryType=dc_entry.get("entryType", ""),
                 uid=dc_entry.get("entryUid", ""),
-                coreAspects=_convert_to_core_aspect(dc_entry.get("coreAspects", {}))
+                coreAspects=convert_to_core_aspect(dc_entry.get("coreAspects", {}))
             )
         )
     return converted_dc_entries
@@ -39,24 +39,24 @@ def convert_glossary_taxonomy_relationships_to_objects(dc_relationships: List[Di
     """Convert glossary relationship dicts into GlossaryTaxonomyRelationship dataclass objects."""
     relationships = []
     for dc_relationship in dc_relationships:
-        if _skip_relationship(dc_relationship):
-            _log_skipped_relationship(dc_relationship)
+        if skip_relationship(dc_relationship):
+            log_skipped_relationship(dc_relationship)
             continue
-        relationships.append(_convert_to_glossary_taxonomy_relationship(dc_relationship))
+        relationships.append(convert_to_glossary_taxonomy_relationship(dc_relationship))
     return relationships
 
-def _skip_relationship(dc_relationship: Dict[str, Any]) -> bool:
+def skip_relationship(dc_relationship: Dict[str, Any]) -> bool:
     destination_entry = dc_relationship.get("destinationEntry", {})
     destination_entry_name = dc_relationship.get("destinationEntryName", {})
-    return not destination_entry and destination_entry_name
+    return not bool(destination_entry) and bool(destination_entry_name)
 
-def _log_skipped_relationship(dc_relationship: Dict[str, Any]) -> None:
+def log_skipped_relationship(dc_relationship: Dict[str, Any]) -> None:
     logging.warning(
         f"Skipping relationship '{dc_relationship.get('name', '')}': "
         "as the user does not have permission to view the destination entry."
     )
 
-def _convert_to_glossary_taxonomy_relationship(dc_relationship: Dict[str, Any]) -> GlossaryTaxonomyRelationship:
+def convert_to_glossary_taxonomy_relationship(dc_relationship: Dict[str, Any]) -> GlossaryTaxonomyRelationship:
     destination_entry = dc_relationship.get("destinationEntry", {})
     destination_entry_name = dc_relationship.get("destinationEntryName", {})
     return GlossaryTaxonomyRelationship(

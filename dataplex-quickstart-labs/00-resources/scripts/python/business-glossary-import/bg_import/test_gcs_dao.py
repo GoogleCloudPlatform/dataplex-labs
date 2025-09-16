@@ -159,38 +159,133 @@ def test_check_all_buckets_permissions_empty_list(monkeypatch):
     result = check_all_buckets_permissions([])
     assert result is True
     
-def test_check_gcs_permissions_success(monkeypatch):
-    mock_storage_client = MagicMock()
-    mock_bucket = MagicMock()
-    mock_blob = MagicMock()
-    mock_logger = MagicMock()
 
-    monkeypatch.setattr("gcs_dao.storage.Client", MagicMock(return_value=mock_storage_client))
-    monkeypatch.setattr("gcs_dao.logger", mock_logger)
-    mock_storage_client.bucket.return_value = mock_bucket
-    mock_bucket.blob.return_value = mock_blob
+@pytest.fixture
+def mock_get_dataplex_service(monkeypatch):
+    mock_service = MagicMock()
+    monkeypatch.setattr("gcs_dao.get_dataplex_service", MagicMock(return_value=mock_service))
+    return mock_service
 
-    result = check_gcs_permissions("test-bucket")
-    mock_blob.upload_from_string.assert_called_once_with(b"permission check")
-    mock_blob.delete.assert_called_once()
-    mock_logger.debug.assert_called_once_with("Permission check succeeded for bucket 'test-bucket'.")
+def test_check_all_buckets_permissions_all_success(monkeypatch, mock_get_dataplex_service):
+    buckets = ["bucket1", "bucket2", "bucket3"]
+    project_number = "123456789"
+    called = []
+
+    def mock_check_metadata_job_creation_for_bucket(service, project_id, bucket):
+        called.append((service, project_id, bucket))
+        return True
+
+    monkeypatch.setattr("gcs_dao.check_metadata_job_creation_for_bucket", mock_check_metadata_job_creation_for_bucket)
+    result = check_all_buckets_permissions(buckets, project_number)
+    assert result is True
+    assert called == [(mock_get_dataplex_service, project_number, b) for b in buckets]
+
+def test_check_all_buckets_permissions_one_failure(monkeypatch, mock_get_dataplex_service):
+    buckets = ["bucket1", "bucket2", "bucket3"]
+    project_number = "123456789"
+
+    def mock_check_metadata_job_creation_for_bucket(service, project_id, bucket):
+        return bucket != "bucket2"
+
+    monkeypatch.setattr("gcs_dao.check_metadata_job_creation_for_bucket", mock_check_metadata_job_creation_for_bucket)
+    result = check_all_buckets_permissions(buckets, project_number)
+    assert result is False
+
+def test_check_all_buckets_permissions_empty_list(monkeypatch, mock_get_dataplex_service):
+    buckets = []
+    project_number = "123456789"
+
+    # Should not call check_metadata_job_creation_for_bucket at all
+    monkeypatch.setattr("gcs_dao.check_metadata_job_creation_for_bucket", MagicMock())
+    result = check_all_buckets_permissions(buckets, project_number)
     assert result is True
 
-def test_check_gcs_permissions_failure(monkeypatch):
-    mock_storage_client = MagicMock()
-    mock_bucket = MagicMock()
-    mock_blob = MagicMock()
+@pytest.fixture
+def mock_logger(monkeypatch):
     mock_logger = MagicMock()
-
-    monkeypatch.setattr("gcs_dao.storage.Client", MagicMock(return_value=mock_storage_client))
     monkeypatch.setattr("gcs_dao.logger", mock_logger)
-    mock_storage_client.bucket.return_value = mock_bucket
-    mock_bucket.blob.return_value = mock_blob
-    mock_blob.upload_from_string.side_effect = Exception("Permission denied")
+    return mock_logger
 
-    result = check_gcs_permissions("fail-bucket")
-    mock_logger.error.assert_called_once()
+@pytest.fixture
+def mock_build_dummy_payload(monkeypatch):
+    monkeypatch.setattr("gcs_dao.build_dummy_payload", MagicMock(return_value={"dummy": "payload"}))
+
+def test_check_metadata_job_creation_for_bucket_permission_granted(monkeypatch, mock_logger, mock_build_dummy_payload):
+    mock_service = MagicMock()
+    mock_create_metadata_job = MagicMock(return_value="Job created successfully")
+    monkeypatch.setattr("gcs_dao.create_metadata_job", mock_create_metadata_job)
+    result = check_metadata_job_creation_for_bucket(mock_service, "project-id", "bucket-name")
+    assert result is True
+    mock_create_metadata_job.assert_called_once_with(
+        mock_service,
+        "project-id",
+        "global",
+        {"dummy": "payload"},
+        "permission-check",
+        fake_job=True
+    )
+    mock_logger.error.assert_not_called()
+
+def test_check_metadata_job_creation_for_bucket_permission_denied(monkeypatch, mock_logger, mock_build_dummy_payload):
+    mock_service = MagicMock()
+    monkeypatch.setattr("gcs_dao.create_metadata_job", MagicMock(return_value="does not have sufficient permission"))
+    result = check_metadata_job_creation_for_bucket(mock_service, "project-id", "bucket-name")
     assert result is False
+    mock_logger.error.assert_called_once_with("does not have sufficient permission")
+
+def test_check_metadata_job_creation_for_bucket_other_error(monkeypatch, mock_logger, mock_build_dummy_payload):
+    mock_service = MagicMock()
+    monkeypatch.setattr("gcs_dao.create_metadata_job", MagicMock(return_value="Some other error"))
+    result = check_metadata_job_creation_for_bucket(mock_service, "project-id", "bucket-name")
+    assert result is True
+    mock_logger.error.assert_not_called()
+    
+def test_build_dummy_payload_basic():
+    bucket_name = "my-bucket"
+    payload = build_dummy_payload(bucket_name)
+    assert isinstance(payload, dict)
+    assert payload["type"] == "IMPORT"
+    assert "import_spec" in payload
+    import_spec = payload["import_spec"]
+    assert import_spec["log_level"] == "DEBUG"
+    assert import_spec["source_storage_uri"] == f"gs://{bucket_name}/"
+    assert import_spec["entry_sync_mode"] == "FULL"
+    assert import_spec["aspect_sync_mode"] == "INCREMENTAL"
+    assert "scope" in import_spec
+    assert "glossaries" in import_spec["scope"]
+    assert import_spec["scope"]["glossaries"] == [
+        "projects/dummy-project-id/locations/global/glossaries/dummy-glossary"
+    ]
+
+def test_build_dummy_payload_with_different_bucket_names():
+    for bucket_name in ["bucket1", "bucket-2", "bucket_3"]:
+        payload = build_dummy_payload(bucket_name)
+        assert payload["import_spec"]["source_storage_uri"] == f"gs://{bucket_name}/"
+
+def test_build_dummy_payload_structure():
+    bucket_name = "test-bucket"
+    payload = build_dummy_payload(bucket_name)
+    # Check top-level keys
+    assert set(payload.keys()) == {"type", "import_spec"}
+    # Check import_spec keys
+    expected_keys = {
+        "log_level",
+        "source_storage_uri",
+        "entry_sync_mode",
+        "aspect_sync_mode",
+        "scope"
+    }
+    assert set(payload["import_spec"].keys()) == expected_keys
+    # Check scope structure
+    scope = payload["import_spec"]["scope"]
+    assert isinstance(scope, dict)
+    assert "glossaries" in scope
+    assert isinstance(scope["glossaries"], list)
+    assert len(scope["glossaries"]) == 1
+    assert scope["glossaries"][0].startswith("projects/dummy-project-id/locations/global/glossaries/")
+
+
+
 
 
 

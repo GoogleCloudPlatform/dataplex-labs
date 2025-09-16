@@ -253,7 +253,7 @@ def create_dataplex_glossary(context: Context) -> None:
 
 def _is_glossary_already_exists(api_response: dict) -> bool:
     error = api_response.get("json", {}).get("error")
-    return error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS"
+    return bool(error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS")
 
 def _is_glossary_creation_successful(api_response: dict) -> bool:
     return api_response.get("error_msg") is None

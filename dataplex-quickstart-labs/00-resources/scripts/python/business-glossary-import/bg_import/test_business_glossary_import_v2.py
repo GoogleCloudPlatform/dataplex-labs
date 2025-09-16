@@ -1,6 +1,16 @@
 import pytest
 import business_glossary_import_v2
 
+def get_mock_logger():
+        class MockLogger:
+            def __init__(self):
+                self.logs = []
+            def info(self, msg, *a, **kw):
+                self.logs.append(msg)
+            def warning(self, msg, *a, **kw):
+                self.logs.append(msg)
+        return MockLogger()
+
 def test_get_referenced_scopes_related_link_type(monkeypatch):
     monkeypatch.setattr(business_glossary_import_v2, "get_link_type", lambda *a, **kw: "related")
     monkeypatch.setattr(business_glossary_import_v2, "get_project_scopes_from_all_lines", lambda *a, **kw: set(["projects/abc", "projects/def"]))
@@ -240,40 +250,19 @@ def test_process_phase_no_files(monkeypatch):
     assert any("No files found in Glossaries folder. Skipping phase." in msg for msg in logs)
 
 def test_process_phase_all_success(monkeypatch):
-    class MockLogger:
-        def __init__(self):
-            self.logs = []
-        def info(self, msg, *a, **kw):
-            self.logs.append(msg)
-        def warning(self, msg, *a, **kw):
-            self.logs.append(msg)
-    mock_logger = MockLogger()
+    mock_logger = get_mock_logger()
     monkeypatch.setattr("business_glossary_import_v2.logger", mock_logger)
     monkeypatch.setattr(business_glossary_import_v2, "filter_files_for_phases", lambda phase, files: files)
     monkeypatch.setattr(business_glossary_import_v2, "run_import_files", lambda files, pid, buckets: [True, True])
 
 def test_process_phase_some_failures(monkeypatch):
-    class MockLogger:
-        def __init__(self):
-            self.logs = []
-        def info(self, msg, *a, **kw):
-            self.logs.append(msg)
-        def warning(self, msg, *a, **kw):
-            self.logs.append(msg)
-    mock_logger = MockLogger()
+    mock_logger = get_mock_logger()
     monkeypatch.setattr("business_glossary_import_v2.logger", mock_logger)
     monkeypatch.setattr(business_glossary_import_v2, "filter_files_for_phases", lambda phase, files: files)
     monkeypatch.setattr(business_glossary_import_v2, "run_import_files", lambda files, pid, buckets: [True, False])
 
 def test_process_phase_filtered_files(monkeypatch):
-    class MockLogger:
-        def __init__(self):
-            self.logs = []
-        def info(self, msg, *a, **kw):
-            self.logs.append(msg)
-        def warning(self, msg, *a, **kw):
-            self.logs.append(msg)
-    mock_logger = MockLogger()
+    mock_logger = get_mock_logger()
     monkeypatch.setattr("business_glossary_import_v2.logger", mock_logger)
     # Only one file passes filter
     monkeypatch.setattr(business_glossary_import_v2, "filter_files_for_phases", lambda phase, files: [files[0]])
@@ -281,12 +270,13 @@ def test_process_phase_filtered_files(monkeypatch):
 
 def test_process_phase_all_fail(monkeypatch):
     logs = []
-    class Logger:
+    class MockLogger:
         def info(self, msg, *args, **kwargs):
             logs.append(msg)
         def warning(self, msg, *args, **kwargs):
             logs.append(msg)
-    monkeypatch.setattr("business_glossary_import_v2.logger", Logger())
+    mock_logger = MockLogger()
+    monkeypatch.setattr("business_glossary_import_v2.logger", mock_logger)
     monkeypatch.setattr(business_glossary_import_v2, "filter_files_for_phases", lambda phase, files: files)
     monkeypatch.setattr(business_glossary_import_v2, "run_import_files", lambda files, pid, buckets: [False, False])
     files = ["file1.txt", "file2.txt"]
@@ -294,74 +284,86 @@ def test_process_phase_all_fail(monkeypatch):
     assert any("0/2 files imported successfully" in msg for msg in logs)
     assert any("failed to import" in msg for msg in logs)
     
-def test_main_calls_process_phase_and_log_migration(monkeypatch):
-    called_phases = []
-    called_log_migration = []
 
-    # Mock get_file_paths_from_directory to return different files for each phase
-    def mock_get_file_paths_from_directory(path):
-        if path == "GLOSSARIES_DIRECTORY_PATH":
-            return ["glossary1.txt", "glossary2.txt"]
-        elif path == "ENTRYLINKS_DIRECTORY_PATH":
-            return ["entrylink1.txt"]
-        return []
-
-    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", mock_get_file_paths_from_directory)
-    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
-    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
-
-    def mock_process_phase(phase_name, files, project_id, buckets):
-        called_phases.append((phase_name, list(files), project_id, list(buckets)))
-    monkeypatch.setattr(business_glossary_import_v2, "process_phase", mock_process_phase)
-
-    def mock_log_migration_complete():
-        called_log_migration.append(True)
-    monkeypatch.setattr(business_glossary_import_v2, "log_migration_complete", mock_log_migration_complete)
-
-    business_glossary_import_v2.main("proj123", ["bucketA", "bucketB"])
-
-    assert ("Glossaries", ["glossary1.txt", "glossary2.txt"], "proj123", ["bucketA", "bucketB"]) in called_phases
-    assert ("EntryLinks", ["entrylink1.txt"], "proj123", ["bucketA", "bucketB"]) in called_phases
-    assert called_log_migration == [True]
-
-def test_main_empty_files(monkeypatch):
+def test_main_returns_true_when_no_files(monkeypatch):
     # Both directories return empty lists
     monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: [])
     monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
     monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    monkeypatch.setattr(business_glossary_import_v2, "process_phase", lambda *a, **kw: None)
+    result = business_glossary_import_v2.main("proj", ["bucket"])
+    assert result is True
 
-    called_phases = []
-    def mock_process_phase(phase_name, files, project_id, buckets):
-        called_phases.append((phase_name, list(files)))
-    monkeypatch.setattr(business_glossary_import_v2, "process_phase", mock_process_phase)
-
-    called_log_migration = []
-    monkeypatch.setattr(business_glossary_import_v2, "log_migration_complete", lambda: called_log_migration.append(True))
-
-    business_glossary_import_v2.main("proj456", ["bucketX"])
-    # Should call process_phase for both phases with empty lists
-    assert ("Glossaries", []) in called_phases
-    assert ("EntryLinks", []) in called_phases
-    assert called_log_migration == [True]
-
-def test_main_files_only_in_one_phase(monkeypatch):
-    # Only glossaries directory has files
-    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["g1.txt"] if path == "GLOSSARIES_DIRECTORY_PATH" else [])
+def test_main_returns_false_when_files_exist(monkeypatch):
+    # At least one directory returns files
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["file.txt"] if path == "GLOSSARIES_DIRECTORY_PATH" else [])
     monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
     monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    monkeypatch.setattr(business_glossary_import_v2, "process_phase", lambda *a, **kw: None)
+    result = business_glossary_import_v2.main("proj", ["bucket"])
+    assert result is False
 
-    called_phases = []
+def test_main_calls_process_phase_for_each_phase(monkeypatch):
+    called = []
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["f1.txt"] if path == "GLOSSARIES_DIRECTORY_PATH" else ["e1.txt"])
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
     def mock_process_phase(phase_name, files, project_id, buckets):
-        called_phases.append((phase_name, list(files)))
+        called.append((phase_name, list(files), project_id, list(buckets)))
     monkeypatch.setattr(business_glossary_import_v2, "process_phase", mock_process_phase)
+    monkeypatch.setattr(business_glossary_import_v2, "import_status", lambda: True)
+    result = business_glossary_import_v2.main("proj", ["bucket"])
+    assert ("Glossaries", ["f1.txt"], "proj", ["bucket"]) in called
+    assert ("EntryLinks", ["e1.txt"], "proj", ["bucket"]) in called
+    assert result is True
 
-    called_log_migration = []
-    monkeypatch.setattr(business_glossary_import_v2, "log_migration_complete", lambda: called_log_migration.append(True))
+def test_main_with_multiple_files_and_buckets(monkeypatch):
+    gloss_files = ["g1.txt", "g2.txt"]
+    entry_files = ["e1.txt", "e2.txt"]
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: gloss_files if path == "GLOSSARIES_DIRECTORY_PATH" else entry_files)
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    called = []
+    def mock_process_phase(phase_name, files, project_id, buckets):
+        called.append((phase_name, list(files), project_id, list(buckets)))
+    monkeypatch.setattr(business_glossary_import_v2, "process_phase", mock_process_phase)
+    monkeypatch.setattr(business_glossary_import_v2, "import_status", lambda: False)
+    result = business_glossary_import_v2.main("proj", ["bucketA", "bucketB"])
+    assert ("Glossaries", gloss_files, "proj", ["bucketA", "bucketB"]) in called
+    assert ("EntryLinks", entry_files, "proj", ["bucketA", "bucketB"]) in called
+    assert result is False
 
-    business_glossary_import_v2.main("proj789", ["bucketY"])
-    assert ("Glossaries", ["g1.txt"]) in called_phases
-    assert ("EntryLinks", []) in called_phases
-    assert called_log_migration == [True]
+def test_import_status_returns_true_when_no_files(monkeypatch):
+    # Both directories return empty lists
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: [])
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    result = business_glossary_import_v2.import_status()
+    assert result is True
+
+def test_import_status_returns_false_when_glossaries_exist(monkeypatch):
+    # Glossaries directory returns files, entrylinks is empty
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["file.txt"] if path == "GLOSSARIES_DIRECTORY_PATH" else [])
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    result = business_glossary_import_v2.import_status()
+    assert result is False
+
+def test_import_status_returns_false_when_entrylinks_exist(monkeypatch):
+    # Entrylinks directory returns files, glossaries is empty
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["file.txt"] if path == "ENTRYLINKS_DIRECTORY_PATH" else [])
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    result = business_glossary_import_v2.import_status()
+    assert result is False
+
+def test_import_status_returns_false_when_both_exist(monkeypatch):
+    # Both directories return files
+    monkeypatch.setattr("business_glossary_import_v2.get_file_paths_from_directory", lambda path: ["file.txt"])
+    monkeypatch.setattr("business_glossary_import_v2.GLOSSARIES_DIRECTORY_PATH", "GLOSSARIES_DIRECTORY_PATH")
+    monkeypatch.setattr("business_glossary_import_v2.ENTRYLINKS_DIRECTORY_PATH", "ENTRYLINKS_DIRECTORY_PATH")
+    result = business_glossary_import_v2.import_status()
+    assert result is False
 
 
 

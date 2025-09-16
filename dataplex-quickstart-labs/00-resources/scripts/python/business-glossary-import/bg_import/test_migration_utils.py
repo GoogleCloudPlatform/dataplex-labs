@@ -839,20 +839,3 @@ def test__parse_id_list_with_numeric_and_alpha():
     s = "123,abc,456def"
     result = _parse_id_list(s)
     assert result == ["123", "abc", "456def"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

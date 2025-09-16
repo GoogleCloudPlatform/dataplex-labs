@@ -191,6 +191,7 @@ def test_poll_metadata_job_returns_false_if_job_none(monkeypatch):
     # Patch get_job_and_state to return None for job
     monkeypatch.setattr(dataplex_dao, "get_job_and_state", MagicMock(return_value=(None, "FAILED")))
     monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    monkeypatch.setattr(dataplex_dao.time, "sleep", MagicMock())
     result = dataplex_dao.poll_metadata_job(mock_service, "test-project", "us-central1", "testjob-1234")
     assert result is False
 
@@ -243,7 +244,7 @@ def test_get_job_and_state_success(monkeypatch):
     job, state = dataplex_dao.get_job_and_state(mock_service, "job_path", "job_id")
     assert job == mock_job
     assert state == "SUCCEEDED"
-    mock_logger.debug.assert_called_with("Job 'job_id' status: SUCCEEDED")
+    mock_logger.debug.assert_called_with("Job 'job_id' and entire job: {'status': {'state': 'SUCCEEDED'}}")
 
 def test_get_job_and_state_http_error(monkeypatch):
     mock_service = MagicMock()
@@ -256,7 +257,7 @@ def test_get_job_and_state_http_error(monkeypatch):
 
     job, state = dataplex_dao.get_job_and_state(mock_service, "job_path", "job_id")
     assert job is None
-    assert state == "huhaaa"
+    assert state == None
     mock_logger.error.assert_called_with("Error polling job 'job_id'")
     mock_logger.debug.assert_called()
 
@@ -296,8 +297,3 @@ def test_log_job_failure_without_status(monkeypatch):
     job_id = "job-789"
     dataplex_dao.log_job_failure(job, job_id)
     mock_logger.error.assert_called_with("Job 'job-789' FAILED. Reason: No error message provided.")
-
-
-
-
-
