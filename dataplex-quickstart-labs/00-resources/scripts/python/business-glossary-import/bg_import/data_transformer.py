@@ -46,8 +46,10 @@ def build_glossary_ancestor(context: Context) -> Ancestor:
 
 def build_parent_ancestor(context: Context, glossary_taxonomy_entry_name: str, entry_to_parent_map: dict, entry_id_to_type_map: dict) -> Optional[Ancestor]:
     """Builds the immediate parent ancestor if it exists."""
-    glossary_taxonomy_entry_id = get_dc_glossary_taxonomy_id(glossary_taxonomy_entry_name)
-    parent_dc_glossary_taxonomy_id = entry_to_parent_map.get(glossary_taxonomy_entry_id)
+    parent_dc_glossary_taxonomy_name = entry_to_parent_map.get(glossary_taxonomy_entry_name)
+    if not parent_dc_glossary_taxonomy_name:
+        return None
+    parent_dc_glossary_taxonomy_id = get_dc_glossary_taxonomy_id(parent_dc_glossary_taxonomy_name)
     if not parent_dc_glossary_taxonomy_id:
         return None
     parent_type = entry_id_to_type_map.get(parent_dc_glossary_taxonomy_id)
@@ -419,7 +421,6 @@ def process_glossary_entries(
             dataplex_glossary_entries.append(dataplex_glossary_entry)
     return dataplex_glossary_entries
 
-# write unit tests from here
 def build_term_to_term_links(
     context: Context,
     dc_glossary_taxonomy_entries: List[GlossaryTaxonomyEntry],
