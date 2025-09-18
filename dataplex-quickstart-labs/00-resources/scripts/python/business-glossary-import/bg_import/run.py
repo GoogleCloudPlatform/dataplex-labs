@@ -13,7 +13,7 @@ from google.cloud import storage
 import uuid
 
 logger = logging_utils.get_logger()
-MAX_EXPORT_WORKERS = 20
+MAX_EXPORT_WORKERS = 10
 
 
 def run_export_worker(glossary_url: str, user_project: str, org_ids: list[str]) -> bool:
