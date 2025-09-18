@@ -11,7 +11,7 @@ logging = logging_utils.get_logger()
 
 def convert_to_core_aspect(core_aspect: Dict[str, Any]) -> CoreAspects:
     """Converts a dict to a CoreAspect object."""
-    business_context = core_aspect.get("jsonContent", {}).get("businessContext", {})
+    business_context = core_aspect.get("business_context", {}).get("jsonContent", {})
     return CoreAspects(
         description=business_context.get("description", ""),
         contacts=business_context.get("contacts", []),
