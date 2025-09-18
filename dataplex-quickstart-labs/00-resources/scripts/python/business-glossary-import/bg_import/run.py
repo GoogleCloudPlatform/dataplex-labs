@@ -78,12 +78,11 @@ def all_exports_successful(successful_exports, total_exports):
     return successful_exports == total_exports
 
 
-def export_glossaries(project_id: str, user_project: str, org_ids: list[str], start_time: float) -> bool:
+def export_glossaries(project_id: str, user_project: str, org_ids: list[str], glossary_urls: list[str], start_time: float) -> bool:
     """Finds and exports business glossaries."""
-    glossary_urls = find_glossaries_in_project(project_id, user_project)
     if not glossary_urls:
         logger.info("Halting migration as no glossaries were found.")
-        return False
+        return True
 
     successful_exports = perform_exports(glossary_urls, user_project, org_ids)
     num_glossaries = len(glossary_urls)
@@ -101,6 +100,7 @@ def main(args: argparse.Namespace) -> None:
     buckets = args.buckets
     org_ids = args.orgIds
     user_project = args.user_project
+    glossary_urls = args.glossaries
 
     logging_utils.setup_file_logging()
     log_migration_start(project_id)
@@ -112,8 +112,11 @@ def main(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     export_status = True
+    
     if not args.resume_import:
-        export_status = export_glossaries(project_id, user_project, org_ids, start_time)
+        if not glossary_urls:
+            glossary_urls = find_glossaries_in_project(project_id, user_project)  
+        export_status = export_glossaries(project_id, user_project, org_ids, glossary_urls, start_time)
 
     if not export_status and not args.resume_import:
         logger.warning("Migration halted due to export failures.")

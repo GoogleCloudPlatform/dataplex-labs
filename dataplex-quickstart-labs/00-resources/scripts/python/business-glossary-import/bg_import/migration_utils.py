@@ -156,9 +156,15 @@ def configure_migration_argument_parser(parser: argparse.ArgumentParser) -> None
     )
     parser.add_argument(
         "--orgIds",
-        type=parse_id_list,  
+        type=parse_org_ids_list,  
         default=[],
         help="A list of org IDs where glossaries and entries are present. Delimiters can be spaces or commas. Example: --org-ids=\"[id1,id2 id3]\""
+    )
+    parser.add_argument(
+        "--glossaries",
+        help='(Optional) Double-quote enclosed, comma-separated list of specific glossary resource names to migrate. If not provided, all glossaries in the project will be migrated. Example: --glossaries="projects/my-project/locations/us/entryGroups/dc_glossary_1/glossaries/glossary_1,projects/my-project/locations/us/entryGroups/dc_glossary_2/glossaries/glossary_2"',
+        metavar='"[glossary_1,glossary_2,...]"',
+        type=parse_glossary_ids_list,
     )
     parser.add_argument(
         "--resume-import",
@@ -166,11 +172,31 @@ def configure_migration_argument_parser(parser: argparse.ArgumentParser) -> None
         help="Skip the export step and resume directly with the import step."
     )
 
-def parse_id_list(value):
-        if not isinstance(value, str):
-            raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'. --org-ids=\"123,789\".")
-        items = [item.strip() for item in value.split(',') if item.strip()]
-        return items
+def parse_org_ids_list(value: str):
+    if not isinstance(value, str):
+        raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'")
+    items = [item.strip() for item in value.split(',') if item.strip()]
+    return items
+
+def parse_glossary_ids_list(value: str):
+    if not isinstance(value, str):
+        raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'")
+
+    items = []
+    for raw in value.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+
+        # Keep only the part before "?" to drop query params
+        base = raw.split("?", 1)[0]
+
+        # Only keep URLs that look like glossary links
+        if "/glossaries/" in base:
+            items.append(base)
+        else:
+            continue
+    return items
 
 def parse_entry_url(url: str) -> dict:
     pattern = (
