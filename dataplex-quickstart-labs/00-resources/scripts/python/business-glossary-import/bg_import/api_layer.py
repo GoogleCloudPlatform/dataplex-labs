@@ -68,7 +68,6 @@ def _extract_glossary_urls(results: list[dict]) -> list[str]:
     ]
 
 
-
 def _build_dataplex_lookup_entry_url(search_entry_result: SearchEntryResult) -> str:
   """Constructs the Dataplex lookupEntry API URL by replacing the entryId from the relativeResourceName with id from linkedResource."""
   linked_resource = search_entry_result.linkedResource
@@ -298,5 +297,4 @@ def discover_glossaries(project_id: str, user_project: str) -> list[str]:
         return []
 
     glossary_urls = _extract_glossary_urls(results)
-    logger.info(f"Found {len(glossary_urls)} glossaries to migrate.")
     return glossary_urls

@@ -17,7 +17,7 @@ import logging_utils
 logger = logging_utils.get_logger()
 
 
-def _parse_id_list(value: str) -> List[str]:
+def parse_org_ids_list(value: str) -> List[str]:
     """Helper to parse comma-separated string lists from argparse."""
     if not isinstance(value, str):
         raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'.")
@@ -54,7 +54,7 @@ def get_export_arguments() -> argparse.ArgumentParser:
     )
     parser.add_argument("--url", help="Full Data Catalog Glossary URL.", required=True)
     parser.add_argument("--user-project", help="Google Cloud Project ID for billing/quota.", type=str)
-    parser.add_argument("--orgIds", type=_parse_id_list, default=[], help='Comma-separated org IDs, e.g., "123,456"')
+    parser.add_argument("--orgIds", type=parse_org_ids_list, default=[], help='Comma-separated org IDs, e.g., "123,456"')
     return parser
 
 
@@ -172,11 +172,6 @@ def configure_migration_argument_parser(parser: argparse.ArgumentParser) -> None
         help="Skip the export step and resume directly with the import step."
     )
 
-def parse_org_ids_list(value: str):
-    if not isinstance(value, str):
-        raise argparse.ArgumentTypeError(f"Invalid list format: '{value}'")
-    items = [item.strip() for item in value.split(',') if item.strip()]
-    return items
 
 def parse_glossary_ids_list(value: str):
     if not isinstance(value, str):

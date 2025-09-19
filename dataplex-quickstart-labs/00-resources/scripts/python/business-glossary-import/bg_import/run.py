@@ -35,8 +35,20 @@ def find_glossaries_in_project(project_id: str, user_project: str) -> list[str]:
 
     # Convert `/entries/` URLs to `/glossaries/` for export compatibility
     glossary_urls = [url.replace("/entries/", "/glossaries/") for url in raw_urls]
-    logger.info(f"Prepared {len(glossary_urls)} glossary URLs for export.")
     return glossary_urls
+
+def scope_glossaries_to_project(glossary_urls: list[str], project_id: str, project_number: str) -> list[str]:
+    """Filters glossary URLs to only include those within the specified project."""
+    scoped_urls = []
+    for url in glossary_urls:
+        url_parts = migration_utils.parse_glossary_url(url)
+        if url_parts and (url_parts.get("project") == project_id or url_parts.get("project") == project_number):
+            scoped_urls.append(url)
+        else:
+            logger.warning(f"Glossary URL '{url}' does not belong to project '{project_id}' and will be skipped.")
+    if not scoped_urls:
+        logger.warning(f"Glossaries in the scope aren't part of the project '{project_id}'.")
+    return scoped_urls
  
 def perform_exports(glossary_urls: list[str], user_project: str, org_ids: list[str]) -> int:
     """Exports all glossaries in parallel and returns the count of successful exports."""
@@ -69,24 +81,25 @@ def log_migration_start(project_id):
     logger.info("Starting Business Glossary Migration: V1 to V2 for project %s", project_id)
     logger.info("=" * 50)
 
-def log_export_summary(successful_exports, total_exports, start_time):
-    logger.info(f"Export step finished in {time.time() - start_time:.2f} seconds.")
+def log_export_summary(successful_exports, total_exports):
     logger.info(f"Successfully exported {successful_exports}/{total_exports} glossaries.")
-
 
 def all_exports_successful(successful_exports, total_exports):
     return successful_exports == total_exports
 
+def log_export_start(total_exports):
+    logger.info(f"Initiating export for {total_exports} glossar{'y' if total_exports == 1 else 'ies'}.")
 
-def export_glossaries(project_id: str, user_project: str, org_ids: list[str], glossary_urls: list[str], start_time: float) -> bool:
+def export_glossaries(user_project: str, org_ids: list[str], glossary_urls: list[str]) -> bool:
     """Finds and exports business glossaries."""
     if not glossary_urls:
         logger.info("Halting migration as no glossaries were found.")
         return True
-
+    
+    log_export_start(len(glossary_urls))
     successful_exports = perform_exports(glossary_urls, user_project, org_ids)
     num_glossaries = len(glossary_urls)
-    log_export_summary(successful_exports, num_glossaries, start_time)
+    log_export_summary(successful_exports, num_glossaries)
 
     if not all_exports_successful(successful_exports, num_glossaries):
         logger.error("Not all exports were successful.")
@@ -104,7 +117,6 @@ def main(args: argparse.Namespace) -> None:
 
     logging_utils.setup_file_logging()
     log_migration_start(project_id)
-    start_time = time.time()
 
     project_number = api_layer.get_project_number(project_id, user_project=user_project)  
     # Check GCS permissions before starting export/import
@@ -115,8 +127,10 @@ def main(args: argparse.Namespace) -> None:
     
     if not args.resume_import:
         if not glossary_urls:
-            glossary_urls = find_glossaries_in_project(project_id, user_project)  
-        export_status = export_glossaries(project_id, user_project, org_ids, glossary_urls, start_time)
+            glossary_urls = find_glossaries_in_project(project_id, user_project)
+        else:
+            glossary_urls = scope_glossaries_to_project(glossary_urls, project_id, project_number)
+        export_status = export_glossaries(user_project, org_ids, glossary_urls)
 
     if not export_status and not args.resume_import:
         logger.warning("Migration halted due to export failures.")

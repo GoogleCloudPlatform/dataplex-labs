@@ -170,17 +170,17 @@ def test_extract_glossary_id_from_synonym_related_filename_multiple_periods():
 def test_extract_glossary_id_from_synonym_related_filename_no_match():
     filename = "entrylinks_otherfile_abc123.json"
     result = extract_glossary_id_from_synonym_related_filename(filename)
-    assert result == "unknown"
+    assert result == ""
 
 def test_extract_glossary_id_from_synonym_related_filename_wrong_extension():
     filename = "entrylinks_related_synonyms_abc123.txt"
     result = extract_glossary_id_from_synonym_related_filename(filename)
-    assert result == "unknown"
+    assert result == ""
 
 def test_extract_glossary_id_from_synonym_related_filename_empty_string():
     filename = ""
     result = extract_glossary_id_from_synonym_related_filename(filename)
-    assert result == "unknown"
+    assert result == ""
 
 def test_extract_glossary_id_from_synonym_related_filename_partial_match():
     filename = "entrylinks_related_synonyms_.json"

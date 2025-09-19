@@ -211,18 +211,4 @@ def get_link_type(file_path: str) -> str | None:
 
 def extract_glossary_id_from_synonym_related_filename(filename: str) -> str:
     match = re.search(r'entrylinks_related_synonyms_(.*?)\.json', filename)
-    return match.group(1) if match else "unknown"
-
-def extract_error_detail(error: HttpError) -> str:
-    try:
-        # error.content is a byte string containing the HTTP response body
-        error_json = json.loads(error.content.decode('utf-8'))
-        details = error_json.get("error", {}).get("details", [])
-        for detail in details:
-            if "detail" in detail:
-                return detail["detail"]
-
-        return error_json.get("error", {}).get("message", "Unknown error")
-
-    except Exception:
-        return f"HttpError {error}"
+    return match.group(1) if match else ""

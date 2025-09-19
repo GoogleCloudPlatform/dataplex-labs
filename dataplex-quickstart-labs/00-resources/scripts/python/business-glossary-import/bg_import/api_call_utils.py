@@ -1,26 +1,52 @@
 """Utils for API calls."""
 
 import logging
-import os
-from typing import Any, Callable
-
+from typing import Any, Callable, Dict
 import time
 import random
 import requests
 import logging_utils
 from constants import MAX_BACKOFF_SECONDS, INITIAL_BACKOFF_SECONDS
+import google.auth
+from google.auth.transport.requests import Request
+
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging_utils.get_logger()
 
 
-def _get_header(project_id: str) -> dict[str, str]:
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {os.environ.get("GCLOUD_ACCESS_TOKEN")}',
-    'X-Goog-User-Project': project_id,
-  }
+# Cache
+cached_creds = None
+cached_token = None
+last_refresh_time = 0
 
+REFRESH_INTERVAL_SECONDS = 55 * 60  # 55 minutes
+
+def _refresh_adc_token():
+    """Refresh ADC credentials and update cache."""
+    global cached_creds, cached_token, last_refresh_time
+    creds, _ = google.auth.default()
+    creds.refresh(Request())
+    cached_creds = creds
+    cached_token = creds.token
+    last_refresh_time = time.time()
+    logger.debug("ADC token refreshed successfully.")
+
+
+def _get_header(project_id: str) -> Dict[str, str]:
+    """Return headers using ADC, refreshing token every 30 minutes."""
+    global last_refresh_time, cached_token
+
+    is_token_expired = (time.time() - last_refresh_time) > REFRESH_INTERVAL_SECONDS
+    if not cached_token or is_token_expired:
+        logger.debug("Refreshing ADC token (interval reached)...")
+        _refresh_adc_token()
+
+    return {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {cached_token}",
+        "X-Goog-User-Project": project_id,
+    }
 
 def extract_error_details(
   response_err: requests.exceptions.RequestException,

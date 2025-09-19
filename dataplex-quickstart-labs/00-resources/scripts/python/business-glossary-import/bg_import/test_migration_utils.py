@@ -1,6 +1,6 @@
 import pytest
 import migration_utils
-from migration_utils import _parse_id_list
+from migration_utils import parse_org_ids_list
 import os
 import tempfile
 import argparse
@@ -294,41 +294,41 @@ def test_parse_entry_url_query_params():
 
 def test_parse_id_list_basic():
     s = "123,456,789"
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["123", "456", "789"]
 
 def test_parse_id_list_with_spaces():
     s = " 123 , 456 , 789 "
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["123", "456", "789"]
 
 def test_parse_id_list_empty_string():
     s = ""
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == []
 
 def test_parse_id_list_single_id():
     s = "abc"
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["abc"]
 
 def test_parse_id_list_extra_commas():
     s = ",123,,456,,"
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["123", "456"]
 
 def test_parse_id_list_non_string():
     with pytest.raises(argparse.ArgumentTypeError):
-        migration_utils.parse_id_list(["not", "a", "string"])
+        migration_utils.parse_org_ids_list(["not", "a", "string"])
 
 def test_parse_id_list_with_mixed_whitespace():
     s = "id1, id2 ,id3 ,  id4"
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["id1", "id2", "id3", "id4"]
 
 def test_parse_id_list_with_numeric_and_alpha():
     s = "123,abc,456def"
-    result = migration_utils.parse_id_list(s)
+    result = migration_utils.parse_org_ids_list(s)
     assert result == ["123", "abc", "456def"]
 
 def test_configure_migration_argument_parser_required_args():
@@ -803,39 +803,93 @@ def test_get_org_ids_from_gcloud_file_not_found_error(monkeypatch):
 
 def test__parse_id_list_basic():
     s = "123,456,789"
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["123", "456", "789"]
 
 def test__parse_id_list_with_spaces():
     s = " 123 , 456 , 789 "
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["123", "456", "789"]
 
 def test__parse_id_list_empty_string():
     s = ""
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == []
 
 def test__parse_id_list_single_id():
     s = "abc"
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["abc"]
 
 def test__parse_id_list_extra_commas():
     s = ",123,,456,,"
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["123", "456"]
 
 def test__parse_id_list_non_string():
     with pytest.raises(argparse.ArgumentTypeError):
-        _parse_id_list(["not", "a", "string"])
+        parse_org_ids_list(["not", "a", "string"])
 
 def test__parse_id_list_with_mixed_whitespace():
     s = "id1, id2 ,id3 ,  id4"
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["id1", "id2", "id3", "id4"]
 
 def test__parse_id_list_with_numeric_and_alpha():
     s = "123,abc,456def"
-    result = _parse_id_list(s)
+    result = parse_org_ids_list(s)
     assert result == ["123", "abc", "456def"]
+    
+def test_parse_glossary_ids_list_basic():
+    s = "projects/p/locations/l/entryGroups/g/glossaries/e"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == ["projects/p/locations/l/entryGroups/g/glossaries/e"]
+
+def test_parse_glossary_ids_list_multiple():
+    s = "projects/p/locations/l/entryGroups/g1/glossaries/e1,projects/p/locations/l/entryGroups/g2/glossaries/e2"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == [
+        "projects/p/locations/l/entryGroups/g1/glossaries/e1",
+        "projects/p/locations/l/entryGroups/g2/glossaries/e2"
+    ]
+
+def test_parse_glossary_ids_list_with_spaces_and_commas():
+    s = " projects/p/locations/l/entryGroups/g1/glossaries/e1 , projects/p/locations/l/entryGroups/g2/glossaries/e2 "
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == [
+        "projects/p/locations/l/entryGroups/g1/glossaries/e1",
+        "projects/p/locations/l/entryGroups/g2/glossaries/e2"
+    ]
+
+def test_parse_glossary_ids_list_with_query_params():
+    s = "projects/p/locations/l/entryGroups/g/glossaries/e?foo=bar"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == ["projects/p/locations/l/entryGroups/g/glossaries/e"]
+
+def test_parse_glossary_ids_list_mixed_valid_and_invalid():
+    s = "projects/p/locations/l/entryGroups/g/glossaries/e,not/a/glossary/url,projects/p/locations/l/entryGroups/g2/glossaries/e2"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == [
+        "projects/p/locations/l/entryGroups/g/glossaries/e",
+        "projects/p/locations/l/entryGroups/g2/glossaries/e2"
+    ]
+
+def test_parse_glossary_ids_list_empty_string():
+    s = ""
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == []
+
+def test_parse_glossary_ids_list_only_invalid():
+    s = "not/a/glossary/url,another/invalid/url"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == []
+
+def test_parse_glossary_ids_list_extra_commas():
+    s = ",projects/p/locations/l/entryGroups/g/glossaries/e,,"
+    result = migration_utils.parse_glossary_ids_list(s)
+    assert result == ["projects/p/locations/l/entryGroups/g/glossaries/e"]
+
+def test_parse_glossary_ids_list_non_string():
+    with pytest.raises(argparse.ArgumentTypeError):
+        migration_utils.parse_glossary_ids_list(["not", "a", "string"])
+

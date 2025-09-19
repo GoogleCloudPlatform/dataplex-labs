@@ -16,8 +16,8 @@ def get_mock_logger():
 
 def test_convert_to_core_aspect_with_full_data():
     core_aspect_dict = {
-        "jsonContent": {
-            "businessContext": {
+        "business_context": {
+            "jsonContent": {
                 "description": "Test description",
                 "contacts": ["contact1", "contact2"]
             }
@@ -44,8 +44,8 @@ def test_convert_to_core_aspect_with_missing_json_content():
 
 def test_convert_to_core_aspect_with_partial_business_context():
     core_aspect_dict = {
-        "jsonContent": {
-            "businessContext": {
+        "business_context": {
+            "jsonContent": {
                 "description": "Only description"
             }
         }
@@ -56,8 +56,8 @@ def test_convert_to_core_aspect_with_partial_business_context():
 
 def test_convert_to_core_aspect_with_contacts_none():
     core_aspect_dict = {
-        "jsonContent": {
-            "businessContext": {
+        "business_context": {
+            "jsonContent": {
                 "description": "desc",
                 "contacts": None
             }
@@ -75,8 +75,8 @@ def test_convert_glossary_taxonomy_entries_to_objects_with_full_data():
             "entryType": "TYPE_A",
             "entryUid": "uid1",
             "coreAspects": {
-                "jsonContent": {
-                    "businessContext": {
+                "business_context": {
+                    "jsonContent": {
                         "description": "Desc 1",
                         "contacts": ["c1", "c2"]
                     }
@@ -89,8 +89,8 @@ def test_convert_glossary_taxonomy_entries_to_objects_with_full_data():
             "entryType": "TYPE_B",
             "entryUid": "uid2",
             "coreAspects": {
-                "jsonContent": {
-                    "businessContext": {
+                "business_context": {
+                    "jsonContent": {
                         "description": "Desc 2",
                         "contacts": []
                     }
@@ -142,8 +142,8 @@ def test_convert_glossary_taxonomy_entries_to_objects_with_partial_core_aspects(
             "entryType": "TYPE_D",
             "entryUid": "uid4",
             "coreAspects": {
-                "jsonContent": {
-                    "businessContext": {
+                "business_context": {
+                    "jsonContent": {
                         "description": "Only desc"
                         # contacts missing
                     }

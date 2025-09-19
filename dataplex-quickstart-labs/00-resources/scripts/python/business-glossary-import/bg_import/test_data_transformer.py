@@ -2,10 +2,8 @@ import pytest
 from data_transformer import *
 from collections import defaultdict
 from models import *
-from unittest.mock import patch, MagicMock
-from data_transformer import process_glossary_taxonomy
-from models import GlossaryTaxonomyEntry, GlossaryEntry, Context
 from unittest.mock import MagicMock
+from models import GlossaryTaxonomyEntry, GlossaryEntry, Context
 
 def setup_context():
     return Context(
@@ -195,6 +193,7 @@ def test_group_entry_links_by_project_location_entry_group_mixed_valid_invalid()
     assert entry_invalid not in grouped.get(key, [])
     assert entry_none not in grouped.get(key, [])
     assert len(grouped[key]) == 1
+    
 def test_deduplicate_term_to_term_links_basic():
     # Two links with same references and type, should deduplicate to one
     ref1 = EntryReference(name="entryA")
@@ -290,17 +289,6 @@ def test_extract_project_location_entrygroup_extra_segments():
     resource_name = "projects/projX/locations/locX/entryGroups/groupX/entries/entryX/extra"
     result = extract_project_location_entrygroup(resource_name)
     assert result == "projX_locX_groupX"
-def make_context():
-    return Context(
-        user_project="test-project",
-        org_ids=[],
-        dataplex_entry_group="projects/test-project/locations/global/entryGroups/@dataplex",
-        project="test-project",
-        location_id="global",
-        entry_group_id="@dataplex",
-        dc_glossary_id="dc-glossary",
-        dp_glossary_id="test-glossary"
-    )
 
 def make_entry(name="entry1", entryType="TERM"):
     return GlossaryTaxonomyEntry(name=name, entryType=entryType)
@@ -309,7 +297,7 @@ def make_entry_link(name="link1"):
     return EntryLink(name=name, entryLinkType="type1", entryReferences=[])
 
 def test_build_entry_to_term_links_basic(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     def mock_transform_term_entry_links(context, entry):
         if entry.name == "entry1":
@@ -326,28 +314,28 @@ def test_build_entry_to_term_links_basic(monkeypatch):
     assert any(link.name == "link3" for link in result)
 
 def test_build_entry_to_term_links_empty_entries(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = []
     monkeypatch.setattr("data_transformer.transform_term_entry_links", lambda context, entry: [])
     result = build_entry_to_term_links(context, entries)
     assert result == []
 
 def test_build_entry_to_term_links_transform_returns_empty(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     monkeypatch.setattr("data_transformer.transform_term_entry_links", lambda context, entry: [])
     result = build_entry_to_term_links(context, entries)
     assert result == []
 
 def test_build_entry_to_term_links_transform_returns_none(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     monkeypatch.setattr("data_transformer.transform_term_entry_links", lambda context, entry: None)
     result = build_entry_to_term_links(context, entries)
     assert result == []
 
 def test_build_entry_to_term_links_mixed_empty_and_nonempty(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2"), make_entry("entry3")]
     def mock_transform_term_entry_links(context, entry):
         if entry.name == "entry1":
@@ -365,7 +353,7 @@ def test_build_entry_to_term_links_mixed_empty_and_nonempty(monkeypatch):
     assert any(link.name == "link3" for link in result)
 
 def test_build_entry_to_term_links_max_workers(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry(f"entry{i}") for i in range(5)]
     def mock_transform_term_entry_links(context, entry):
         idx = int(entry.name.replace("entry", ""))
@@ -388,7 +376,7 @@ def test_build_entry_to_term_links_max_workers(monkeypatch):
         assert any(link.name == f"link{i}" for link in result)
 
 def test_build_term_to_term_links_basic(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     relationships_map = {"entry1": [], "entry2": []}
 
@@ -407,7 +395,7 @@ def test_build_term_to_term_links_basic(monkeypatch):
     assert any(link.name == "link3" for link in result)
 
 def test_build_term_to_term_links_empty_entries(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = []
     relationships_map = {}
     monkeypatch.setattr("data_transformer.transform_term_term_links", lambda context, entry, rel_map: [])
@@ -415,7 +403,7 @@ def test_build_term_to_term_links_empty_entries(monkeypatch):
     assert result == []
 
 def test_build_term_to_term_links_transform_returns_empty(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     relationships_map = {"entry1": [], "entry2": []}
     monkeypatch.setattr("data_transformer.transform_term_term_links", lambda context, entry, rel_map: [])
@@ -423,7 +411,7 @@ def test_build_term_to_term_links_transform_returns_empty(monkeypatch):
     assert result == []
 
 def test_build_term_to_term_links_transform_returns_none(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     relationships_map = {"entry1": [], "entry2": []}
     monkeypatch.setattr("data_transformer.transform_term_term_links", lambda context, entry, rel_map: None)
@@ -431,7 +419,7 @@ def test_build_term_to_term_links_transform_returns_none(monkeypatch):
     assert result == []
 
 def test_build_term_to_term_links_mixed_empty_and_nonempty(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2"), make_entry("entry3")]
     relationships_map = {"entry1": [], "entry2": [], "entry3": []}
     def mock_transform_term_term_links(context, entry, rel_map):
@@ -450,7 +438,7 @@ def test_build_term_to_term_links_mixed_empty_and_nonempty(monkeypatch):
     assert any(link.name == "link3" for link in result)
 
 def test_process_glossary_entries_basic(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     entry_to_parent_map = {"entry1": "parent1", "entry2": "parent2"}
     entry_id_to_type_map = {"entry1": "TERM", "entry2": "CATEGORY"}
@@ -470,7 +458,7 @@ def test_process_glossary_entries_basic(monkeypatch):
     assert result == [glossary_entry1, glossary_entry2]
 
 def test_process_glossary_entries_none_returned(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2")]
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
@@ -481,7 +469,7 @@ def test_process_glossary_entries_none_returned(monkeypatch):
     assert result == []
 
 def test_process_glossary_entries_mixed_none_and_valid(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = [make_entry("entry1"), make_entry("entry2"), make_entry("entry3")]
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
@@ -501,7 +489,7 @@ def test_process_glossary_entries_mixed_none_and_valid(monkeypatch):
     assert result == [glossary_entry1, glossary_entry3]
 
 def test_process_glossary_entries_empty_entries(monkeypatch):
-    context = make_context()
+    context = setup_context()
     entries = []
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
@@ -2221,87 +2209,7 @@ def test_build_glossary_ancestor_none_values(monkeypatch):
     assert ancestor.name == expected_name
     assert ancestor.type == "none_type"
 
-def test_build_parent_ancestor_success(monkeypatch):
-    # Setup context and patch dependencies
-    context = setup_context()
-    glossary_taxonomy_entry_name = "entry1"
-    entry_to_parent_map = {"id_entry1": "parent1"}
-    entry_id_to_type_map = {"parent1": "CATEGORY"}
 
-    # Patch get_dc_glossary_taxonomy_id and get_dp_entry_type_name
-    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: f"id_{name}")
-    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"type_{typ}")
-
-    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
-    expected_name = "projects/test-project/locations/global/entryGroups/@dataplex/entries/projects/test-project/locations/global/glossaries/test-glossary/categories/parent1"
-    assert isinstance(ancestor, Ancestor)
-    assert ancestor.name == expected_name
-    assert ancestor.type == "type_CATEGORY"
-
-def test_build_parent_ancestor_no_parent(monkeypatch):
-    context = setup_context()
-    glossary_taxonomy_entry_name = "entry2"
-    entry_to_parent_map = {}  # No parent mapping
-    entry_id_to_type_map = {}
-
-    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: f"id_{name}")
-
-    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
-    assert ancestor is None
-
-def test_build_parent_ancestor_parent_type_none(monkeypatch):
-    context = setup_context()
-    context.project = "proj"
-    context.dp_glossary_id = "gloss"
-    context.dataplex_entry_group = "projects/proj/locations/global/entryGroups/group"
-    glossary_taxonomy_entry_name = "entry3"
-    entry_to_parent_map = {"id_entry3": "parent3"}
-    entry_id_to_type_map = {}  # parent type missing
-
-    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: f"id_{name}")
-    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"type_{typ}")
-
-    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
-    expected_name = "projects/proj/locations/global/entryGroups/group/entries/projects/proj/locations/global/glossaries/gloss/categories/parent3"
-    assert isinstance(ancestor, Ancestor)
-    assert ancestor.name == expected_name
-    assert ancestor.type == "type_None"
-
-def test_build_parent_ancestor_non_empty(monkeypatch):
-    context = setup_context()
-    context.project = ""
-    context.dp_glossary_id = ""
-    context.dataplex_entry_group = ""
-    glossary_taxonomy_entry_name = ""
-
-    # Ensure parent id is non-empty
-    entry_to_parent_map = {"id_": "parent_id"}
-    entry_id_to_type_map = {"parent_id": "some_type"}
-
-    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: f"id_{name}")
-    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda type: f"{type}")
-
-    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
-    expected_name = "/entries/projects//locations/global/glossaries//categories/parent_id"
-
-    assert isinstance(ancestor, Ancestor)
-    assert ancestor.name == expected_name
-    assert ancestor.type == "some_type"
-
-def test_build_parent_ancestor_none_values(monkeypatch):
-    context = setup_context()
-    context.project = None
-    context.dp_glossary_id = None
-    context.dataplex_entry_group = None
-    glossary_taxonomy_entry_name = None
-    entry_to_parent_map = {"id_None": None}
-    entry_id_to_type_map = {None: None}
-
-    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: f"id_{name}")
-    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"type_{typ}")
-
-    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
-    assert ancestor is None
 def test_compute_ancestors_both_glossary_and_parent(monkeypatch):
     # Patch build_glossary_ancestor and build_parent_ancestor to return known Ancestor objects
     glossary_ancestor = Ancestor(name="glossary_ancestor", type="glossary_type")
@@ -2557,3 +2465,62 @@ def test_process_glossary_taxonomy_build_aspects_returns_none(monkeypatch):
     monkeypatch.setattr("data_transformer.build_aspects", lambda e: None)
     result = process_glossary_taxonomy(context, entry, {}, {})
     assert result.aspects is None
+    
+def test_build_parent_ancestor_success(monkeypatch):
+    context = setup_context()
+    glossary_taxonomy_entry_name = "entryA"
+    entry_to_parent_map = {"entryA": "parent_entry"}
+    entry_id_to_type_map = {"parent_id": "CATEGORY"}
+
+    # Patch dependencies
+    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: "parent_id")
+    monkeypatch.setattr("data_transformer.construct_dp_glossary_category_id", lambda ctx, pid: f"cat/{pid}")
+    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"type_{typ}")
+
+    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
+    assert ancestor is not None
+    assert ancestor.name == "projects/test-project/locations/global/entryGroups/@dataplex/entries/cat/parent_id"
+    assert ancestor.type == "type_CATEGORY"
+
+def test_build_parent_ancestor_no_parent_in_map():
+    context = setup_context()
+    glossary_taxonomy_entry_name = "entryA"
+    entry_to_parent_map = {}  # No parent
+    entry_id_to_type_map = {}
+    result = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
+    assert result is None
+
+def test_build_parent_ancestor_get_dc_glossary_taxonomy_id_returns_none(monkeypatch):
+    context = setup_context()
+    glossary_taxonomy_entry_name = "entryA"
+    entry_to_parent_map = {"entryA": "parent_entry"}
+    entry_id_to_type_map = {}
+    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: None)
+    result = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
+    assert result is None
+
+def test_build_parent_ancestor_parent_type_none(monkeypatch):
+    context = setup_context()
+    glossary_taxonomy_entry_name = "entryA"
+    entry_to_parent_map = {"entryA": "parent_entry"}
+    entry_id_to_type_map = {}  # parent_type will be None
+    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: "parent_id")
+    monkeypatch.setattr("data_transformer.construct_dp_glossary_category_id", lambda ctx, pid: f"cat/{pid}")
+    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"type_{typ}")
+    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
+    assert ancestor is not None
+    assert ancestor.type == "type_None"
+
+def test_build_parent_ancestor_custom_values(monkeypatch):
+    context = setup_context()
+    context.dataplex_entry_group = "custom/group"
+    glossary_taxonomy_entry_name = "entryB"
+    entry_to_parent_map = {"entryB": "parentB"}
+    entry_id_to_type_map = {"pidB": "CUSTOM_TYPE"}
+    monkeypatch.setattr("data_transformer.get_dc_glossary_taxonomy_id", lambda name: "pidB")
+    monkeypatch.setattr("data_transformer.construct_dp_glossary_category_id", lambda ctx, pid: f"customcat/{pid}")
+    monkeypatch.setattr("data_transformer.get_dp_entry_type_name", lambda typ: f"customtype_{typ}")
+    ancestor = build_parent_ancestor(context, glossary_taxonomy_entry_name, entry_to_parent_map, entry_id_to_type_map)
+    assert ancestor.name == "custom/group/entries/customcat/pidB"
+    assert ancestor.type == "customtype_CUSTOM_TYPE"
+

@@ -270,8 +270,8 @@ def test_main_full_migration(monkeypatch):
     # Mock log_migration_start
     monkeypatch.setattr(run, "log_migration_start", lambda project_id: called.setdefault("log_migration_start", project_id))
     # Mock export_glossaries
-    def mock_export_glossaries(project_id, user_project, org_ids, start_time):
-        called["export_glossaries"] = (project_id, user_project, org_ids, start_time)
+    def mock_export_glossaries(user_project, org_ids, glossary_urls):
+        called["export_glossaries"] = (user_project, org_ids, glossary_urls)
         return True
     monkeypatch.setattr(run, "export_glossaries", mock_export_glossaries)
     # Mock perform_imports
@@ -288,14 +288,16 @@ def test_main_full_migration(monkeypatch):
         buckets=["bucket1", "bucket2"],
         orgIds=["org1", "org2"],
         user_project="user-proj",
-        resume_import=False
+        resume_import=False,
+        glossaries=[]
     )
 
     run.main(args)
 
     assert called["setup_file_logging"] is True
     assert called["log_migration_start"] == "proj1"
-    assert called["export_glossaries"] == ("proj1", "user-proj", ["org1", "org2"], 123.45)
+    assert called["export_glossaries"] == ("user-proj", ["org1", "org2"], [])
+
 def test_main_resume_import(monkeypatch):
     called = {}
 
@@ -314,7 +316,8 @@ def test_main_resume_import(monkeypatch):
         buckets=["bucketA"],
         orgIds=["orgX"],
         user_project="user-proj2",
-        resume_import=True
+        resume_import=True,
+        glossaries=[]
     )
 
     run.main(args)
@@ -323,14 +326,12 @@ def test_main_resume_import(monkeypatch):
     assert called["log_migration_start"] == "proj2"
     assert "export_glossaries" not in called
     assert called["perform_imports"] == ("proj2", ["bucketA"])
-    assert "export_glossaries" not in called
-    assert called["perform_imports"] == ("proj2", ["bucketA"])
     
 def test_export_and_validate_glossaries_all_success(monkeypatch):
     # All glossaries found and all exports succeed
     monkeypatch.setattr(run, "find_glossaries_in_project", lambda project_id, user_project: ["url1", "url2"])
     monkeypatch.setattr(run, "perform_exports", lambda glossary_urls, user_project, org_ids: 2)
-    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports, start_time: None)
+    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports: None)
     monkeypatch.setattr(run, "all_exports_successful", lambda successful_exports, total_exports: True)
 
     class DummyLogger:
@@ -338,14 +339,14 @@ def test_export_and_validate_glossaries_all_success(monkeypatch):
         def error(self, msg): pass
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
+    result = run.export_glossaries("user_proj", ["org1"], ["url1", "url2"])
     assert result is True
 
 def test_export_and_validate_glossaries_some_fail(monkeypatch):
     # Glossaries found, some exports fail
     monkeypatch.setattr(run, "find_glossaries_in_project", lambda project_id, user_project: ["url1", "url2", "url3"])
     monkeypatch.setattr(run, "perform_exports", lambda glossary_urls, user_project, org_ids: 2)
-    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports, start_time: None)
+    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports: None)
     monkeypatch.setattr(run, "all_exports_successful", lambda successful_exports, total_exports: False)
 
     class DummyLogger:
@@ -354,7 +355,7 @@ def test_export_and_validate_glossaries_some_fail(monkeypatch):
         def error(self, msg): DummyLogger.called = True
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
+    result = run.export_glossaries("user_proj", ["org1"], ["url1", "url2"])
     assert result is False
     assert DummyLogger.called is True
 
@@ -371,12 +372,131 @@ def test_export_and_validate_glossaries_none_found(monkeypatch):
         def error(self, msg): pass
     monkeypatch.setattr(run, "logger", DummyLogger())
 
-    result = run.export_glossaries("proj", "user_proj", ["org1"], 123.0)
-    assert result is False
+    result = run.export_glossaries("user_proj", ["org1"], [])
+    assert result is True
     assert DummyLogger.called is True
 
+def test_scope_glossaries_to_project_all_match(monkeypatch):
+    # All URLs belong to the project_id
+    glossary_urls = [
+        "https://example.com/projects/proj1/locations/us/entryGroups/eg1/glossaries/g1",
+        "https://example.com/projects/proj1/locations/us/entryGroups/eg2/glossaries/g2"
+    ]
+    project_id = "proj1"
+    project_number = "123456789"
 
+    def mock_parse_glossary_url(url):
+        # Extract project from URL
+        if "/projects/proj1/" in url:
+            return {"project": "proj1"}
+        return None
 
+    monkeypatch.setattr(run.migration_utils, "parse_glossary_url", mock_parse_glossary_url)
 
+    class DummyLogger:
+        def warning(self, msg): DummyLogger.called.append(msg)
+    DummyLogger.called = []
+    monkeypatch.setattr(run, "logger", DummyLogger())
 
+    result = run.scope_glossaries_to_project(glossary_urls, project_id, project_number)
+    assert result == glossary_urls
+    assert DummyLogger.called == []
 
+def test_scope_glossaries_to_project_some_match(monkeypatch):
+    # Some URLs belong to the project_id, some do not
+    glossary_urls = [
+        "https://example.com/projects/proj1/locations/us/entryGroups/eg1/glossaries/g1",
+        "https://example.com/projects/proj2/locations/us/entryGroups/eg2/glossaries/g2"
+    ]
+    project_id = "proj1"
+    project_number = "123456789"
+
+    def mock_parse_glossary_url(url):
+        if "/projects/proj1/" in url:
+            return {"project": "proj1"}
+        elif "/projects/proj2/" in url:
+            return {"project": "proj2"}
+        return None
+
+    monkeypatch.setattr(run.migration_utils, "parse_glossary_url", mock_parse_glossary_url)
+
+    class DummyLogger:
+        def warning(self, msg): DummyLogger.called.append(msg)
+    DummyLogger.called = []
+    monkeypatch.setattr(run, "logger", DummyLogger())
+
+    result = run.scope_glossaries_to_project(glossary_urls, project_id, project_number)
+    assert result == ["https://example.com/projects/proj1/locations/us/entryGroups/eg1/glossaries/g1"]
+    assert any("does not belong to project" in msg for msg in DummyLogger.called)
+
+def test_scope_glossaries_to_project_match_project_number(monkeypatch):
+    # URL belongs to the project_number, not project_id
+    glossary_urls = [
+        "https://example.com/projects/123456789/locations/us/entryGroups/eg1/glossaries/g1"
+    ]
+    project_id = "proj1"
+    project_number = "123456789"
+
+    def mock_parse_glossary_url(url):
+        if "/projects/123456789/" in url:
+            return {"project": "123456789"}
+        return None
+
+    monkeypatch.setattr(run.migration_utils, "parse_glossary_url", mock_parse_glossary_url)
+
+    class DummyLogger:
+        def warning(self, msg): DummyLogger.called.append(msg)
+    DummyLogger.called = []
+    monkeypatch.setattr(run, "logger", DummyLogger())
+
+    result = run.scope_glossaries_to_project(glossary_urls, project_id, project_number)
+    assert result == glossary_urls
+    assert DummyLogger.called == []
+
+def test_scope_glossaries_to_project_none_match(monkeypatch):
+    # No URLs belong to the project_id or project_number
+    glossary_urls = [
+        "https://example.com/projects/other/locations/us/entryGroups/eg1/glossaries/g1"
+    ]
+    project_id = "proj1"
+    project_number = "123456789"
+
+    def mock_parse_glossary_url(url):
+        if "/projects/other/" in url:
+            return {"project": "other"}
+        return None
+
+    monkeypatch.setattr(run.migration_utils, "parse_glossary_url", mock_parse_glossary_url)
+
+    class DummyLogger:
+        def warning(self, msg): DummyLogger.called.append(msg)
+    DummyLogger.called = []
+    monkeypatch.setattr(run, "logger", DummyLogger())
+
+    result = run.scope_glossaries_to_project(glossary_urls, project_id, project_number)
+    assert result == []
+    assert any("does not belong to project" in msg for msg in DummyLogger.called)
+    assert any("aren't part of the project" in msg for msg in DummyLogger.called)
+
+def test_scope_glossaries_to_project_parse_returns_none(monkeypatch):
+    # parse_glossary_url returns None for a URL
+    glossary_urls = [
+        "https://example.com/projects/proj1/locations/us/entryGroups/eg1/glossaries/g1"
+    ]
+    project_id = "proj1"
+    project_number = "123456789"
+
+    def mock_parse_glossary_url(url):
+        return None
+
+    monkeypatch.setattr(run.migration_utils, "parse_glossary_url", mock_parse_glossary_url)
+
+    class DummyLogger:
+        def warning(self, msg): DummyLogger.called.append(msg)
+    DummyLogger.called = []
+    monkeypatch.setattr(run, "logger", DummyLogger())
+
+    result = run.scope_glossaries_to_project(glossary_urls, project_id, project_number)
+    assert result == []
+    assert any("does not belong to project" in msg for msg in DummyLogger.called)
+    assert any("aren't part of the project" in msg for msg in DummyLogger.called)

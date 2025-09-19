@@ -297,3 +297,102 @@ def test_log_job_failure_without_status(monkeypatch):
     job_id = "job-789"
     dataplex_dao.log_job_failure(job, job_id)
     mock_logger.error.assert_called_with("Job 'job-789' FAILED. Reason: No error message provided.")
+
+def test_validate_create_job_params_all_valid(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        MagicMock(), "project", "location", {"foo": "bar"}, "jobid"
+    )
+    assert result is True
+    mock_logger.debug.assert_not_called()
+    mock_logger.error.assert_not_called()
+
+def test_validate_create_job_params_missing_service(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        None, "project", "location", {"foo": "bar"}, "jobid"
+    )
+    assert result is False
+    mock_logger.debug.assert_called()
+    mock_logger.error.assert_called_with("Missing required parameters for metadata job creation.")
+
+def test_validate_create_job_params_missing_project_id(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        MagicMock(), "", "location", {"foo": "bar"}, "jobid"
+    )
+    assert result is False
+    mock_logger.debug.assert_called()
+    mock_logger.error.assert_called_with("Missing required parameters for metadata job creation.")
+
+def test_validate_create_job_params_missing_location(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        MagicMock(), "project", "", {"foo": "bar"}, "jobid"
+    )
+    assert result is False
+    mock_logger.debug.assert_called()
+    mock_logger.error.assert_called_with("Missing required parameters for metadata job creation.")
+
+def test_validate_create_job_params_missing_payload(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        MagicMock(), "project", "location", {}, "jobid"
+    )
+    assert result is False
+    mock_logger.debug.assert_called()
+    mock_logger.error.assert_called_with("Missing required parameters for metadata job creation.")
+
+def test_validate_create_job_params_missing_job_id(monkeypatch):
+    mock_logger = MagicMock()
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    result = dataplex_dao.validate_create_job_params(
+        MagicMock(), "project", "location", {"foo": "bar"}, ""
+    )
+    assert result is False
+    mock_logger.debug.assert_called()
+    mock_logger.error.assert_called_with("Missing required parameters for metadata job creation.")
+
+def test_generate_job_id_format(monkeypatch):
+    # Patch uuid to return a predictable value
+    class DummyUUID:
+        hex = "1234567890abcdef"
+    monkeypatch.setattr("dataplex_dao.uuid", MagicMock(uuid4=MagicMock(return_value=DummyUUID())))
+    monkeypatch.setattr("dataplex_dao.normalize_job_id", lambda prefix: "normalized")
+    job_id = dataplex_dao.generate_job_id("SomePrefix")
+    assert job_id == "normalized-12345678"
+
+def test_generate_job_id_uses_normalize_job_id(monkeypatch):
+    called = {}
+    def fake_normalize(prefix):
+        called['prefix'] = prefix
+        return "norm"
+    monkeypatch.setattr("dataplex_dao.normalize_job_id", fake_normalize)
+    monkeypatch.setattr("dataplex_dao.uuid", MagicMock(uuid4=MagicMock(return_value=type("U", (), {"hex": "abcdef1234567890"})())))
+    job_id = dataplex_dao.generate_job_id("MyPrefix")
+    assert called['prefix'] == "MyPrefix"
+    assert job_id.startswith("norm-")
+    assert len(job_id) == len("norm-") + 8
+
+def test_generate_job_id_unique(monkeypatch):
+    # Each call should produce a different id due to uuid
+    monkeypatch.setattr("dataplex_dao.normalize_job_id", lambda prefix: "norm")
+    ids = set()
+    for _ in range(5):
+        job_id = dataplex_dao.generate_job_id("prefix")
+        assert job_id.startswith("norm-")
+        assert len(job_id) == len("norm-") + 8
+        ids.add(job_id)
+    assert len(ids) == 5
+
+def test_generate_job_id_truncates_long_prefix(monkeypatch):
+    long_prefix = "a" * 100
+    monkeypatch.setattr("dataplex_dao.uuid", MagicMock(uuid4=MagicMock(return_value=type("U", (), {"hex": "abcdef1234567890"})())))
+    job_id = dataplex_dao.generate_job_id(long_prefix)
+    normalized_part = job_id.split("-")[0]
+    assert len(normalized_part) <= 50
