@@ -93,7 +93,7 @@ def log_export_start(total_exports):
 def export_glossaries(user_project: str, org_ids: list[str], glossary_urls: list[str]) -> bool:
     """Finds and exports business glossaries."""
     if not glossary_urls:
-        logger.info("Halting migration as no glossaries were found.")
+        logger.warning("Halting Export as no glossaries were found.")
         return True
     
     log_export_start(len(glossary_urls))
