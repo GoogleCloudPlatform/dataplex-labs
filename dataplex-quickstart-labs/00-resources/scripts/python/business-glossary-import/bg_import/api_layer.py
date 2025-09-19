@@ -241,7 +241,7 @@ def create_dataplex_glossary(context: Context) -> None:
         return
 
     if _is_glossary_creation_successful(dataplex_api_response):
-        _wait_for_glossary_creation()
+        _wait_for_glossary_creation(display_name)
     else:
         _handle_unexpected_dataplex_response(dataplex_api_response)
         return
@@ -258,8 +258,8 @@ def _is_glossary_creation_successful(api_response: dict) -> bool:
     return api_response.get("error_msg") is None
 
 
-def _wait_for_glossary_creation() -> None:
-    logger.info("Glossary creation initiated. Waiting for operation to complete...")
+def _wait_for_glossary_creation(display_name) -> None:
+    logger.info(f"Glossary creation initiated for '{display_name}'. Waiting for operation to complete...")
     time.sleep(60)
 
 def _handle_unexpected_dataplex_response(api_response: dict) -> None:

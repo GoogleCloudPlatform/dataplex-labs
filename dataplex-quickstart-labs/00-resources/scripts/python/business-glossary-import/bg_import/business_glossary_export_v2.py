@@ -23,8 +23,7 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
     """Parses inputs, validates org IDs, and builds the main export context."""
     url_parts = parse_glossary_url(glossary_url)
 
-    if not org_ids:
-        final_org_ids = get_org_ids_from_gcloud()
+    final_org_ids = org_ids or get_org_ids_from_gcloud()
     if not final_org_ids:
         logger.error(
             "No organization IDs found. Provide --orgIds or configure gcloud correctly. "
