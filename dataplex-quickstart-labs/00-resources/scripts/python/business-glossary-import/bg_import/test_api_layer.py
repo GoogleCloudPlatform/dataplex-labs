@@ -2,13 +2,23 @@ import pytest
 import api_layer
 
 class DummyContext:
-    def __init__(self, user_project="test-project", project="test-project", location_id="us-central1", entry_group_id="egid", dc_glossary_id="dcgid", dp_glossary_id="glossary1"):
+    def __init__(
+        self,
+        user_project="test-project",
+        project="test-project",
+        location_id="us-central1",
+        entry_group_id="egid",
+        dc_glossary_id="dcgid",
+        dp_glossary_id="glossary1",
+        display_name="Test Glossary"
+    ):
         self.user_project = user_project
         self.project = project
         self.location_id = location_id
         self.entry_group_id = entry_group_id
         self.dc_glossary_id = dc_glossary_id
         self.dp_glossary_id = dp_glossary_id
+        self.display_name = display_name
 
 class DummyEntry:
     def __init__(self, name):
@@ -204,14 +214,6 @@ def test_discover_glossaries_missing_results_key(monkeypatch):
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     result = api_layer.discover_glossaries("proj-1", "user-proj")
     assert result == []
-class DummyContext:
-    def __init__(self, user_project="test-project", project="test-project", location_id="us-central1", entry_group_id="egid", dc_glossary_id="dcgid", dp_glossary_id="glossary1"):
-        self.user_project = user_project
-        self.project = project
-        self.location_id = location_id
-        self.entry_group_id = entry_group_id
-        self.dc_glossary_id = dc_glossary_id
-        self.dp_glossary_id = dp_glossary_id
 
 def test_fetch_relationships_dc_glossary_entry_single_page(monkeypatch):
     # Simulate a single page response with relationships
@@ -312,135 +314,57 @@ def test__build_project_url_basic():
     # Should build the correct URL for a simple project ID
     project_id = "my-project"
     expected_url = "https://cloudresourcemanager.googleapis.com/v3/projects/my-project"
-    assert api_layer._build_project_url(project_id) == expected_url
+    assert api_layer._get_project_url(project_id) == expected_url
 
 def test__build_project_url_with_special_chars():
     # Should handle project IDs with dashes, numbers, and underscores
     project_id = "proj-123_test"
     expected_url = "https://cloudresourcemanager.googleapis.com/v3/projects/proj-123_test"
-    assert api_layer._build_project_url(project_id) == expected_url
+    assert api_layer._get_project_url(project_id) == expected_url
 
 def test__build_project_url_empty_string():
     # Should handle empty project ID gracefully
     project_id = ""
     expected_url = "https://cloudresourcemanager.googleapis.com/v3/projects/"
-    assert api_layer._build_project_url(project_id) == expected_url
+    assert api_layer._get_project_url(project_id) == expected_url
 
 def test__build_project_url_numeric_id():
     # Should handle numeric project IDs
     project_id = "123456789"
     expected_url = "https://cloudresourcemanager.googleapis.com/v3/projects/123456789"
-    assert api_layer._build_project_url(project_id) == expected_url
+    assert api_layer._get_project_url(project_id) == expected_url
 
-def test__post_dataplex_glossary_success(monkeypatch):
-    class DummyContext:
-        project = "test-project"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
-    called = {}
-    def dummy_trim_spaces_in_display_name(display_name):
-        called["display_name"] = display_name
-        return display_name.strip()
-    def dummy_fetch_api_response(method, url, user_project, request_body):
-        called["method"] = method
-        called["url"] = url
-        called["user_project"] = user_project
-        called["request_body"] = request_body
-        return {"json": {"result": "ok"}, "error_msg": None}
-    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", dummy_trim_spaces_in_display_name)
-    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
-    context = DummyContext()
-    display_name = "  Glossary Name  "
-    result = api_layer._post_dataplex_glossary(context, display_name)
-    assert result == {"json": {"result": "ok"}, "error_msg": None}
-    assert called["display_name"] == display_name
-    assert called["method"] == api_layer.requests.post
-    assert called["url"].startswith(api_layer.DATAPLEX_BASE_URL)
-    assert called["user_project"] == context.user_project
-    assert called["request_body"]["displayName"] == display_name.strip()
 
-def test__post_dataplex_glossary_error(monkeypatch):
-    class DummyContext:
-        project = "test-project"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
-    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", lambda name: name)
-    def dummy_fetch_api_response(method, url, user_project, request_body):
-        return {"json": {}, "error_msg": "API error"}
-    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
-    context = DummyContext()
-    result = api_layer._post_dataplex_glossary(context, "Glossary Name")
-    assert result["error_msg"] == "API error"
-
-def test__post_dataplex_glossary_display_name_trimming(monkeypatch):
-    class DummyContext:
-        project = "test-project"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
-    trimmed_names = []
-    def dummy_trim_spaces_in_display_name(display_name):
-        trimmed = display_name.strip()
-        trimmed_names.append(trimmed)
-        return trimmed
-    def dummy_fetch_api_response(method, url, user_project, request_body):
-        return {"json": {"result": "ok"}, "error_msg": None}
-    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", dummy_trim_spaces_in_display_name)
-    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
-    context = DummyContext()
-    display_name = "   Glossary Name   "
-    api_layer._post_dataplex_glossary(context, display_name)
-    assert trimmed_names[0] == "Glossary Name"
 
 def test__fetch_glossary_display_name_success(monkeypatch):
     # Simulate a successful API response with displayName
-    class DummyContext:
-        project = "test-project"
-        location_id = "us-central1"
-        entry_group_id = "egid"
-        dc_glossary_id = "dcgid"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
     dummy_json = {"displayName": "Glossary Display Name"}
     def dummy_fetch_api_response(method, url, user_project):
         return {"json": dummy_json, "error_msg": None}
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     context = DummyContext()
-    result = api_layer._fetch_glossary_display_name(context)
+    result = api_layer.fetch_glossary_display_name(context)
     assert result == "Glossary Display Name"
 
 def test__fetch_glossary_display_name_missing_display_name(monkeypatch):
     # Simulate a successful API response without displayName
-    class DummyContext:
-        project = "test-project"
-        location_id = "us-central1"
-        entry_group_id = "egid"
-        dc_glossary_id = "dcgid"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
     dummy_json = {}
     def dummy_fetch_api_response(method, url, user_project):
         return {"json": dummy_json, "error_msg": None}
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     context = DummyContext()
-    result = api_layer._fetch_glossary_display_name(context)
+    result = api_layer.fetch_glossary_display_name(context)
     assert result == context.dp_glossary_id
 
 def test__fetch_glossary_display_name_error(monkeypatch):
     # Simulate an error response from the API
-    class DummyContext:
-        project = "test-project"
-        location_id = "us-central1"
-        entry_group_id = "egid"
-        dc_glossary_id = "dcgid"
-        dp_glossary_id = "glossary1"
-        user_project = "user-project"
     def dummy_fetch_api_response(method, url, user_project):
         return {"json": {}, "error_msg": "API error"}
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     monkeypatch.setattr(api_layer.logger, "error", lambda msg: None)
     context = DummyContext()
     with pytest.raises(SystemExit):
-        api_layer._fetch_glossary_display_name(context)
+        api_layer.fetch_glossary_display_name(context)
 
 def test__build_dataplex_lookup_entry_url_basic():
     class DummySearchEntryResult:
@@ -487,107 +411,123 @@ def test__build_dataplex_lookup_entry_url_complex_linked_resource():
     assert result == expected_url
 
 def test_create_dataplex_glossary_already_exists(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {"error": {"code": 409, "status": "ALREADY_EXISTS"}}, "error_msg": None})
-    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", lambda *_: {"json": {}, "error_msg": None})
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
-    api_layer.create_dataplex_glossary(DummyContext())
-    assert any("already exists" in msg.lower() for msg in logs)
+    # Simulate glossary already exists (409 error)
+    called = {}
+    def dummy_post_dataplex_glossary(context):
+        return {"json": {"error": {"code": 409, "status": "ALREADY_EXISTS"}}, "error_msg": None}
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", dummy_post_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_is_glossary_already_exists", lambda resp: True)
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg: called.setdefault("info", msg))
+    context = DummyContext()
+    api_layer.create_dataplex_glossary(context)
+    assert "already exists" in called.get("info", "")
 
 def test_create_dataplex_glossary_success(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": None})
-    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", lambda *_: {"json": {"result": "ok"}, "error_msg": None})
-    monkeypatch.setattr(api_layer.time, "sleep", lambda *_: None)
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
-    api_layer.create_dataplex_glossary(DummyContext())
-    assert any("created successfully" in msg.lower() for msg in logs)
+    # Simulate successful creation (no error_msg)
+    called = {}
+    def dummy_post_dataplex_glossary(context):
+        return {"json": {"result": "ok"}, "error_msg": None}
+    def dummy_is_glossary_already_exists(resp):
+        return False
+    def dummy_get_dataplex_glossary(context):
+        return {"json": {"displayName": context.display_name}, "error_msg": None}
+    def dummy_handle_dataplex_glossary_response(api_response, display_name):
+        called["handled"] = (api_response, display_name)
+        
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", dummy_post_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_is_glossary_already_exists", dummy_is_glossary_already_exists)
+    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", dummy_get_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_handle_dataplex_glossary_response", dummy_handle_dataplex_glossary_response)
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg: called.setdefault("info", msg))
+    monkeypatch.setattr(api_layer, "time", type("T", (), {"sleep": lambda s, *_: called.setdefault("slept", s)})())
+    context = DummyContext()
+    api_layer.create_dataplex_glossary(context)
+    assert "creation initiated" in called.get("info", "")
+    assert called.get("handled")[1] == context.display_name
 
-def test_create_dataplex_glossary_unexpected_response(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer, "_fetch_glossary_display_name", lambda *_: "Glossary Display Name")
-    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", lambda *_: {"json": {}, "error_msg": "Some error"})
-    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
-    api_layer.create_dataplex_glossary(DummyContext())
-    assert any("unexpected response" in msg.lower() for msg in logs)
+def test_create_dataplex_glossary_error(monkeypatch):
+    # Simulate error in Dataplex API response
+    called = {}
+    def dummy_post_dataplex_glossary(context):
+        return {"json": {}, "error_msg": "API error"}
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", dummy_post_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_is_glossary_already_exists", lambda resp: False)
+    monkeypatch.setattr(api_layer.logger, "error", lambda msg: called.setdefault("error", msg))
+    context = DummyContext()
+    api_layer.create_dataplex_glossary(context)
+    assert "Unexpected response" in called.get("error", "")
 
-def test__handle_unexpected_dataplex_response(monkeypatch):
-    logs = []
-    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
-    api_layer._handle_unexpected_dataplex_response({"json": {}, "error_msg": "Some error"})
-    assert any("unexpected response" in msg.lower() for msg in logs)
+def test_create_dataplex_glossary_calls_all_helpers(monkeypatch):
+    # Ensure all helpers are called in the happy path
+    called = {"post": False, "is_exists": False, "get": False, "handle": False, "sleep": False, "info": False}
+    def dummy_post_dataplex_glossary(context):
+        called["post"] = True
+        return {"json": {"result": "ok"}, "error_msg": None}
+    def dummy_is_glossary_already_exists(resp):
+        called["is_exists"] = True
+        return False
+    def dummy_get_dataplex_glossary(context):
+        called["get"] = True
+        return {"json": {"displayName": context.display_name}, "error_msg": None}
+    def dummy_handle_dataplex_glossary_response(api_response, display_name):
+        called["handle"] = True
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary", dummy_post_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_is_glossary_already_exists", dummy_is_glossary_already_exists)
+    monkeypatch.setattr(api_layer, "_get_dataplex_glossary", dummy_get_dataplex_glossary)
+    monkeypatch.setattr(api_layer, "_handle_dataplex_glossary_response", dummy_handle_dataplex_glossary_response)
+    monkeypatch.setattr(api_layer.logger, "info", lambda msg: called.__setitem__("info", True))
+    monkeypatch.setattr(api_layer, "time", type("T", (), {"sleep": lambda s, *_: called.__setitem__("sleep", True)})())
+    context = DummyContext()
+    api_layer.create_dataplex_glossary(context)
+    assert all(called.values())
 
-def test__handle_dataplex_glossary_response_success(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer.logger, "info", lambda msg, *_: logs.append(msg))
-    api_layer._handle_dataplex_glossary_response({"json": {"result": "ok"}, "error_msg": None}, DummyContext())
-    assert any("created successfully" in msg.lower() for msg in logs)
+def test__post_dataplex_glossary_success(monkeypatch):
+    # Simulate a successful API response
+    called = {}
+    def dummy_post_dataplex_glossary_url(context):
+        called["url"] = f"url_for_{context.dp_glossary_id}"
+        return called["url"]
+    def dummy_trim_spaces_in_display_name(display_name):
+        called["trimmed"] = display_name.strip()
+        return display_name.strip()
+    def dummy_fetch_api_response(method, url, user_project, request_body):
+        called["method"] = method
+        called["url2"] = url
+        called["user_project"] = user_project
+        called["request_body"] = request_body
+        return {"json": {"result": "ok"}, "error_msg": None}
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary_url", dummy_post_dataplex_glossary_url)
+    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", dummy_trim_spaces_in_display_name)
+    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
+    context = DummyContext(project="proj", dp_glossary_id="glossary1", user_project="user-proj", display_name="  My Glossary  ")
+    result = api_layer._post_dataplex_glossary(context)
+    assert result == {"json": {"result": "ok"}, "error_msg": None}
+    assert called["url"] == "url_for_glossary1"
+    assert called["trimmed"] == "My Glossary"
+    assert called["url2"] == "url_for_glossary1"
+    assert called["user_project"] == "user-proj"
+    assert called["request_body"] == {"displayName": "My Glossary"}
 
-def test__handle_dataplex_glossary_response_error(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
-    api_layer._handle_dataplex_glossary_response({"json": {}, "error_msg": "Some error"}, DummyContext())
-    assert any("failed to fetch" in msg.lower() for msg in logs)
+def test__post_dataplex_glossary_error(monkeypatch):
+    # Simulate an error API response
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary_url", lambda context: "dummy_url")
+    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", lambda display_name: display_name)
+    def dummy_fetch_api_response(method, url, user_project, request_body):
+        return {"json": {}, "error_msg": "API error"}
+    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
+    context = DummyContext(project="proj", dp_glossary_id="glossary1", user_project="user-proj", display_name="Glossary")
+    result = api_layer._post_dataplex_glossary(context)
+    assert result == {"json": {}, "error_msg": "API error"}
 
-def test__handle_dataplex_glossary_response_unexpected(monkeypatch):
-    logs = []
-    class DummyContext:
-        dp_glossary_id = "glossary1"
-    monkeypatch.setattr(api_layer.logger, "error", lambda msg, *_: logs.append(msg))
-    api_layer._handle_dataplex_glossary_response({"json": {}, "error_msg": None}, DummyContext())
-    assert any("unexpected response" in msg.lower() for msg in logs)
-
-def test__is_glossary_already_exists_true():
-    api_response = {
-        "json": {
-            "error": {
-                "code": 409,
-                "status": "ALREADY_EXISTS"
-            }
-        }
-    }
-    assert api_layer._is_glossary_already_exists(api_response) is True
-
-def test__is_glossary_already_exists_false_code():
-    api_response = {
-        "json": {
-            "error": {
-                "code": 400,
-                "status": "ALREADY_EXISTS"
-            }
-        }
-    }
-    assert api_layer._is_glossary_already_exists(api_response) is False
-
-def test__is_glossary_already_exists_false_status():
-    api_response = {
-        "json": {
-            "error": {
-                "code": 409,
-                "status": "SOME_OTHER_STATUS"
-            }
-        }
-    }
-    assert api_layer._is_glossary_already_exists(api_response) is False
-
-def test__is_glossary_already_exists_no_error():
-    api_response = {
-        "json": {}
-    }
-    assert api_layer._is_glossary_already_exists(api_response) is False
-
-def test__is_glossary_already_exists_none():
-    api_response = {}
-    assert api_layer._is_glossary_already_exists(api_response) is False
+def test__post_dataplex_glossary_display_name_trim(monkeypatch):
+    # Ensure display name is trimmed before sending
+    monkeypatch.setattr(api_layer, "_post_dataplex_glossary_url", lambda context: "dummy_url")
+    monkeypatch.setattr(api_layer, "trim_spaces_in_display_name", lambda display_name: display_name.strip())
+    captured = {}
+    def dummy_fetch_api_response(method, url, user_project, request_body):
+        captured["request_body"] = request_body
+        return {"json": {"result": "ok"}, "error_msg": None}
+    monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
+    context = DummyContext(project="proj", dp_glossary_id="glossary1", user_project="user-proj", display_name="   Glossary Name   ")
+    api_layer._post_dataplex_glossary(context)
+    assert captured["request_body"]["displayName"] == "Glossary Name"

@@ -4,6 +4,7 @@
 DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
 DATAPLEX_BASE_URL = "https://dataplex.googleapis.com/v1"
 SEARCH_BASE_URL = "https://datacatalog.googleapis.com/v1/catalog:search"
+CLOUD_RESOURCE_MANAGER_BASE_URL = "https://cloudresourcemanager.googleapis.com/v3"
 
 # --- Data Catalog Constants ---
 # Data Catalog Relationship Types

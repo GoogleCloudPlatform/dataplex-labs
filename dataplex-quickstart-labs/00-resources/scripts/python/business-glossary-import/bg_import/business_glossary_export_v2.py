@@ -7,7 +7,7 @@ import sys
 import time
 from typing import Dict, Any, List, Tuple
 
-from api_layer import fetch_dc_glossary_taxonomy_entries, create_dataplex_glossary, fetch_dc_glossary_taxonomy_relationships, get_project_number
+from api_layer import *
 from data_transformer import process_dc_glossary_entries
 from file_utils import write_files
 import logging_utils
@@ -44,9 +44,11 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
         dc_glossary_id=url_parts["glossary_id"],
         dp_glossary_id=dp_glossary_id,
     )
+    display_name = fetch_glossary_display_name(context)
+    context.display_name = display_name
 
     logger.debug(
-        f"_build_export_context input: glossary_url={glossary_url}, user_project={user_project}, org_ids={org_ids} | output: {context}"
+        f"Input: glossary_url={glossary_url}, user_project={user_project}, org_ids={org_ids} | output: {context}"
     )
     return context
 
@@ -70,9 +72,9 @@ def execute_export(glossary_url: str, user_project: str, org_ids: List[str]):
     start_time = time.time()
     try:
         context = _build_export_context(glossary_url, user_project, org_ids)
-        logger.info(f"Starting export for glossary: {context.dp_glossary_id}")
+        logger.info(f"Starting export for glossary: {context.display_name}")
         _run_export_workflow(context)
-        logger.info(f"Export complete for {context.dp_glossary_id}. Total time: {time.time() - start_time:.2f} seconds.")
+        logger.info(f"Export complete for {context.display_name}. Total time: {time.time() - start_time:.2f} seconds.")
         return True
     except Exception as e:
         logger.error(f"Export failed for {glossary_url}")

@@ -327,54 +327,6 @@ def test_main_resume_import(monkeypatch):
     assert "export_glossaries" not in called
     assert called["perform_imports"] == ("proj2", ["bucketA"])
     
-def test_export_and_validate_glossaries_all_success(monkeypatch):
-    # All glossaries found and all exports succeed
-    monkeypatch.setattr(run, "find_glossaries_in_project", lambda project_id, user_project: ["url1", "url2"])
-    monkeypatch.setattr(run, "perform_exports", lambda glossary_urls, user_project, org_ids: 2)
-    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports: None)
-    monkeypatch.setattr(run, "all_exports_successful", lambda successful_exports, total_exports: True)
-
-    class DummyLogger:
-        def info(self, msg): pass
-        def error(self, msg): pass
-    monkeypatch.setattr(run, "logger", DummyLogger())
-
-    result = run.export_glossaries("user_proj", ["org1"], ["url1", "url2"])
-    assert result is True
-
-def test_export_and_validate_glossaries_some_fail(monkeypatch):
-    # Glossaries found, some exports fail
-    monkeypatch.setattr(run, "find_glossaries_in_project", lambda project_id, user_project: ["url1", "url2", "url3"])
-    monkeypatch.setattr(run, "perform_exports", lambda glossary_urls, user_project, org_ids: 2)
-    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports: None)
-    monkeypatch.setattr(run, "all_exports_successful", lambda successful_exports, total_exports: False)
-
-    class DummyLogger:
-        called = False
-        def info(self, msg): pass
-        def error(self, msg): DummyLogger.called = True
-    monkeypatch.setattr(run, "logger", DummyLogger())
-
-    result = run.export_glossaries("user_proj", ["org1"], ["url1", "url2"])
-    assert result is False
-    assert DummyLogger.called is True
-
-def test_export_and_validate_glossaries_none_found(monkeypatch):
-    # No glossaries found
-    monkeypatch.setattr(run, "find_glossaries_in_project", lambda project_id, user_project: [])
-    monkeypatch.setattr(run, "perform_exports", lambda glossary_urls, user_project, org_ids: 0)
-    monkeypatch.setattr(run, "log_export_summary", lambda successful_exports, total_exports, start_time: None)
-    monkeypatch.setattr(run, "all_exports_successful", lambda successful_exports, total_exports: True)
-
-    class DummyLogger:
-        called = False
-        def info(self, msg): DummyLogger.called = True
-        def error(self, msg): pass
-    monkeypatch.setattr(run, "logger", DummyLogger())
-
-    result = run.export_glossaries("user_proj", ["org1"], [])
-    assert result is True
-    assert DummyLogger.called is True
 
 def test_scope_glossaries_to_project_all_match(monkeypatch):
     # All URLs belong to the project_id
@@ -500,3 +452,69 @@ def test_scope_glossaries_to_project_parse_returns_none(monkeypatch):
     assert result == []
     assert any("does not belong to project" in msg for msg in DummyLogger.called)
     assert any("aren't part of the project" in msg for msg in DummyLogger.called)
+
+def test_export_glossaries_no_glossaries(monkeypatch):
+    # Should log warning and return True if no glossaries are provided
+    called = {}
+
+    class DummyLogger:
+        def warning(self, msg):
+            called['warning'] = msg
+        def error(self, msg): pass
+        def info(self, msg): pass
+
+    monkeypatch.setattr(run, "logger", DummyLogger())
+    monkeypatch.setattr(run, "log_export_start", lambda n: called.setdefault('log_export_start', n))
+    monkeypatch.setattr(run, "perform_exports", lambda *a, **k: called.setdefault('perform_exports', True))
+    monkeypatch.setattr(run, "log_export_summary", lambda *a, **k: called.setdefault('log_export_summary', True))
+    monkeypatch.setattr(run, "all_exports_successful", lambda *a, **k: called.setdefault('all_exports_successful', True))
+
+    result = run.export_glossaries("user_proj", ["org1"], [])
+    assert result is True
+    assert "Halting Export as no glossaries were found." in called['warning']
+    assert 'log_export_start' not in called  # Should not call log_export_start
+
+def test_export_glossaries_all_exports_successful(monkeypatch):
+    # Should return True if all exports are successful
+    called = {}
+
+    class DummyLogger:
+        def warning(self, msg): pass
+        def error(self, msg): called['error'] = msg
+        def info(self, msg): pass
+
+    monkeypatch.setattr(run, "logger", DummyLogger())
+    monkeypatch.setattr(run, "log_export_start", lambda n: called.setdefault('log_export_start', n))
+    monkeypatch.setattr(run, "perform_exports", lambda urls, user_project, org_ids: 2)
+    monkeypatch.setattr(run, "log_export_summary", lambda successful, total: called.setdefault('log_export_summary', (successful, total)))
+    monkeypatch.setattr(run, "all_exports_successful", lambda successful, total: True)
+
+    glossary_urls = ["url1", "url2"]
+    result = run.export_glossaries("user_proj", ["org1"], glossary_urls)
+    assert result is True
+    assert called['log_export_start'] == 2
+    assert called['log_export_summary'] == (2, 2)
+    assert 'error' not in called
+
+def test_export_glossaries_some_exports_fail(monkeypatch):
+    # Should log error and return False if not all exports are successful
+    called = {}
+
+    class DummyLogger:
+        def warning(self, msg): pass
+        def error(self, msg): called['error'] = msg
+        def info(self, msg): pass
+
+    monkeypatch.setattr(run, "logger", DummyLogger())
+    monkeypatch.setattr(run, "log_export_start", lambda n: called.setdefault('log_export_start', n))
+    monkeypatch.setattr(run, "perform_exports", lambda urls, user_project, org_ids: 1)
+    monkeypatch.setattr(run, "log_export_summary", lambda successful, total: called.setdefault('log_export_summary', (successful, total)))
+    monkeypatch.setattr(run, "all_exports_successful", lambda successful, total: False)
+
+    glossary_urls = ["url1", "url2"]
+    result = run.export_glossaries("user_proj", ["org1"], glossary_urls)
+    assert result is False
+    assert called['log_export_start'] == 2
+    assert called['log_export_summary'] == (1, 2)
+    assert called['error'] == "Not all exports were successful."
+

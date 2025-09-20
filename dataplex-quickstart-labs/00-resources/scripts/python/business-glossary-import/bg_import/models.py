@@ -61,6 +61,7 @@ class Context:
     entry_group_id: str
     dc_glossary_id: str
     dp_glossary_id: str
+    display_name: str = ""
 
 
 @dataclass

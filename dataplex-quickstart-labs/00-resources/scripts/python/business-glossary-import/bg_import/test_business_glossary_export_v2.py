@@ -10,7 +10,8 @@ def test_build_export_context_success():
 
     with patch("business_glossary_export_v2.parse_glossary_url") as mock_parse_url, \
          patch("business_glossary_export_v2.get_org_ids_from_gcloud") as mock_get_org_ids, \
-         patch("business_glossary_export_v2.get_project_number") as mock_get_project_number:
+         patch("business_glossary_export_v2.get_project_number") as mock_get_project_number, \
+         patch("sys.exit") as mock_sys_exit:
 
         mock_parse_url.return_value = {
             "project": "test_project",

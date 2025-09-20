@@ -15,11 +15,11 @@ import logging_utils
 from models import *
 from migration_utils import *
 from object_converters import *
-from constants import (DATACATALOG_BASE_URL, DATAPLEX_BASE_URL, SEARCH_BASE_URL, PAGE_SIZE, MAX_WORKERS)
+from constants import (DATACATALOG_BASE_URL, DATAPLEX_BASE_URL, SEARCH_BASE_URL, CLOUD_RESOURCE_MANAGER_BASE_URL, PAGE_SIZE, MAX_WORKERS)
 
 logger = logging_utils.get_logger()
 
-def _build_dc_entry_url(context: Context) -> str:
+def _get_dc_entry_url(context: Context) -> str:
     """Builds the base URL for fetching entries."""
     return (
         f"{DATACATALOG_BASE_URL}/projects/{context.project}/locations/"
@@ -27,15 +27,24 @@ def _build_dc_entry_url(context: Context) -> str:
         f"?view=FULL&pageSize={PAGE_SIZE}"
     )
 
-
-def _build_dc_relationship_url(dc_entry_name: str, view: str) -> str:
+def _get_dc_relationship_url(dc_entry_name: str, view: str) -> str:
     """Constructs URL for fetching entry relationships."""
     return f"{DATACATALOG_BASE_URL}/{dc_entry_name}/relationships?view={view}&pageSize={PAGE_SIZE}"
 
 
-def _fetch_glossary_taxonomy_entries_page(url: str, user_project: str) -> dict:
-    """Fetches a single page of entries from Data Catalog."""
-    return api_call_utils.fetch_api_response(requests.get, url, user_project)
+def _get_dataplex_glossary_url(context):
+    get_url = f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
+    return get_url
+
+
+def _post_dataplex_glossary_url(context):
+    return f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries?glossary_id={context.dp_glossary_id}"
+
+
+def _get_project_url(project_id: str) -> str:
+    """Builds the Cloud Resource Manager project URL."""
+    return f"{CLOUD_RESOURCE_MANAGER_BASE_URL}/projects/{project_id}"
+
 
 def _build_search_body(context: Context, query: str, page_token: Optional[str] = None) -> dict:
     """Builds request body for Data Catalog search."""
@@ -82,41 +91,30 @@ def _build_dataplex_lookup_entry_url(search_entry_result: SearchEntryResult) -> 
     location_from_relative_resource_name_v2 = match.group(2)
     requested_project_name = f"projects/{project_id_from_relative_resource_name_v2}/locations/{location_from_relative_resource_name_v2}"
 
-  return f"https://dataplex.googleapis.com/v1/{requested_project_name}:lookupEntry?entry={relative_resource_name_v2}"
+  return f"{DATAPLEX_BASE_URL}/{requested_project_name}:lookupEntry?entry={relative_resource_name_v2}"
 
 
-def _fetch_glossary_display_name(context: Context) -> str:
-    """Fetches glossary display name from Data Catalog."""
-    catalog_url = (
-        f"{DATACATALOG_BASE_URL}/projects/{context.project}/locations/"
-        f"{context.location_id}/entryGroups/{context.entry_group_id}/entries/{context.dc_glossary_id}"
-    )
-    api_response = api_call_utils.fetch_api_response(requests.get, catalog_url, context.user_project)
-    if api_response["error_msg"]:
-        logger.error(f"Failed to get original glossary details: {api_response['error_msg']}")
-        sys.exit(1)
-    return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
+def _fetch_glossary_taxonomy_entries_page(url: str, user_project: str) -> dict:
+    """Fetches a single page of entries from Data Catalog."""
+    return api_call_utils.fetch_api_response(requests.get, url, user_project)
+
 
 def _get_dataplex_glossary(context):
-    get_url = f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
-    api_response = api_call_utils.fetch_api_response(requests.get, get_url, context.user_project)
-    return api_response
+    get_url = _get_dataplex_glossary_url(context)
+    return api_call_utils.fetch_api_response(requests.get, get_url, context.user_project)
 
-def _post_dataplex_glossary(context: Context, display_name: str) -> dict:
+
+def _post_dataplex_glossary(context: Context) -> dict:
     """Sends request to create glossary in Dataplex."""
-    dataplex_post_url = f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries?glossary_id={context.dp_glossary_id}"
-    new_display_name = trim_spaces_in_display_name(display_name)
+    dataplex_post_url = _post_dataplex_glossary_url(context)
+    new_display_name = trim_spaces_in_display_name(context.display_name)
     request_body = {"displayName": new_display_name}
     return api_call_utils.fetch_api_response(requests.post, dataplex_post_url, context.user_project, request_body)
-
-def _build_project_url(project_id: str) -> str:
-    """Builds the Cloud Resource Manager project URL."""
-    return f"https://cloudresourcemanager.googleapis.com/v3/projects/{project_id}"
 
 
 def _fetch_project_info(project_id: str, user_project: str) -> dict:
     """Calls the Cloud Resource Manager API and returns the project JSON payload."""
-    url = _build_project_url(project_id)
+    url = _get_project_url(project_id)
     response = api_call_utils.fetch_api_response(requests.get, url, user_project)
     if response["error_msg"]:
         logger.error(f"Failed to fetch project info for '{project_id}': {response['error_msg']}")
@@ -140,10 +138,23 @@ def get_project_number(project_id: str, user_project: str) -> str:
     return _extract_project_number_from_info(project_info)
 
 
+def fetch_glossary_display_name(context: Context) -> str:
+    """Fetches glossary display name from Data Catalog."""
+    catalog_url = (
+        f"{DATACATALOG_BASE_URL}/projects/{context.project}/locations/"
+        f"{context.location_id}/entryGroups/{context.entry_group_id}/entries/{context.dc_glossary_id}"
+    )
+    api_response = api_call_utils.fetch_api_response(requests.get, catalog_url, context.user_project)
+    if api_response["error_msg"]:
+        logger.error(f"Failed to get original glossary details: {api_response['error_msg']}")
+        sys.exit(1)
+    return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
+
+
 def fetch_dc_glossary_taxonomy_entries(context: Context) -> List[GlossaryTaxonomyEntry]:
     """Fetches all entries for a given entry group, handling pagination."""
     dc_entries, page_token = [], None
-    base_url = _build_dc_entry_url(context)
+    base_url = _get_dc_entry_url(context)
 
     while True:
         url = f"{base_url}&pageToken={page_token}" if page_token else base_url
@@ -162,7 +173,7 @@ def fetch_dc_glossary_taxonomy_entries(context: Context) -> List[GlossaryTaxonom
 def fetch_relationships_dc_glossary_term(dc_glossary_taxonomy_name: str, user_project: str) -> List[GlossaryTaxonomyRelationship]:
     """Fetches all relationships for a single entry, handling pagination."""
     dc_relationships, page_token = [], None
-    base_url = _build_dc_relationship_url(dc_glossary_taxonomy_name, view="FULL")
+    base_url = _get_dc_relationship_url(dc_glossary_taxonomy_name, view="FULL")
     while True:
         url = f"{base_url}&pageToken={page_token}" if page_token else base_url
         api_response = api_call_utils.fetch_api_response(requests.get, url, user_project)
@@ -176,9 +187,10 @@ def fetch_relationships_dc_glossary_term(dc_glossary_taxonomy_name: str, user_pr
     logger.debug(f"fetch_relationships_for_dc_glossary_term input: dc_glossary_taxonomy_name={dc_glossary_taxonomy_name}, user_project={user_project} | output: {dc_relationships}")
     return convert_glossary_taxonomy_relationships_to_objects(dc_relationships)
 
+
 def fetch_relationships_dc_glossary_entry(dc_entry_name: str, user_project: str) -> List[DcEntryRelationship]:
     dc_relationships, page_token = [], None
-    base_url = _build_dc_relationship_url(dc_entry_name, view="BASIC")
+    base_url = _get_dc_relationship_url(dc_entry_name, view="BASIC")
     while True:
         url = f"{base_url}&pageToken={page_token}" if page_token else base_url
         api_response = api_call_utils.fetch_api_response(requests.get, url, user_project)
@@ -191,6 +203,7 @@ def fetch_relationships_dc_glossary_entry(dc_entry_name: str, user_project: str)
             break
     logger.debug(f"fetch_relationships_for_dc_glossary_entry input: dc_entry_name={dc_entry_name}, user_project={user_project} | output: {dc_relationships}")
     return convert_entry_relationships_to_objects(dc_relationships)
+
 
 def fetch_dc_glossary_taxonomy_relationships(context: Context, dc_entries: List[GlossaryTaxonomyEntry]) -> Dict[str, List[GlossaryTaxonomyRelationship]]:
     """Fetches relationships for all entries concurrently."""
@@ -230,55 +243,46 @@ def lookup_dataplex_entry(context: Context, search_entry_result: SearchEntryResu
     return True
 
 
-
-def create_dataplex_glossary(context: Context) -> None:
-    """Create glossary in Dataplex."""
-    display_name = _fetch_glossary_display_name(context)
-    dataplex_api_response = _post_dataplex_glossary(context, display_name)
-
-    if _is_glossary_already_exists(dataplex_api_response):
-        logger.info(f"Glossary '{context.dp_glossary_id}' already exists in Dataplex.")
-        return
-
-    if _is_glossary_creation_successful(dataplex_api_response):
-        _wait_for_glossary_creation(display_name)
-    else:
-        _handle_unexpected_dataplex_response(dataplex_api_response)
-        return
-
-    api_response = _get_dataplex_glossary(context)
-    _handle_dataplex_glossary_response(api_response, context)
-
-
 def _is_glossary_already_exists(api_response: dict) -> bool:
     error = api_response.get("json", {}).get("error")
     return bool(error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS")
 
-def _is_glossary_creation_successful(api_response: dict) -> bool:
-    return api_response.get("error_msg") is None
 
-
-def _wait_for_glossary_creation(display_name) -> None:
-    logger.info(f"Glossary creation initiated for '{display_name}'. Waiting for operation to complete...")
-    time.sleep(60)
-
-def _handle_unexpected_dataplex_response(api_response: dict) -> None:
-    logger.error(f"Unexpected response from Dataplex API: {api_response}")
-
-def _handle_dataplex_glossary_response(api_response, context):
+def _handle_dataplex_glossary_response(api_response, display_name: str) -> None:
     """Handles the response from fetching a Dataplex glossary."""
     if api_response.get("error_msg"):
         logger.error(f"Failed to fetch Dataplex glossary: {api_response['error_msg']}")
         return
 
     if api_response.get("error_msg") is None and api_response.get("json"):
-        logger.info(f"Dataplex glossary '{context.dp_glossary_id}' created successfully.")
+        logger.info(f"Dataplex glossary '{display_name}' created successfully.")
         return
     else:
         logger.error(f"Unexpected response when fetching Dataplex glossary: {api_response}")
         return
 
-#TODO: Add pagination handling
+
+def create_dataplex_glossary(context: Context) -> None:
+    """Create glossary in Dataplex."""
+    display_name = context.display_name
+    dataplex_api_response = _post_dataplex_glossary(context)
+
+    if _is_glossary_already_exists(dataplex_api_response):
+        logger.info(f"Glossary '{display_name}' already exists in Dataplex.")
+        return
+
+    if dataplex_api_response.get("error_msg") is None:
+        logger.info(f"Glossary creation initiated for '{context.display_name}'. Waiting for operation to complete...")
+        time.sleep(60)
+    else:
+        logger.error(f"Unexpected response from Dataplex API for glossary '{context.display_name}': {dataplex_api_response}")
+        return
+
+    api_response = _get_dataplex_glossary(context)
+    _handle_dataplex_glossary_response(api_response, display_name)
+
+
+#TODO: Handle pagination
 def discover_glossaries(project_id: str, user_project: str) -> list[str]:
     """Uses the Catalog Search API to find all v1 glossaries in a project."""
     request_body = _build_glossary_search_request(project_id)
