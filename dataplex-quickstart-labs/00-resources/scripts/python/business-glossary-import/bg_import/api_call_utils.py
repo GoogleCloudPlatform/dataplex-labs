@@ -1,55 +1,26 @@
 """Utils for API calls."""
 
 import logging
-from typing import Any, Callable, Dict
-import time
-import random
-import requests
-import logging_utils
-from constants import MAX_BACKOFF_SECONDS, INITIAL_BACKOFF_SECONDS
-import google.auth
-from google.auth.transport.requests import Request
+import os
+from typing import Any, Callable
 
+import logging_utils
+import requests
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging_utils.get_logger()
 
 
-# Cache
-cached_creds = None
-cached_token = None
-last_refresh_time = 0
+def _get_header(project_id: str) -> dict[str, str]:
+  return {
+      'Content-Type': 'application/json',
+      'Authorization': f'Bearer {os.environ.get("GCLOUD_ACCESS_TOKEN")}',
+      'X-Goog-User-Project': project_id,
+  }
 
-REFRESH_INTERVAL_SECONDS = 55 * 60  # 55 minutes
-
-def _refresh_adc_token():
-    """Refresh ADC credentials and update cache."""
-    global cached_creds, cached_token, last_refresh_time
-    creds, _ = google.auth.default()
-    creds.refresh(Request())
-    cached_creds = creds
-    cached_token = creds.token
-    last_refresh_time = time.time()
-    logger.debug("ADC token refreshed successfully.")
-
-
-def _get_header(project_id: str) -> Dict[str, str]:
-    """Return headers using ADC, refreshing token every 30 minutes."""
-    global last_refresh_time, cached_token
-
-    is_token_expired = (time.time() - last_refresh_time) > REFRESH_INTERVAL_SECONDS
-    if not cached_token or is_token_expired:
-        logger.debug("Refreshing ADC token (interval reached)...")
-        _refresh_adc_token()
-
-    return {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {cached_token}",
-        "X-Goog-User-Project": project_id,
-    }
 
 def extract_error_details(
-  response_err: requests.exceptions.RequestException,
+    response_err: requests.exceptions.RequestException,
 ) -> list[Any]:
   """Extract error details from response error data.
 
@@ -69,33 +40,8 @@ def extract_error_details(
     return []
 
 
-def extract_error_code(
-  response_err: requests.exceptions.RequestException,
-) -> str | None:
-  """Extract error code from response error data.
-
-  Return None if no error code found.
-
-  Args:
-    response_err: RequestException containing response error data.
-
-  Returns:
-    String representing error code or None if no error code found.
-  """
-  for detail in extract_error_details(response_err):
-    if (
-      detail.get('@type') == 'type.googleapis.com/google.rpc.ErrorInfo'
-      and detail.get('metadata') is not None
-      and detail.get('metadata').get('code') is not None
-      and not str(detail.get('metadata').get('code')).isspace()
-    ):
-      return str(detail.get('metadata').get('code'))
-
-  return None
-
-
 def extract_debug_info_detail(
-  response_err: requests.exceptions.RequestException,
+    response_err: requests.exceptions.RequestException,
 ) -> str | None:
   """Extract debug info details from response error data.
 
@@ -110,18 +56,43 @@ def extract_debug_info_detail(
   """
   for detail in extract_error_details(response_err):
     if (
-      detail.get('@type') == 'type.googleapis.com/google.rpc.DebugInfo'
-      and detail.get('detail') is not None
-      and not str(detail.get('detail')).isspace()
+        detail.get('@type') == 'type.googleapis.com/google.rpc.DebugInfo'
+        and detail.get('detail') is not None
+        and not str(detail.get('detail')).isspace()
     ):
       return str(detail.get('detail'))
   return None
 
 
+def extract_error_code(
+    response_err: requests.exceptions.RequestException,
+) -> str | None:
+  """Extract error code from response error data.
+
+  Return None if no error code found.
+
+  Args:
+    response_err: RequestException containing response error data.
+
+  Returns:
+    String representing error code or None if no error code found.
+  """
+  for detail in extract_error_details(response_err):
+    if (
+        detail.get('@type') == 'type.googleapis.com/google.rpc.ErrorInfo'
+        and detail.get('metadata') is not None
+        and detail.get('metadata').get('code') is not None
+        and not str(detail.get('metadata').get('code')).isspace()
+    ):
+      return str(detail.get('metadata').get('code'))
+
+  return None
+
+
 def create_error_message(
-  method_name: str,
-  url: str,
-  response_err: requests.exceptions.RequestException,
+    method_name: str,
+    url: str,
+    response_err: requests.exceptions.RequestException,
 ) -> str:
   """Create an error message.
 
@@ -135,20 +106,20 @@ def create_error_message(
   """
   base_err_description = str(response_err)
   err_description = (
-    extract_debug_info_detail(response_err)
-    or extract_error_code(response_err)
-    or base_err_description
+      extract_debug_info_detail(response_err)
+      or extract_error_code(response_err)
+      or base_err_description
   )
   return f'{method_name} call to {url} returned: {err_description}'
 
 
 def fetch_api_response(
-  method: Callable[..., Any],
-  url: str,
-  project_id: str,
-  request_body: dict[str, Any] | None = None,
+    method: Callable[..., Any],
+    url: str,
+    project_id: str,
+    request_body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-  """REST API call helper with exponential backoff retry mechanism.
+  """REST api call helper.
 
   Args:
     method: HTTP method name.
@@ -159,54 +130,42 @@ def fetch_api_response(
   Returns:
     Dictionary with response and error if any.
   """
+  data, error_msg = None, None
   method_name = 'GET' if method == requests.get else 'POST'
   context = f'[{method_name} {url}]'
 
-  logger.debug(f'{context} Starting API call with project_id={project_id} and request_body={request_body}')
-
-  backoff = INITIAL_BACKOFF_SECONDS
-
-  while True:
+  logger.debug(
+    f'{context} Initiating call with project_id: {project_id} and request_body: {request_body}'
+  )
+  try:
+    res = method(url, headers=_get_header(project_id), json=request_body)
+    logger.debug(f'{context} Response status: {res.status_code}, Response text: {res.text}')
     try:
-      res = method(url, headers=_get_header(project_id), json=request_body)
-      logger.debug(f'{context} Response status: {res.status_code}, Response text: {res.text}')
-
-      try:
-        data = res.json()
-      except requests.exceptions.JSONDecodeError:
-        error_msg = 'Call returned non-valid JSON.'
-        logger.debug(f'{context} JSON decode error: {error_msg}')
-        return {'json': None, 'error_msg': error_msg}
-
-      if res.ok:
-        logger.debug(f'{context} Successful response JSON: {data}')
-        return {'json': data, 'error_msg': None}
-
-      # If response is error, capture error message
+      data = res.json()
+    except requests.exceptions.JSONDecodeError:
+      error_msg = 'Call returned non-valid JSON.'
+      logger.debug(f'{context} Json decode error: {error_msg}')
+      return {
+          'json': None,
+          'error_msg': error_msg
+      }
+    if not res.ok:
+      # If the response is an error, capture the error message from the JSON
       error_msg = data.get('error', {}).get('message') or f'Call returned HTTP {res.status_code}.'
-      logger.debug(f'{context} Bad response: {error_msg}')
-
-      # Retry only for infra-related HTTP errors (e.g., 500s, 429 rate limit)
-      if res.status_code >= 500 or res.status_code == 429:
-        logger.info(f"{context} Retrying in {backoff} seconds due to transient error...")
-        time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
-        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-        continue
-
-      # Retry if connection is lost (e.g., requests.ConnectionError)
-      if res.status_code == 0:
-        logger.info(f"{context} Retrying in {backoff} seconds due to connection lost (status 0)...")
-        time.sleep(backoff + random.uniform(0, 0.5))
-        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-        continue
-
-      # For client errors (e.g., 400, 401), do not retry
-      return {'json': data, 'error_msg': error_msg}
-
-    except requests.exceptions.RequestException as err:
-      error_msg = create_error_message(method_name, url, err)
-      logger.debug(f'{context} Exception occurred: {error_msg}. Retrying in {backoff} seconds...')
-
-      time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
-      backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-      continue
+      logger.debug(f'{context} Bad response error: {error_msg}')
+      return {
+          'json': data,
+          'error_msg': error_msg
+      }
+    logger.debug(f'{context} Successful response JSON: {data},')
+    return {
+        'json': data,
+        'error_msg': None
+    }
+  except requests.exceptions.RequestException as err:
+    error_msg = create_error_message(method_name, url, err)
+    logger.debug(f'{context} Exception occurred: {error_msg}')
+    return {
+        'json': None,
+        'error_msg': error_msg
+    }
