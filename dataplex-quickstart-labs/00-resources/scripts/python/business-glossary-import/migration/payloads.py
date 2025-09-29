@@ -91,7 +91,8 @@ def build_glossary_payload(filename: str, project_id: str, import_spec_base: dic
     return job_id_prefix, payload, job_location
 
 
-def build_definition_entrylink_payload(file_path: str, filename: str, project_id: str,import_spec_base: dict) -> Tuple[str, dict, str]:
+def build_definition_entrylink_payload(file_path: str, project_id: str, import_spec_base: dict) -> Tuple[str, dict, str]:
+    filename = os.path.basename(file_path)
     entry_group = get_entry_group(file_path)
     job_location = extract_job_location_from_entry_group(entry_group)
     job_id_prefix = normalize_id(filename)
@@ -107,14 +108,13 @@ def build_definition_entrylink_payload(file_path: str, filename: str, project_id
             }
         }
     }
-    logger.debug(f"build_definition_entrylink_payload input: file_path={file_path}, filename={filename}, import_spec_base={import_spec_base}, referenced_scopes={referenced_scopes} | output: {job_id_prefix}, {payload}, {job_location}")
+    logger.debug(f"input: file_path={file_path}, filename={filename}, import_spec_base={import_spec_base}, referenced_scopes={referenced_scopes} | output: {job_id_prefix}, {payload}, {job_location}")
     return job_id_prefix, payload, job_location
 
 
-def build_synonym_related_entrylink_payload(file_path: str, filename: str, project_id: str, import_spec_base: dict) -> Tuple[str, dict, str]:
-    glossary_id = extract_glossary_id_from_synonym_related_filename(filename)
+def build_synonym_related_entrylink_payload(file_path: str, project_id: str, import_spec_base: dict) -> Tuple[str, dict, str]:
     referenced_scopes = build_related_synonym_referenced_entry_scopes(file_path, project_id)
-    job_id_prefix = f"entrylinks-synonym-related-{glossary_id}"
+    job_id_prefix = f"entrylinks-synonym-related-{project_id}"
     job_location = "global"
     payload = {
         "type": "IMPORT",
@@ -130,32 +130,32 @@ def build_synonym_related_entrylink_payload(file_path: str, filename: str, proje
             }
         }
     }
-    logger.debug(f"build_synonym_related_entrylink_payload input: filename={filename}, project_id={project_id}, import_spec_base={import_spec_base}, referenced_scopes={referenced_scopes} | output: {job_id_prefix}, {payload}, {job_location}")
+    logger.debug(f"input: file_path={file_path}, project_id={project_id}, import_spec_base={import_spec_base}, referenced_scopes={referenced_scopes} | output: {job_id_prefix}, {payload}, {job_location}")
     return job_id_prefix, payload, job_location
 
 
-def build_entrylink_payload(file_path: str, filename: str, project_id: str, import_spec_base: dict) -> Tuple[Optional[str], Optional[dict], Optional[str]]:
+def build_entrylink_payload(file_path: str, project_id: str, import_spec_base: dict) -> Tuple[Optional[str], Optional[dict], Optional[str]]:
     """
     Wrapper for choosing definition vs synonyms/related.
-    This function expects callers will pass the get_link_type and get_referenced_scopes functions (to avoid circular imports).
     """
     link_type = get_link_type(file_path)
     if not link_type:
-        logger.warning(f"Cannot determine link type for {filename}. Skipping.")
+        logger.warning(f"Cannot determine link type for {file_path}. Skipping.")
         return None, None, None
 
     if "definition" in link_type:
-        return build_definition_entrylink_payload(file_path, filename, project_id, import_spec_base)
+        return build_definition_entrylink_payload(file_path, project_id, import_spec_base)
     else:
-        return build_synonym_related_entrylink_payload(file_path, filename, project_id, import_spec_base)
+        return build_synonym_related_entrylink_payload(file_path, project_id, import_spec_base)
 
 
-def build_payload(file_path: str, filename: str, project_id: str, gcs_bucket: str):
+def build_payload(file_path: str, project_id: str, gcs_bucket: str):
     import_spec_base = build_import_spec_base(gcs_bucket)
+    filename = os.path.basename(file_path)
     if filename.startswith("glossary_"):
         return build_glossary_payload(filename, project_id, import_spec_base)
     elif filename.startswith("entrylinks_"):
-        return build_entrylink_payload(file_path, filename, project_id, import_spec_base)
+        return build_entrylink_payload(file_path, project_id, import_spec_base)
     else:
         logger.warning(f"Unknown file type: {filename}. Skipping.")
         return None, None, None

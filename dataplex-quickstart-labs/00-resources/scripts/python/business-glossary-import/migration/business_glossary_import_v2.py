@@ -40,7 +40,7 @@ def process_import_file(file_path: str, project_id: str, gcs_bucket: str) -> boo
 
     service = get_dataplex_service()
 
-    job_id, payload, job_location = build_payload(file_path, filename, project_id, gcs_bucket)
+    job_id, payload, job_location = build_payload(file_path, project_id, gcs_bucket)
     if not payload or not job_id or not job_location:
         return False
 
@@ -139,7 +139,7 @@ def import_status():
 def main(project_id: str, buckets: List[str]):
     phases = {
         "Glossaries": get_file_paths_from_directory(GLOSSARIES_DIRECTORY_PATH),
-        "EntryLinks": get_file_paths_from_directory(ENTRYLINKS_DIRECTORY_PATH)
+        "EntryLinks": get_file_paths_from_directory(ENTRYLINKS_DIRECTORY_PATH),
     }
     for phase_name, files in phases.items():
         process_phase(phase_name, files, project_id, buckets)

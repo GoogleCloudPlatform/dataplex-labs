@@ -66,7 +66,11 @@ def convert_to_glossary_taxonomy_relationship(dc_relationship: Dict[str, Any]) -
             destination_entry.get("name", ""), destination_entry_name
         ),
         relationshipType=dc_relationship.get("relationshipType", ""),
+        parentGlossaryEntryName=_build_glossary_entry_name_with_uid(destination_entry),
     )
+
+def _build_glossary_entry_name_with_uid(destination_entry):
+    return destination_entry.get("coreRelationships", [])[0].get("destinationEntryName", "") if destination_entry.get("coreRelationships") else ""
 
 def convert_entry_relationships_to_objects(dc_relationships: List[Dict[str, Any]]) -> List[DcEntryRelationship]:
     """Convert Data Catalog entry relationship dicts into DcEntryRelationship dataclass objects."""

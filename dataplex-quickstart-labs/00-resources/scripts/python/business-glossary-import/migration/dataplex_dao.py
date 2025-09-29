@@ -11,7 +11,7 @@ from googleapiclient.discovery import build
 import logging_utils
 from constants import POLL_INTERVAL_MINUTES, MAX_POLLS, MAX_ATTEMPTS, INITIAL_BACKOFF_SECONDS
 from error_utils import is_transient_http_error, handle_transient_error, extract_error_detail, TRANSIENT_EXCEPTIONS
-
+from file_utils import write_import_stats
 logger = logging_utils.get_logger()
 
 def get_dataplex_service():
@@ -36,7 +36,7 @@ def log_job_failure(job: dict, job_id: str):
     logger.error(f"Job '{job_id}' FAILED. Reason: {error_msg}")
 
 def normalize_job_id(job_prefix: str) -> str:
-    return re.sub(r"[^a-z0-9-]", "-", job_prefix.lower()).strip("-")[:50]
+    return re.sub(r"[^a-z0-9-]", "-", job_prefix.lower()).strip("-")[:54]
 
 def generate_job_id(job_prefix: str) -> str:
     normalized_job_id = normalize_job_id(job_prefix)
@@ -128,6 +128,7 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
         if job is None:
             return False
         if is_job_succeeded(state):
+            write_import_stats(project_id, job)
             logger.info(f"Job '{job_id}' SUCCEEDED.")
             return True
         if is_job_failed(state):
@@ -147,4 +148,3 @@ def get_job_and_state(service, job_path: str, job_id: str):
         logger.error(f"Error polling job '{job_id}'")
         logger.debug(f"input: service={service}, job_path={job_path}, job_id={job_id} | output: {err}")
         return None, None
-

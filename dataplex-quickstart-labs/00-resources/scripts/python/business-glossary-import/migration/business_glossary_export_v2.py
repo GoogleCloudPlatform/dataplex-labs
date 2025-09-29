@@ -31,7 +31,6 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
         )
         sys.exit(1)
 
-    dp_glossary_id = build_glossary_id_from_entry_group_id(url_parts["entry_group_id"])
     user_project = user_project or url_parts["project"]
     project_number = get_project_number(url_parts["project"], user_project=user_project)
     context = Context(
@@ -42,7 +41,7 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
         location_id=url_parts["location_id"],
         entry_group_id=url_parts["entry_group_id"],
         dc_glossary_id=url_parts["glossary_id"],
-        dp_glossary_id=dp_glossary_id,
+        dp_glossary_id=normalize_id(url_parts["glossary_id"]),
     )
     display_name = fetch_glossary_display_name(context)
     context.display_name = display_name
@@ -57,7 +56,7 @@ def _run_export_workflow(context: Context):
     """Executes the core data processing steps: fetch, transform, write, and create."""
     glossary_taxonomy_entries = fetch_dc_glossary_taxonomy_entries(context)
     if not glossary_taxonomy_entries:
-        logger.info(f"No entries found in glossary '{context.dp_glossary_id}'. Nothing to export.")
+        logger.info(f"No entries found in glossary '{context.display_name}'. Nothing to export.")
         return
     glossary_taxonomy_relationships = fetch_dc_glossary_taxonomy_relationships(context, glossary_taxonomy_entries)
     dp_glossary_data = process_dc_glossary_entries(context, glossary_taxonomy_entries, glossary_taxonomy_relationships)

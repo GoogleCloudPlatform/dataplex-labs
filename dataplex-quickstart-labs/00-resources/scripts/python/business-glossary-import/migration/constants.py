@@ -55,7 +55,9 @@ IMPORTED_GLOSSARIES_DIRECTORY = "imported_glossaries"
 IMPORTED_ENTRYLINKS_DIRECTORY = "imported_entrylinks"
 ENTRYLINKS_DIRECTORY = "pending_entrylinks"
 GLOSSARIES_DIRECTORY = "pending_glossaries"
+UNGROUPED_ENTRYLINKS_DIRECTORY = "ungrouped_entrylinks"
 LOGS_DIRECTORY = "logs"
+SUMMARY_DIRECTORY = "summary"
 
 MAX_BUCKETS = 20
 MAX_POLLS = 12

@@ -88,6 +88,7 @@ class GlossaryTaxonomyRelationship:
     sourceEntryName: str = ""                                 # ID of source entry
     destinationEntryName: str = ""                                 # ID of target entry
     relationshipType: str = ""                              # e.g. "is_related_to", "is_synonymous_to"
+    parentGlossaryEntryName: str = ""                              # Parent entry name if applicable
 
 @dataclass
 class DcEntryRelationship:

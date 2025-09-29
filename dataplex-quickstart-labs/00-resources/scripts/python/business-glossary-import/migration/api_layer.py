@@ -15,7 +15,8 @@ import logging_utils
 from models import *
 from migration_utils import *
 from object_converters import *
-from constants import (DATACATALOG_BASE_URL, DATAPLEX_BASE_URL, SEARCH_BASE_URL, CLOUD_RESOURCE_MANAGER_BASE_URL, PAGE_SIZE, MAX_WORKERS)
+from functools import lru_cache
+from constants import (DATACATALOG_BASE_URL, DATAPLEX_BASE_URL, SEARCH_BASE_URL, CLOUD_RESOURCE_MANAGER_BASE_URL, PAGE_SIZE, MAX_WORKERS, PROJECT_NUMBER)
 
 logger = logging_utils.get_logger()
 
@@ -33,8 +34,7 @@ def _get_dc_relationship_url(dc_entry_name: str, view: str) -> str:
 
 
 def _get_dataplex_glossary_url(context):
-    get_url = f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
-    return get_url
+    return f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
 
 
 def _post_dataplex_glossary_url(context):
@@ -140,16 +140,24 @@ def get_project_number(project_id: str, user_project: str) -> str:
 
 def fetch_glossary_display_name(context: Context) -> str:
     """Fetches glossary display name from Data Catalog."""
-    catalog_url = (
+    glossary_entry_url = (
         f"{DATACATALOG_BASE_URL}/projects/{context.project}/locations/"
         f"{context.location_id}/entryGroups/{context.entry_group_id}/entries/{context.dc_glossary_id}"
     )
-    api_response = api_call_utils.fetch_api_response(requests.get, catalog_url, context.user_project)
+    api_response = api_call_utils.fetch_api_response(requests.get, glossary_entry_url, context.user_project)
     if api_response["error_msg"]:
         logger.error(f"Failed to get original glossary details: {api_response['error_msg']}")
         sys.exit(1)
-    return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
+    return api_response.get("json", {}).get("displayName", context.dc_glossary_id)
 
+@lru_cache(maxsize=1024)
+def fetch_glossary_id(glossary_entry_name_with_uid: str, user_project) -> str:
+    glossary_entry_url = f"{DATACATALOG_BASE_URL}/{glossary_entry_name_with_uid}"
+    response = api_call_utils.fetch_api_response(requests.get, glossary_entry_url, user_project)
+    glossary_name = response.get("json", {}).get("name", "")
+
+    glossary_id = get_dc_glossary_taxonomy_id(glossary_name)
+    return normalize_id(glossary_id)
 
 def fetch_dc_glossary_taxonomy_entries(context: Context) -> List[GlossaryTaxonomyEntry]:
     """Fetches all entries for a given entry group, handling pagination."""
@@ -242,20 +250,49 @@ def lookup_dataplex_entry(context: Context, search_entry_result: SearchEntryResu
         return False
     return True
 
+def poll_dataplex_glossary_entry(context: Context) -> bool:
+    """
+    Polls the Dataplex API for the existence of a glossary entry for every 1 minute.
+    Returns True if the entry exists within 5 minutes, False otherwise.
+    """
+    entry_url = (
+        f"{DATAPLEX_BASE_URL}/projects/{context.project}/locations/global/entryGroups/@dataplex/entries/"
+        f"projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
+        "?view=FULL&aspectTypes="
+        f"{PROJECT_NUMBER}.global.overview,{PROJECT_NUMBER}.global.contacts"
+    )
+
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        api_response = api_call_utils.fetch_api_response(requests.get, entry_url, context.user_project)
+        json_resp = api_response.get("json", {})
+
+        if "name" in json_resp:
+            return True
+
+        error = json_resp.get("error")
+        if error and error.get("code") == 404 and error.get("status") == "NOT_FOUND":
+            if attempt < max_attempts - 1:
+                time.sleep(60)
+            continue
+
+        break
+    return False
 
 def _is_glossary_already_exists(api_response: dict) -> bool:
     error = api_response.get("json", {}).get("error")
     return bool(error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS")
 
 
-def _handle_dataplex_glossary_response(api_response, display_name: str) -> None:
+def _handle_dataplex_glossary_response(api_response, context: Context) -> None:
     """Handles the response from fetching a Dataplex glossary."""
     if api_response.get("error_msg"):
         logger.error(f"Failed to fetch Dataplex glossary: {api_response['error_msg']}")
         return
 
     if api_response.get("error_msg") is None and api_response.get("json"):
-        logger.info(f"Dataplex glossary '{display_name}' created successfully.")
+        if poll_dataplex_glossary_entry(context):
+            logger.info(f"Dataplex glossary '{context.display_name}' created successfully.")
         return
     else:
         logger.error(f"Unexpected response when fetching Dataplex glossary: {api_response}")
@@ -279,7 +316,7 @@ def create_dataplex_glossary(context: Context) -> None:
         return
 
     api_response = _get_dataplex_glossary(context)
-    _handle_dataplex_glossary_response(api_response, display_name)
+    _handle_dataplex_glossary_response(api_response, context)
 
 
 #TODO: Handle pagination

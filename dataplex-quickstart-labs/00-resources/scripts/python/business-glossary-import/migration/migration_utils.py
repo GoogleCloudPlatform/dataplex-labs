@@ -73,23 +73,12 @@ def parse_glossary_url(url: str) -> Dict[str, str]:
         sys.exit(1)
     return match.groupdict()
 
-def build_glossary_id_from_entry_group_id(entry_group_id: str) -> str:
-    """Constructs a glossary ID from the entry group ID."""
-    prefix = "dc_glossary_"
-    if entry_group_id.startswith(prefix):
-        entry_group_id = entry_group_id[len(prefix):]
-    normalized_id = normalize_id(entry_group_id)
-    return normalized_id
-    
-
 def normalize_id(name: str) -> str:
     """Converts a string to a valid Dataplex ID (lowercase, numbers, hyphens)."""
     if not name:
         return ""
-    normalized_name = name.lower().replace(" ", "-")
-    normalized_name = re.sub(r"[^a-z0-9\-]", "-", normalized_name)
-    normalized_name = re.sub(r"-+", "-", normalized_name)
-    return normalized_name.strip("-")
+    normalized = re.sub(r"[^a-z0-9]+", "-", name.lower())
+    return normalized.strip("-")
   
 def trim_spaces_in_display_name(display_name: str) -> str:
     return display_name.strip()
@@ -104,7 +93,6 @@ def get_dc_glossary_taxonomy_id(glossary_taxonomy_name: str) -> str:
     if not glossary_taxonomy_name:
         return ""
     match = re.search(r"entries/([^/]+)$", glossary_taxonomy_name)
-    # nornalize as well IMPORATANT
     return match.group(1) if match else ""
 
 

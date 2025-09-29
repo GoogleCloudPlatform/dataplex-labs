@@ -7,10 +7,9 @@ import logging_utils
 import api_layer
 import migration_utils
 import business_glossary_import_v2
+from file_utils import group_files_by_entry_group_name, export_summary
 from business_glossary_export_v2 import execute_export
 from gcs_dao import check_all_buckets_permissions
-from google.cloud import storage
-import uuid
 
 logger = logging_utils.get_logger()
 MAX_EXPORT_WORKERS = 10
@@ -99,7 +98,6 @@ def export_glossaries(user_project: str, org_ids: list[str], glossary_urls: list
     log_export_start(len(glossary_urls))
     successful_exports = perform_exports(glossary_urls, user_project, org_ids)
     num_glossaries = len(glossary_urls)
-    log_export_summary(successful_exports, num_glossaries)
 
     if not all_exports_successful(successful_exports, num_glossaries):
         logger.error("Not all exports were successful.")
@@ -136,6 +134,10 @@ def main(args: argparse.Namespace) -> None:
         logger.warning("Migration halted due to export failures.")
         sys.exit(1)
 
+    if not args.resume_import:
+        group_files_by_entry_group_name()
+        export_summary(project_id)
+        
     import_status = perform_imports(project_id, buckets)
     if import_status and export_status:
         logger.info("Business Glossary Migration completed successfully.")

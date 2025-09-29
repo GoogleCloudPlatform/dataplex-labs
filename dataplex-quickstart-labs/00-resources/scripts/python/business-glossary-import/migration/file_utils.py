@@ -9,12 +9,15 @@ from models import GlossaryEntry, EntryLink
 from googleapiclient.errors import HttpError
 from constants import *
 import re
+from collections import defaultdict
+import threading
 logger = logging_utils.get_logger()
 
 BASE_DIRECTORY = os.path.join(os.getcwd(), EXPORTED_FILES_DIRECTORY)
 GLOSSARIES_DIRECTORY_PATH = os.path.join(BASE_DIRECTORY, GLOSSARIES_DIRECTORY)
 ENTRYLINKS_DIRECTORY_PATH = os.path.join(BASE_DIRECTORY, ENTRYLINKS_DIRECTORY)
-
+UNGROUPED_ENTRYLINKS_DIRECTORY_PATH = os.path.join(BASE_DIRECTORY, UNGROUPED_ENTRYLINKS_DIRECTORY)
+SUMMARY_DIRECTORY_PATH = os.path.join(os.getcwd(), SUMMARY_DIRECTORY)
 
 def ensure_dir(path: str):
     if not os.path.exists(path):
@@ -72,19 +75,26 @@ def write_glossary_file(glossary_data: List[GlossaryEntry], filename: str):
     write_jsonl_file(glossary_data, filepath)
 
 
-def write_term_term_links_file(term_term_data: List[EntryLink], filename: str):
+def write_term_term_links_file(context: dict, term_term_data: List[EntryLink]):
     """Writes term-term links to the EntryLinks folder."""
-    ensure_dir(ENTRYLINKS_DIRECTORY_PATH)
-    filepath = os.path.join(ENTRYLINKS_DIRECTORY_PATH, filename)
+    ensure_dir(UNGROUPED_ENTRYLINKS_DIRECTORY_PATH)
+    folder = context.dp_glossary_id
+    # Create a subfolder for each glossary inside the EntryLinks directory
+    glossary_folder_path = os.path.join(UNGROUPED_ENTRYLINKS_DIRECTORY_PATH, folder)
+    ensure_dir(glossary_folder_path)
+    filepath = os.path.join(glossary_folder_path, f"entrylinks_related_synonyms.json")
     write_jsonl_file(term_term_data, filepath)
 
 
 def write_grouped_entry_links_files(context: dict, grouped_links: Dict[str, List[EntryLink]]):
     """Writes term-entry links grouped by Project,Location,EntryGroup key into the EntryLinks folder."""
-    ensure_dir(ENTRYLINKS_DIRECTORY_PATH)
     for ple_key, links in grouped_links.items():
-        filename = f"entrylinks_definiton_{context.dp_glossary_id}_{ple_key}.json"
-        filepath = os.path.join(ENTRYLINKS_DIRECTORY_PATH, filename)
+        folder = context.dp_glossary_id
+        filename = f"entrylinks_definition_{ple_key}.json"
+        # Create a subfolder for each glossary inside the EntryLinks directory
+        glossary_folder_path = os.path.join(UNGROUPED_ENTRYLINKS_DIRECTORY_PATH, folder)
+        ensure_dir(glossary_folder_path)
+        filepath = os.path.join(glossary_folder_path, filename)
         write_jsonl_file(links, filepath)
 
 
@@ -97,7 +107,7 @@ def write_files(
     """Writes all transformed data objects to their respective files."""
 
     write_glossary_file(glossary_data, f"glossary_{context.dp_glossary_id}.json")
-    write_term_term_links_file(term_term_data, f"entrylinks_related_synonyms_{context.dp_glossary_id}.json")
+    write_term_term_links_file(context, term_term_data)
     write_grouped_entry_links_files(context, term_entry_data)
 
 
@@ -212,3 +222,162 @@ def get_link_type(file_path: str) -> str | None:
 def extract_glossary_id_from_synonym_related_filename(filename: str) -> str:
     match = re.search(r'entrylinks_related_synonyms_(.*?)\.json', filename)
     return match.group(1) if match else ""
+
+def group_files_by_entry_group_name():
+    """Groups entrylink files by their file name (regardless of subfolder), and writes merged content to a single file per name."""
+    # Collect all .json files recursively under UNGROUPED_ENTRYLINKS_DIRECTORY_PATH
+    entrylink_files = collect_json_entrylinks()
+
+    # Group file paths by file name
+    files_by_name = group_files_by_name(entrylink_files)
+
+    # For each group, merge all lines and write to a single file in the top-level EntryLinks directory
+    merge_grouped_files(files_by_name)
+
+def merge_grouped_files(files_by_name):
+    for filename, paths in files_by_name.items():
+        merged_lines = []
+        for path in paths:
+            with open(path, 'r', encoding='utf-8') as f:
+                merged_lines.extend(f.readlines())
+        # Write merged content to the top-level EntryLinks directory
+        ensure_dir(ENTRYLINKS_DIRECTORY_PATH)
+        output_path = os.path.join(ENTRYLINKS_DIRECTORY_PATH, filename)
+        with open(output_path, 'w', encoding='utf-8') as out_f:
+            out_f.writelines(merged_lines)
+        logger.info(f"Merged {len(paths)} files into {output_path}")
+
+def group_files_by_name(entrylink_files):
+    files_by_name = defaultdict(list)
+    for path in entrylink_files:
+        filename = os.path.basename(path)
+        files_by_name[filename].append(path)
+    return files_by_name
+
+def collect_json_entrylinks():
+    entrylink_files = []
+    for root, _, files in os.walk(UNGROUPED_ENTRYLINKS_DIRECTORY_PATH):
+        for f in files:
+            if f.endswith('.json'):
+                entrylink_files.append(os.path.join(root, f))
+    return entrylink_files
+
+def export_summary(project_id: str):
+    glossary_files = get_file_paths_from_directory(GLOSSARIES_DIRECTORY_PATH)
+    entrylink_files = get_file_paths_from_directory(ENTRYLINKS_DIRECTORY_PATH)
+
+    glossaries_count = len(glossary_files)
+    glossary_entries_count = 0
+    definition_entrylinks_count = 0
+    related_synonym_entrylinks_count = 0
+
+    # Count lines in all glossary files
+    glossary_entries_count = calculate_glossary_entry_count(glossary_files)
+
+    # Count lines in entrylink files by type
+    definition_entrylinks_count, related_synonym_entrylinks_count = calculate_entrylinks_count(entrylink_files)
+
+    stats_path = write_export_stats(project_id, glossaries_count, glossary_entries_count, definition_entrylinks_count, related_synonym_entrylinks_count)
+
+    logger.info(f"Export Summary written to {stats_path}")
+
+def write_export_stats(project_id: str, glossaries_count: int, glossary_entries_count: int, definition_entrylinks_count: int, related_synonym_entrylinks_count: int):
+    stats_path = os.path.join(SUMMARY_DIRECTORY_PATH, f"export-stats-{project_id}.txt")
+    # Ensure the summary directory exists
+    ensure_dir(SUMMARY_DIRECTORY_PATH)
+    with open(stats_path, "w", encoding="utf-8") as stats_file:
+        stats_file.write(f"Project ID: {project_id}\n")
+        stats_file.write(f"Number of glossaries exported: {glossaries_count}\n")
+        stats_file.write(f"Number of glossary entries (including terms, categories): {glossary_entries_count}\n")
+        stats_file.write(f"Number of definition entrylinks exported: {definition_entrylinks_count}\n")
+        stats_file.write(f"Number of related and synonym entrylinks exported: {related_synonym_entrylinks_count}\n")
+    return stats_path
+
+def calculate_glossary_entry_count(glossary_files):
+    glossary_entries_count = 0
+    for glossary_file in glossary_files:
+        with open(glossary_file, 'r', encoding='utf-8') as f:
+            glossary_entries_count += sum(1 for _ in f)
+    return glossary_entries_count
+
+def calculate_entrylinks_count(entrylink_files):
+    definition_entrylinks_count = 0
+    related_synonym_entrylinks_count = 0 
+    for ef in entrylink_files:
+        filename = os.path.basename(ef)
+        with open(ef, 'r', encoding='utf-8') as f:
+            line_count = sum(1 for _ in f)
+            if filename.startswith("entrylinks_definition_"):
+                definition_entrylinks_count += line_count
+            elif filename.startswith("entrylinks_related_synonyms"):
+                related_synonym_entrylinks_count += line_count
+    return definition_entrylinks_count, related_synonym_entrylinks_count
+
+
+def write_import_stats(project_id: str, job: dict):
+    logger.debug(f"Writing import stats for job: {job}")
+    stats_path = os.path.join(SUMMARY_DIRECTORY_PATH, f"import-stats-{project_id}.txt")
+    # Use a global lock for this module to synchronize threads
+    if not hasattr(write_import_stats, "_lock"):
+        write_import_stats._lock = threading.Lock()
+    lock = write_import_stats._lock
+
+    import_type = extract_import_type(job)
+    import_result, fields = import_job_result(job)
+
+    # Only include fields that are present and not zero
+    stats_lines = build_import_stats_lines(import_result, fields)
+
+    # Add job name, import type, and status
+    status = job.get("status", {})
+    state = status.get("state", "")
+    job_name = job.get("name", "Unknown Job")
+    stats_lines.insert(0, f"Job Name: {job_name}")
+    stats_lines.insert(1, f"Import Type: {import_type}")
+    stats_lines.insert(2, f"State: {state}")
+
+    if not stats_lines:
+        return  # Nothing to write
+
+    # Lock file for thread safety
+    with lock:
+        with open(stats_path, "a", encoding="utf-8") as f:
+            f.write("\n".join(stats_lines) + "\n\n")
+
+    logger.debug(f"input: project_id={project_id}, job={job} | output: stats_path={stats_path}")
+
+def build_import_stats_lines(import_result, fields):
+    stats_lines = []
+    for key, label in fields:
+        value = import_result.get(key)
+        if value is not None and str(value) != "0":
+            stats_lines.append(f"{label}: {value}")
+    return stats_lines
+
+def extract_import_type(job):
+    import_type = "Unknown"
+    scope = job.get("importSpec", {}).get("scope", {})
+    if scope.get("glossaries"):
+        import_type = "Glossary Import"
+    elif scope.get("entry_link_types"):
+        import_type = "EntryLink Import"
+    return import_type
+
+def import_job_result(job):
+    import_result = job.get("importResult", {})
+    fields = import_job_result_fields()
+    
+    return import_result,fields
+
+def import_job_result_fields():
+    fields = [
+        ("deletedEntries", "Entries Deleted"),
+        ("updatedEntries", "Entries Updated"),
+        ("createdEntries", "Entries Created"),
+        ("unchangedEntries", "Entries Unchanged"),
+        ("recreatedEntries", "Entries Recreated"),
+        ("deletedEntryLinks", "EntryLinks Deleted"),
+        ("createdEntryLinks", "EntryLinks Created"),
+        ("unchangedEntryLinks", "EntryLinks Unchanged"),
+    ] 
+    return fields

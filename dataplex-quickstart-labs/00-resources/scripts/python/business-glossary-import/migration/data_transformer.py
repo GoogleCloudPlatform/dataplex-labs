@@ -38,9 +38,9 @@ def compute_ancestors(context: Context, glossary_taxonomy_entry_name: str, entry
 
 def build_glossary_ancestor(context: Context) -> Ancestor:
     """Builds the glossary root ancestor."""
-    dp_glossary_id = f"projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
+    dp_entry_id = f"projects/{context.project}/locations/global/glossaries/{context.dp_glossary_id}"
     return Ancestor(
-        name=f"{context.dataplex_entry_group}/entries/{dp_glossary_id}",
+        name=f"{context.dataplex_entry_group}/entries/{dp_entry_id}",
         type=get_dp_entry_type_name(DC_TYPE_GLOSSARY),
     )
 
@@ -85,7 +85,7 @@ def log_large_description(entry: GlossaryTaxonomyEntry) -> None:
 def build_entry_source(context: Context,dc_glossary_entry: GlossaryTaxonomyEntry, entry_to_parent_map: dict, entry_id_to_type_map: dict) -> EntrySource:
     """Constructs the EntrySource object for an entry."""
     logger.debug("checking again: %s", dc_glossary_entry)
-    resource_path = convert_to_dp_entry_id(dc_glossary_entry.name, dc_glossary_entry.entryType)
+    resource_path = convert_to_dp_entry_id(dc_glossary_entry.name, dc_glossary_entry.entryType, context.dp_glossary_id)
     ancestors = compute_ancestors(context, dc_glossary_entry.name, entry_to_parent_map, entry_id_to_type_map)
     return EntrySource(
         resource=resource_path,
@@ -155,9 +155,10 @@ def convert_term_relationship(context: Context, dc_relationship: GlossaryTaxonom
 
     dc_source_entry_name = dc_relationship.sourceEntryName
     dc_destination_entry_name = dc_relationship.destinationEntryName
+    dc_glossary_entry_name_with_uid = dc_relationship.parentGlossaryEntryName
     logger.debug(f"Converting relationship: {dc_relationship.name} from {dc_source_entry_name} to {dc_destination_entry_name}")
-    dataplex_source_entry_name = build_dataplex_entry_name(dc_source_entry_name)
-    dataplex_target_entry_name = build_dataplex_entry_name(dc_destination_entry_name)
+    dataplex_source_entry_name = build_dataplex_entry_name(dc_source_entry_name, context.dp_glossary_id)
+    dataplex_target_entry_name = build_dataplex_destination_entry_name(dc_destination_entry_name, dc_glossary_entry_name_with_uid, context)
     dataplex_entry_link_name = build_entry_link_name(context)
 
     if not dataplex_source_entry_name or not dataplex_target_entry_name or not dataplex_entry_link_name:
@@ -187,37 +188,38 @@ def get_dc_ids_from_entry_name(dc_entry_name: str) -> tuple[str, str, str]:
     if not match:
         raise ValueError(f"Invalid entry name format: {dc_entry_name}")
     project_id = match.group(1)
-    entry_group_id = match.group(2)
     entry_id = match.group(3)
-    glossary_id = build_glossary_id_from_entry_group_id(entry_group_id)
-    logger.debug(f"Extracting IDs from entry name: {dc_entry_name}, output: {project_id}, {glossary_id}, {entry_id}")
-
-    return project_id, glossary_id, entry_id
+    logger.debug(f"Extracting IDs from entry name: {dc_entry_name}, output: {project_id} {entry_id}")
+    return project_id, entry_id
 
 
-def convert_to_dp_entry_id(dc_entry_resource_name: str, entry_type: str) -> str:
+def convert_to_dp_entry_id(dc_entry_resource_name: str, entry_type: str, dp_glossary_id: str) -> str:
     """Extracts source and target entry names for a term relationship."""
     logger.debug(f"Converting DC entry resource name to Dataplex entry ID: {dc_entry_resource_name} of type {entry_type}")
-    project_id, glossary_id, dc_entry_id =  get_dc_ids_from_entry_name(dc_entry_resource_name)
+    project_id, dc_entry_id =  get_dc_ids_from_entry_name(dc_entry_resource_name)
     resource_type_segment = TERMS if entry_type == DC_TYPE_GLOSSARY_TERM else CATEGORIES
     return (
         f"projects/{project_id}/locations/global/glossaries/"
-        f"{glossary_id}/{resource_type_segment}/{dc_entry_id}"
+        f"{dp_glossary_id}/{resource_type_segment}/{dc_entry_id}"
     )
 
 def build_entry_group(dc_entry_resource_name: str) -> str:
     """Extracts source and target entry names for a term relationship."""
-    project_id, _, _ = get_dc_ids_from_entry_name(dc_entry_resource_name)
+    project_id, _ = get_dc_ids_from_entry_name(dc_entry_resource_name)
     return f"projects/{project_id}/locations/global/entryGroups/@dataplex"
 
-def build_dataplex_entry_name(dc_entry_resource_name) -> str:
+def build_dataplex_entry_name(dc_entry_resource_name, dp_glossary_id) -> str:
     """Extracts source and target entry names for a term relationship."""
-    dataplex_entry_id = convert_to_dp_entry_id(dc_entry_resource_name, DC_TYPE_GLOSSARY_TERM)
+    dataplex_entry_id = convert_to_dp_entry_id(dc_entry_resource_name, DC_TYPE_GLOSSARY_TERM, dp_glossary_id)
     entry_group = build_entry_group(dc_entry_resource_name)
 
     logger.debug(f"Input DC entry: {dc_entry_resource_name}, Output: {entry_group} and {dataplex_entry_id}")
     return f"{entry_group}/entries/{dataplex_entry_id}"
 
+def build_dataplex_destination_entry_name(dc_destination_entry_name, dc_glossary_entry_name_with_uid, context: Context) -> str:
+    """Builds the Dataplex destination entry name."""
+    dp_glossary_id = fetch_glossary_id(dc_glossary_entry_name_with_uid, context.user_project)
+    return build_dataplex_entry_name(dc_destination_entry_name, dp_glossary_id)
 
 def build_entry_link_name(context: Context) -> str:
     """Build the entry link name based on the relationship and context."""
@@ -321,7 +323,7 @@ def build_entry_link_for_entry_to_term(context, dc_glossary_term_entry, dc_entry
             type="SOURCE"
         ),
         EntryReference(
-            name=f"{context.dataplex_entry_group}/entries/{convert_to_dp_entry_id(dc_glossary_term_entry.name, DC_TYPE_GLOSSARY_TERM)}",
+            name=f"{context.dataplex_entry_group}/entries/{convert_to_dp_entry_id(dc_glossary_term_entry.name, DC_TYPE_GLOSSARY_TERM, context.dp_glossary_id)}",
             type="TARGET"
         )
     ]
