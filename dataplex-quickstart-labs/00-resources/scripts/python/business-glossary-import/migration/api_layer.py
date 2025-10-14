@@ -284,6 +284,86 @@ def _is_glossary_already_exists(api_response: dict) -> bool:
     return bool(error and error.get("code") == 409 and error.get("status") == "ALREADY_EXISTS")
 
 
+def _get_dataplex_glossary_entry_url(project_id: str, glossary_id: str) -> str:
+    """Builds the URL for fetching/updating a Dataplex glossary entry."""
+    return (
+        f"{DATAPLEX_BASE_URL}/projects/{project_id}/locations/global/entryGroups/@dataplex/entries/"
+        f"projects/{project_id}/locations/global/glossaries/{glossary_id}"
+    )
+
+
+def _fetch_dataplex_glossary_entry(context: Context) -> dict:
+    """Fetches a Dataplex glossary entry to check its overview."""
+    entry_url = _get_dataplex_glossary_entry_url(context.project, context.dp_glossary_id)
+    entry_url += f"?view=FULL&aspectTypes={PROJECT_NUMBER}.global.overview"
+    return api_call_utils.fetch_api_response(requests.get, entry_url, context.user_project)
+
+
+def _update_glossary_entry_overview(context: Context, description: str) -> bool:
+    """Updates the overview aspect of a glossary entry with the given description."""
+    entry_url = _get_dataplex_glossary_entry_url(context.project, context.dp_glossary_id)
+    
+    # Build the overview aspect update payload
+    overview_payload = {
+        "aspects": {
+            f"{PROJECT_NUMBER}.global.overview": {
+                "aspectType": f"{PROJECT_NUMBER}.global.overview",
+                "data": {
+                    "content": description
+                }
+            }
+        }
+    }
+    
+    # Use PATCH to update the entry
+    api_response = api_call_utils.fetch_api_response(
+        requests.patch, entry_url, context.user_project, overview_payload
+    )
+    
+    if api_response.get("error_msg"):
+        logger.error(f"Failed to update glossary entry overview: {api_response['error_msg']}")
+        return False
+    
+    logger.info(f"Successfully updated overview for glossary '{context.display_name}'")
+    return True
+
+
+def _get_dc_glossary_description(context: Context) -> str:
+    """Fetches the description from the original Data Catalog glossary."""
+    glossary_entry_url = (
+        f"{DATACATALOG_BASE_URL}/projects/{context.project}/locations/"
+        f"{context.location_id}/entryGroups/{context.entry_group_id}/entries/{context.dc_glossary_id}"
+    )
+    
+    api_response = api_call_utils.fetch_api_response(requests.get, glossary_entry_url, context.user_project)
+    
+    if api_response.get("error_msg"):
+        logger.warning(f"Failed to fetch DC glossary description: {api_response['error_msg']}")
+        return ""
+    
+    dc_entry = api_response.get("json", {})
+    core_aspects = dc_entry.get("coreAspects", {})
+    business_context = core_aspects.get("business_context", {})
+    json_content = business_context.get("jsonContent", {})
+    description = json_content.get("description", "")
+
+    logger.info(f"Fetched DC glossary description: {api_response}")
+    return description
+
+
+def _check_and_update_glossary_overview(context: Context) -> None:
+    """Checks if glossary entry has overview, and updates it with DC description if empty."""
+    entry_response = _fetch_dataplex_glossary_entry(context)
+    
+    if entry_response.get("error_msg"):
+        logger.warning(f"Could not fetch glossary entry to check overview: {entry_response['error_msg']}")
+        return
+    dc_description = _get_dc_glossary_description(context)
+    
+    if dc_description:
+        _update_glossary_entry_overview(context, dc_description)
+        
+
 def _handle_dataplex_glossary_response(api_response, context: Context) -> None:
     """Handles the response from fetching a Dataplex glossary."""
     if api_response.get("error_msg"):
@@ -293,6 +373,7 @@ def _handle_dataplex_glossary_response(api_response, context: Context) -> None:
     if api_response.get("error_msg") is None and api_response.get("json"):
         if poll_dataplex_glossary_entry(context):
             logger.info(f"Dataplex glossary '{context.display_name}' created successfully.")
+            _check_and_update_glossary_overview(context)
         return
     else:
         logger.error(f"Unexpected response when fetching Dataplex glossary: {api_response}")
@@ -300,12 +381,13 @@ def _handle_dataplex_glossary_response(api_response, context: Context) -> None:
 
 
 def create_dataplex_glossary(context: Context) -> None:
-    """Create glossary in Dataplex."""
+    """Create glossary in Dataplex and ensure overview is updated with DC description."""
     display_name = context.display_name
     dataplex_api_response = _post_dataplex_glossary(context)
 
     if _is_glossary_already_exists(dataplex_api_response):
         logger.info(f"Glossary '{display_name}' already exists in Dataplex.")
+        _check_and_update_glossary_overview(context)
         return
 
     if dataplex_api_response.get("error_msg") is None:
