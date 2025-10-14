@@ -346,8 +346,6 @@ def _get_dc_glossary_description(context: Context) -> str:
     business_context = core_aspects.get("business_context", {})
     json_content = business_context.get("jsonContent", {})
     description = json_content.get("description", "")
-
-    logger.info(f"Fetched DC glossary description: {api_response}")
     return description
 
 
