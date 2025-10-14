@@ -148,7 +148,7 @@ def fetch_glossary_display_name(context: Context) -> str:
     if api_response["error_msg"]:
         logger.error(f"Failed to get original glossary details: {api_response['error_msg']}")
         sys.exit(1)
-    return api_response.get("json", {}).get("displayName", context.dc_glossary_id)
+    return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
 
 @lru_cache(maxsize=1024)
 def fetch_glossary_id(glossary_entry_name_with_uid: str, user_project) -> str:

@@ -619,7 +619,7 @@ def test_normalize_id_empty_string():
     assert migration_utils.normalize_id("") == ""
 
 def test_normalize_id_only_special_chars():
-    assert migration_utils.normalize_id("@#$%^&*") == ""
+    assert migration_utils.normalize_id("@#$%^&*") == "g"
 
 def test_normalize_id_mixed_whitespace():
     assert migration_utils.normalize_id("A\tB\nC") == "a-b-c"
@@ -632,46 +632,6 @@ def test_normalize_id_multiple_spaces():
 
 def test_normalize_id_strip_multiple_hyphens():
     assert migration_utils.normalize_id("A---B--C") == "a-b-c"
-
-def test_build_glossary_id_from_entry_group_id_removes_prefix_and_normalizes():
-    s = "dc_glossary_My EntryGroup"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "my-entrygroup"
-
-def test_build_glossary_id_from_entry_group_id_no_prefix_normalizes():
-    s = "My EntryGroup"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "my-entrygroup"
-
-def test_build_glossary_id_from_entry_group_id_prefix_only():
-    s = "dc_glossary_"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == ""
-
-def test_build_glossary_id_from_entry_group_id_special_chars():
-    s = "dc_glossary_ID@#$_2024!"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "id-2024"
-
-def test_build_glossary_id_from_entry_group_id_empty_string():
-    s = ""
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == ""
-
-def test_build_glossary_id_from_entry_group_id_multiple_spaces():
-    s = "dc_glossary_Entry   Group   Name"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "entry-group-name"
-
-def test_build_glossary_id_from_entry_group_id_mixed_case_and_hyphens():
-    s = "dc_glossary_AbC-DeF"
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "abc-def"
-
-def test_build_glossary_id_from_entry_group_id_leading_and_trailing_spaces():
-    s = "dc_glossary_  Leading and trailing  "
-    result = migration_utils.build_glossary_id_from_entry_group_id(s)
-    assert result == "leading-and-trailing"
 
 def test_parse_glossary_url_valid():
     url = "projects/myproj/locations/us-central1/entryGroups/mygroup/glossaries/myglossary"

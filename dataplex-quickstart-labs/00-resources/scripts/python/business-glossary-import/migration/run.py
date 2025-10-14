@@ -98,7 +98,7 @@ def export_glossaries(user_project: str, org_ids: list[str], glossary_urls: list
     log_export_start(len(glossary_urls))
     successful_exports = perform_exports(glossary_urls, user_project, org_ids)
     num_glossaries = len(glossary_urls)
-
+    log_export_summary(successful_exports, num_glossaries)
     if not all_exports_successful(successful_exports, num_glossaries):
         logger.error("Not all exports were successful.")
         return False

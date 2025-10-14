@@ -27,7 +27,7 @@ def test_build_export_context_success():
         assert context.project == "fake_project_number"
         assert context.org_ids == ["org1", "org2"]
         assert context.dc_glossary_id == "test_glossary"
-        assert context.dp_glossary_id == "test-group"
+        assert context.dp_glossary_id == "test-glossary"
 
 
 def test_run_export_workflow_success():

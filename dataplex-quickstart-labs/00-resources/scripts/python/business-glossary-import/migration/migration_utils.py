@@ -74,12 +74,15 @@ def parse_glossary_url(url: str) -> Dict[str, str]:
     return match.groupdict()
 
 def normalize_id(name: str) -> str:
-    """Converts a string to a valid Dataplex ID (lowercase, numbers, hyphens)."""
+    """Converts a string to a valid Dataplex ID (lowercase, numbers, hyphens), starting with a letter."""
     if not name:
         return ""
-    normalized = re.sub(r"[^a-z0-9]+", "-", name.lower())
-    return normalized.strip("-")
-  
+    normalized = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    # Ensure starts with a letter
+    if not normalized or not normalized[0].isalpha():
+        normalized = "g" + normalized
+    return normalized
+
 def trim_spaces_in_display_name(display_name: str) -> str:
     return display_name.strip()
 

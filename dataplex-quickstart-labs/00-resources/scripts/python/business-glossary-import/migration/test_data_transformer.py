@@ -795,7 +795,7 @@ def test_build_entry_link_for_entry_to_term_basic(monkeypatch):
     dp_entry_name = "projects/test-project/locations/global/glossaries/test-glossary/terms/asset1"
 
     # Patch convert_to_dp_entry_id and get_dp_entry_link_type_name
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "test-dp-entry-id")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "test-dp-entry-id")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda typ: "projects/123/locations/global/entryLinkTypes/DESCRIBED_BY")
 
     result = build_entry_link_for_entry_to_term(context, term_entry, entry_relationship, entry_link_name, dp_entry_name)
@@ -817,7 +817,7 @@ def test_build_entry_link_for_entry_to_term_no_source_column(monkeypatch):
     entry_link_name = "projects/test-project/locations/global/entryGroups/@dataplex/entryLinks/link2"
     dp_entry_name = "projects/test-project/locations/global/glossaries/test-glossary/terms/asset2"
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "dp-entry-id-2")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "dp-entry-id-2")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda typ: "projects/123/locations/global/entryLinkTypes/DESCRIBED_BY")
 
     result = build_entry_link_for_entry_to_term(context, term_entry, entry_relationship, entry_link_name, dp_entry_name)
@@ -833,7 +833,7 @@ def test_build_entry_link_for_entry_to_term_custom_link_type(monkeypatch):
     entry_link_name = "custom/link/name"
     dp_entry_name = "custom/dp/entry/name"
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "custom-dp-entry-id")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "custom-dp-entry-id")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda typ: "custom-link-type")
 
     result = build_entry_link_for_entry_to_term(context, term_entry, entry_relationship, entry_link_name, dp_entry_name)
@@ -852,7 +852,7 @@ def test_build_entry_link_for_entry_to_term_term_entry_name(monkeypatch):
     dp_entry_name = "dp/entry/name/4"
 
     # Patch convert_to_dp_entry_id to return a value based on input
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, type: f"converted-{name}-{type}")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, type, dp_glossary_id: f"converted-{name}-{type}")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda type: f"type-{type}")
 
     result = build_entry_link_for_entry_to_term(context, term_entry, entry_relationship, entry_link_name, dp_entry_name)
@@ -1465,63 +1465,63 @@ def test_build_entry_link_name_get_entry_link_id_returns_none(monkeypatch):
 
 def test_build_dataplex_entry_name_basic(monkeypatch):
     # Patch dependencies to return known values
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "dp_entry_id")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "dp_entry_id")
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.build_entry_group", lambda name: "projects/test/locations/global/entryGroups/@dataplex")
-    result = build_dataplex_entry_name("projects/test/locations/global/entryGroups/@dataplex/entries/entry1")
+    result = build_dataplex_entry_name("projects/test/locations/global/entryGroups/@dataplex/entries/entry1", "test_glossary")
     assert result == "projects/test/locations/global/entryGroups/@dataplex/entries/dp_entry_id"
 
 def test_build_dataplex_entry_name_empty_resource(monkeypatch):
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "")
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.build_entry_group", lambda name: "")
-    result = build_dataplex_entry_name("")
+    result = build_dataplex_entry_name("", "test_glossary")
     assert result == "/entries/"
 
 def test_build_dataplex_entry_name_none_resource(monkeypatch):
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: None)
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: None)
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.build_entry_group", lambda name: None)
-    result = build_dataplex_entry_name(None)
+    result = build_dataplex_entry_name(None, "test_glossary")
     assert result == "None/entries/None"
 
 def test_build_dataplex_entry_name_special_characters(monkeypatch):
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "id$%")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "id$%")
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.build_entry_group", lambda name: "projects/p$/locations/l@/entryGroups/g#")
-    result = build_dataplex_entry_name("projects/p$/locations/l@/entryGroups/g#/entries/e%")
+    result = build_dataplex_entry_name("projects/p$/locations/l@/entryGroups/g#/entries/e%", "test_glossary")
     assert result == "projects/p$/locations/l@/entryGroups/g#/entries/id$%"
 
 def test_build_dataplex_entry_name_long_strings(monkeypatch):
     long_entry_group = "projects/" + "p"*50 + "/locations/" + "l"*50 + "/entryGroups/" + "g"*50
     long_entry_id = "id" + "x"*50
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: long_entry_id)
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: long_entry_id)
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.build_entry_group", lambda name: long_entry_group)
-    result = build_dataplex_entry_name("dummy_resource_name")
+    result = build_dataplex_entry_name("dummy_resource_name", "test_glossary")
     assert result == f"{long_entry_group}/entries/{long_entry_id}"
 
 def test_build_entry_group_valid(monkeypatch):
     # Patch get_dc_ids_from_entry_name to return expected project_id
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("test-project", "glossary", "entry1"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("test-project", "entry1"))
     resource_name = "projects/test-project/locations/global/entryGroups/@dataplex/entries/entry1"
     result = build_entry_group(resource_name)
     assert result == "projects/test-project/locations/global/entryGroups/@dataplex"
 
 def test_build_entry_group_different_project(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("another-project", "glossary", "entry2"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("another-project", "entry2"))
     resource_name = "projects/another-project/locations/global/entryGroups/@dataplex/entries/entry2"
     result = build_entry_group(resource_name)
     assert result == "projects/another-project/locations/global/entryGroups/@dataplex"
 
 def test_build_entry_group_empty_project(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("", "glossary", "entry3"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("", "entry3"))
     resource_name = "projects//locations/global/entryGroups/@dataplex/entries/entry3"
     result = build_entry_group(resource_name)
     assert result == "projects//locations/global/entryGroups/@dataplex"
 
 def test_build_entry_group_none_project(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (None, "glossary", "entry4"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (None, "entry4"))
     resource_name = "projects/None/locations/global/entryGroups/@dataplex/entries/entry4"
     result = build_entry_group(resource_name)
     assert result == "projects/None/locations/global/entryGroups/@dataplex"
@@ -1539,57 +1539,57 @@ def test_build_entry_group_invalid_resource(monkeypatch):
         assert "Invalid entry name format" in str(e)
 def test_convert_to_dp_entry_id_term(monkeypatch):
     # Patch get_dc_ids_from_entry_name and DC_TYPE_GLOSSARY_TERM, TERMS
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj1", "gloss1", "entry1"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj1", "entry1"))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.TERMS", "terms")
-    result = convert_to_dp_entry_id("dummy_resource", "TERM")
+    result = convert_to_dp_entry_id("dummy_resource", "TERM", "gloss1")
     assert result == "projects/proj1/locations/global/glossaries/gloss1/terms/entry1"
 
 def test_convert_to_dp_entry_id_category(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj2", "gloss2", "entry2"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj2", "entry2"))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.CATEGORIES", "categories")
-    result = convert_to_dp_entry_id("dummy_resource", "CATEGORY")
+    result = convert_to_dp_entry_id("dummy_resource", "CATEGORY", "gloss2")
     assert result == "projects/proj2/locations/global/glossaries/gloss2/categories/entry2"
 
 def test_convert_to_dp_entry_id_empty_ids(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("", "", ""))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("", ""))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.TERMS", "terms")
-    result = convert_to_dp_entry_id("dummy_resource", "TERM")
+    result = convert_to_dp_entry_id("dummy_resource", "TERM", "")
     assert result == "projects//locations/global/glossaries//terms/"
 
 def test_convert_to_dp_entry_id_none_ids(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (None, None, None))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (None, None))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.TERMS", "terms")
-    result = convert_to_dp_entry_id("dummy_resource", "TERM")
+    result = convert_to_dp_entry_id("dummy_resource", "TERM", None)
     assert result == "projects/None/locations/global/glossaries/None/terms/None"
 
 def test_convert_to_dp_entry_id_special_characters(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj$", "gloss@", "entry#"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj$", "entry#"))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.CATEGORIES", "categories")
-    result = convert_to_dp_entry_id("dummy_resource", "CATEGORY")
+    result = convert_to_dp_entry_id("dummy_resource", "CATEGORY", "gloss@")
     assert result == "projects/proj$/locations/global/glossaries/gloss@/categories/entry#"
 
 def test_convert_to_dp_entry_id_long_strings(monkeypatch):
     project_id = "p" * 50
     glossary_id = "g" * 50
     entry_id = "e" * 50
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (project_id, glossary_id, entry_id))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: (project_id, entry_id))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.TERMS", "terms")
-    result = convert_to_dp_entry_id("dummy_resource", "TERM")
+    result = convert_to_dp_entry_id("dummy_resource", "TERM", glossary_id)
     expected = f"projects/{project_id}/locations/global/glossaries/{glossary_id}/terms/{entry_id}"
     assert result == expected
 
 def test_convert_to_dp_entry_id_invalid_entry_type(monkeypatch):
-    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj", "gloss", "entry"))
+    monkeypatch.setattr("data_transformer.get_dc_ids_from_entry_name", lambda name: ("proj", "entry"))
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     # If entry_type is not TERM, should use CATEGORIES
     monkeypatch.setattr("data_transformer.CATEGORIES", "categories")
-    result = convert_to_dp_entry_id("dummy_resource", "NOT_A_TERM")
+    result = convert_to_dp_entry_id("dummy_resource", "NOT_A_TERM", "gloss")
     assert result == "projects/proj/locations/global/glossaries/gloss/categories/entry"
 
 def test_convert_to_dp_entry_id_get_dc_ids_raises(monkeypatch):
@@ -1599,22 +1599,18 @@ def test_convert_to_dp_entry_id_get_dc_ids_raises(monkeypatch):
     monkeypatch.setattr("data_transformer.DC_TYPE_GLOSSARY_TERM", "TERM")
     monkeypatch.setattr("data_transformer.TERMS", "terms")
     with pytest.raises(ValueError):
-        convert_to_dp_entry_id("invalid_resource", "TERM")
+        convert_to_dp_entry_id("invalid_resource", "TERM", "test_glossary")
 def test_get_dc_ids_from_entry_name_valid(monkeypatch):
-    # Patch build_glossary_id_from_entry_group_id to return entry_group_id unchanged
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", lambda egid: egid)
+    # Test get_dc_ids_from_entry_name function (no longer uses build_glossary_id_from_entry_group_id)
     entry_name = "projects/proj1/locations/global/entryGroups/group1/entries/entryA"
-    project_id, glossary_id, entry_id = get_dc_ids_from_entry_name(entry_name)
+    project_id, entry_id = get_dc_ids_from_entry_name(entry_name)
     assert project_id == "proj1"
-    assert glossary_id == "group1"
     assert entry_id == "entryA"
 
 def test_get_dc_ids_from_entry_name_valid_different_values(monkeypatch):
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", lambda egid: f"glossary-{egid}")
     entry_name = "projects/myproj/locations/us/entryGroups/mygroup/entries/myentry"
-    project_id, glossary_id, entry_id = get_dc_ids_from_entry_name(entry_name)
+    project_id, entry_id = get_dc_ids_from_entry_name(entry_name)
     assert project_id == "myproj"
-    assert glossary_id == "glossary-mygroup"
     assert entry_id == "myentry"
 
 def test_get_dc_ids_from_entry_name_invalid_format_raises():
@@ -1636,42 +1632,30 @@ def test_get_dc_ids_from_entry_name_none_raises():
         get_dc_ids_from_entry_name(entry_name)
 
 def test_get_dc_ids_from_entry_name_special_characters(monkeypatch):
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", lambda egid: egid)
     entry_name = "projects/p$/locations/l@/entryGroups/g#/entries/e%"
-    project_id, glossary_id, entry_id = get_dc_ids_from_entry_name(entry_name)
+    project_id, entry_id = get_dc_ids_from_entry_name(entry_name)
     assert project_id == "p$"
-    assert glossary_id == "g#"
     assert entry_id == "e%"
 
 def test_get_dc_ids_from_entry_name_numeric(monkeypatch):
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", lambda egid: egid)
     entry_name = "projects/123/locations/456/entryGroups/789/entries/101112"
-    project_id, glossary_id, entry_id = get_dc_ids_from_entry_name(entry_name)
+    project_id, entry_id = get_dc_ids_from_entry_name(entry_name)
     assert project_id == "123"
-    assert glossary_id == "789"
     assert entry_id == "101112"
 
 def test_get_dc_ids_from_entry_name_long_strings(monkeypatch):
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", lambda egid: egid)
     project_id = "p" * 50
     entry_group_id = "g" * 50
     entry_id = "e" * 50
     entry_name = f"projects/{project_id}/locations/global/entryGroups/{entry_group_id}/entries/{entry_id}"
-    out_project_id, out_glossary_id, out_entry_id = get_dc_ids_from_entry_name(entry_name)
+    out_project_id, out_entry_id = get_dc_ids_from_entry_name(entry_name)
     assert out_project_id == project_id
-    assert out_glossary_id == entry_group_id
     assert out_entry_id == entry_id
 
 def test_get_dc_ids_from_entry_name_build_glossary_id_called(monkeypatch):
-    called = {}
-    def mock_build_glossary_id(entry_group_id):
-        called['id'] = entry_group_id
-        return "custom_glossary"
-    monkeypatch.setattr("data_transformer.build_glossary_id_from_entry_group_id", mock_build_glossary_id)
+    # Test basic extraction without the removed build_glossary_id_from_entry_group_id function
     entry_name = "projects/projX/locations/global/entryGroups/groupX/entries/entryX"
-    project_id, glossary_id, entry_id = get_dc_ids_from_entry_name(entry_name)
-    assert called['id'] == "groupX"
-    assert glossary_id == "custom_glossary"
+    project_id, entry_id = get_dc_ids_from_entry_name(entry_name)
     assert project_id == "projX"
     assert entry_id == "entryX"
 
@@ -1761,9 +1745,10 @@ def test_convert_term_relationship_supported(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship()
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: f"dp_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: f"dp_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: "entry_link_name")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda typ: "link_type")
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is not None
     assert result.name == "entry_link_name"
@@ -1782,8 +1767,9 @@ def test_convert_term_relationship_missing_source(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship(source=None)
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: None if name is None else f"dp_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: None if name is None else f"dp_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: "entry_link_name")
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is None
 
@@ -1791,8 +1777,9 @@ def test_convert_term_relationship_missing_destination(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship(dest=None)
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: None if name is None else f"dp_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: None if name is None else f"dp_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: "entry_link_name")
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is None
 
@@ -1800,8 +1787,9 @@ def test_convert_term_relationship_missing_entry_link_name(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship()
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: f"dp_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: f"dp_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: None)
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is None
 
@@ -1809,8 +1797,9 @@ def test_convert_term_relationship_all_missing(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship(source=None, dest=None)
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: None)
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: None)
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: None)
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is None
 
@@ -1818,9 +1807,10 @@ def test_convert_term_relationship_custom_types(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship(rel_type="is_related_to")
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: f"custom_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: f"custom_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: "custom_link_name")
     monkeypatch.setattr("data_transformer.get_dp_entry_link_type_name", lambda typ: f"custom_type_{typ}")
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is not None
     assert result.name == "custom_link_name"
@@ -1832,8 +1822,9 @@ def test_convert_term_relationship_empty_strings(monkeypatch):
     context = setup_context()
     rel = create_glossary_taxonomy_relationship(source="", dest="", rel_type="is_synonymous_to")
     monkeypatch.setattr("data_transformer.is_supported_relationship", lambda r: True)
-    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name: "" if name == "" else f"dp_{name}")
+    monkeypatch.setattr("data_transformer.build_dataplex_entry_name", lambda name, dp_glossary_id: "" if name == "" else f"dp_{name}")
     monkeypatch.setattr("data_transformer.build_entry_link_name", lambda ctx: "entry_link_name")
+    monkeypatch.setattr("data_transformer.fetch_glossary_id", lambda glossary_name, user_project: "test_glossary")
     result = convert_term_relationship(context, rel)
     assert result is None
 
@@ -2295,7 +2286,7 @@ def test_build_entry_source_basic(monkeypatch):
     entry_to_parent_map = {"id_entry1": "parent1"}
     entry_id_to_type_map = {"parent1": "CATEGORY"}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource_path")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource_path")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: ["ancestor1", "ancestor2"])
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: dn.strip())
 
@@ -2312,7 +2303,7 @@ def test_build_entry_source_trim_display_name(monkeypatch):
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource2")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource2")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: [])
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: dn.strip())
 
@@ -2325,7 +2316,7 @@ def test_build_entry_source_empty_ancestors(monkeypatch):
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource3")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource3")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: [])
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: dn)
 
@@ -2338,7 +2329,7 @@ def test_build_entry_source_none_display_name(monkeypatch):
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource4")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource4")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: ["ancestor"])
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: "" if dn is None else dn.strip())
 
@@ -2352,7 +2343,7 @@ def test_build_entry_source_none_ancestors(monkeypatch):
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource5")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource5")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: None)
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: dn)
 
@@ -2365,7 +2356,7 @@ def test_build_entry_source_empty_display_name(monkeypatch):
     entry_to_parent_map = {}
     entry_id_to_type_map = {}
 
-    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ: "resource6")
+    monkeypatch.setattr("data_transformer.convert_to_dp_entry_id", lambda name, typ, dp_glossary_id: "resource6")
     monkeypatch.setattr("data_transformer.compute_ancestors", lambda ctx, name, parent_map, type_map: ["ancestor"])
     monkeypatch.setattr("data_transformer.trim_spaces_in_display_name", lambda dn: dn)
 

@@ -431,8 +431,8 @@ def test_create_dataplex_glossary_success(monkeypatch):
         return False
     def dummy_get_dataplex_glossary(context):
         return {"json": {"displayName": context.display_name}, "error_msg": None}
-    def dummy_handle_dataplex_glossary_response(api_response, display_name):
-        called["handled"] = (api_response, display_name)
+    def dummy_handle_dataplex_glossary_response(api_response, context):
+        called["handled"] = (api_response, context)
         
     monkeypatch.setattr(api_layer, "_post_dataplex_glossary", dummy_post_dataplex_glossary)
     monkeypatch.setattr(api_layer, "_is_glossary_already_exists", dummy_is_glossary_already_exists)
@@ -443,7 +443,7 @@ def test_create_dataplex_glossary_success(monkeypatch):
     context = DummyContext()
     api_layer.create_dataplex_glossary(context)
     assert "creation initiated" in called.get("info", "")
-    assert called.get("handled")[1] == context.display_name
+    assert called.get("handled")[1].display_name == context.display_name
 
 def test_create_dataplex_glossary_error(monkeypatch):
     # Simulate error in Dataplex API response

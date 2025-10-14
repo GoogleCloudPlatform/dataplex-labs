@@ -36,7 +36,7 @@ def log_job_failure(job: dict, job_id: str):
     logger.error(f"Job '{job_id}' FAILED. Reason: {error_msg}")
 
 def normalize_job_id(job_prefix: str) -> str:
-    return re.sub(r"[^a-z0-9-]", "-", job_prefix.lower()).strip("-")[:54]
+    return re.sub(r"[^a-z0-9-]", "-", job_prefix.lower()).strip("-")[:50]
 
 def generate_job_id(job_prefix: str) -> str:
     normalized_job_id = normalize_job_id(job_prefix)
