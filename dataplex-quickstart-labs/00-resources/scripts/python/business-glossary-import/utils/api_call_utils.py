@@ -5,8 +5,8 @@ from typing import Any, Callable, Dict
 import time
 import random
 import requests
-import logging_utils
-from constants import MAX_BACKOFF_SECONDS, INITIAL_BACKOFF_SECONDS
+from utils import logging_utils
+from utils.constants import MAX_BACKOFF_SECONDS, INITIAL_BACKOFF_SECONDS
 import google.auth
 from google.auth.transport.requests import Request
 

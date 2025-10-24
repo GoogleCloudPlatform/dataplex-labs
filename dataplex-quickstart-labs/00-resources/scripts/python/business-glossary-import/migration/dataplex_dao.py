@@ -8,8 +8,8 @@ import httplib2
 import google_auth_httplib2
 import google.auth
 from googleapiclient.discovery import build
-import logging_utils
-from constants import POLL_INTERVAL_MINUTES, MAX_POLLS, MAX_ATTEMPTS, INITIAL_BACKOFF_SECONDS
+from utils import logging_utils
+from utils.constants import POLL_INTERVAL_MINUTES, MAX_POLLS, MAX_ATTEMPTS, INITIAL_BACKOFF_SECONDS
 from error_utils import is_transient_http_error, handle_transient_error, extract_error_detail, TRANSIENT_EXCEPTIONS
 from file_utils import write_import_stats
 logger = logging_utils.get_logger()

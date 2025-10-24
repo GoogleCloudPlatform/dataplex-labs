@@ -1,6 +1,6 @@
 import re
 from typing import Tuple, List, Optional
-import logging_utils
+from utils import logging_utils
 from file_utils import *
 from migration_utils import normalize_id
 

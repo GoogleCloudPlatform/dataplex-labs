@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Tuple
 from api_layer import *
 from data_transformer import process_dc_glossary_entries
 from file_utils import write_files
-import logging_utils
+from utils import logging_utils
 from migration_utils import *
 from models import GlossaryEntry, EntryLink, Context
 

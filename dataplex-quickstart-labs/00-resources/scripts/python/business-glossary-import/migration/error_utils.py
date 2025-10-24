@@ -5,7 +5,7 @@ import logging
 from googleapiclient.errors import HttpError
 import requests
 import socket
-from constants import MAX_ATTEMPTS, INITIAL_BACKOFF_SECONDS
+from utils.constants import MAX_ATTEMPTS, INITIAL_BACKOFF_SECONDS
 
 logger = logging.getLogger(__name__)
 

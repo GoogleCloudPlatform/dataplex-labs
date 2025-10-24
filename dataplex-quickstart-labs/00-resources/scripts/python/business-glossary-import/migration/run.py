@@ -3,7 +3,7 @@ import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import logging_utils
+from utils import logging_utils
 import api_layer
 import migration_utils
 import business_glossary_import_v2

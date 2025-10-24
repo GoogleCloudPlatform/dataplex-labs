@@ -13,7 +13,7 @@ import uuid
 import json
 from typing import Dict, List, Optional, Tuple
 
-import logging_utils
+from utils import logging_utils
 logger = logging_utils.get_logger()
 
 
@@ -103,6 +103,34 @@ def get_entry_link_id() -> str:
     """Generate a unique dc_entry link ID: starts with a lowercase letter, contains only lowercase letters and numbers."""
     entrylink_id = 'g' + uuid.uuid4().hex
     return entrylink_id
+
+
+def extract_glossary_resource_from_url(url: str) -> str:
+    """
+    Extract the glossary resource path from a Dataplex glossary URL.
+    
+    Args:
+        url: The URL of the glossary, can be either a console URL or a resource path.
+        
+    Returns:
+        The glossary resource path in the format:
+        projects/PROJECT_ID/locations/LOC/glossaries/GLOSSARY_ID
+        
+    Example URLs:
+        https://pantheon.corp.google.com/dataplex/dp-glossaries/projects/foo/locations/global/glossaries/bar
+        projects/foo/locations/us-central1/glossaries/bar?hl=en
+    """
+    # First try to extract from URL path
+    pattern = r"projects/[^/]+/locations/[^/]+/glossaries/[^/?#]+"
+    match = re.search(pattern, url)
+    if match:
+        return match.group(0)
+    
+    logger.error(
+        "Invalid glossary URL. It must contain the pattern: "
+        "projects/.../locations/.../glossaries/..."
+    )
+    sys.exit(1)
 
 
 def extract_entry_parts(entry_full_name: str) -> Optional[Tuple[str, str, str]]:
@@ -195,7 +223,8 @@ def parse_entry_url(url: str) -> dict:
                          "projects/.../locations/.../entryGroups/.../entries/...")
     return match.groupdict()
 
-def read_first_json_line(file_path: str) -> dict | None:
+
+def read_first_json_line(file_path: str) -> Optional[dict]:
     """Returns the JSON object from the first line of a file, or None if unreadable."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -206,7 +235,7 @@ def read_first_json_line(file_path: str) -> dict | None:
     except (IOError, json.JSONDecodeError):
         return None
 
-def parse_json_line(line: str) -> dict | None:
+def parse_json_line(line: str) -> Optional[dict]:
     try:
         return json.loads(line)
     except json.JSONDecodeError:

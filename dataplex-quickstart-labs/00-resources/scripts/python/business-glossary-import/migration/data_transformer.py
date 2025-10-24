@@ -11,7 +11,8 @@ from constants import *
 from models import *
 from api_layer import *
 from migration_utils import *
-import logging_utils
+from migration_utils import get_entry_link_id
+from utils import logging_utils
 
 logger = logging_utils.get_logger()
 

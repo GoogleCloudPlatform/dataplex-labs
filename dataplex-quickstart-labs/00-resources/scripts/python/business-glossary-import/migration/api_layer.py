@@ -10,12 +10,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional
 import requests
 import time
-import api_call_utils
-import logging_utils
+from functools import lru_cache
+from utils import api_call_utils, logging_utils
 from models import *
 from migration_utils import *
 from object_converters import *
-from functools import lru_cache
 from constants import (DATACATALOG_BASE_URL, DATAPLEX_BASE_URL, SEARCH_BASE_URL, CLOUD_RESOURCE_MANAGER_BASE_URL, PAGE_SIZE, MAX_WORKERS, PROJECT_NUMBER)
 
 logger = logging_utils.get_logger()

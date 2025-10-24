@@ -1,13 +1,10 @@
 
-from google.cloud import storage
-from gcs_dao import *
-
 import httplib2
 import google_auth_httplib2
 from google.cloud import storage
-import logging_utils
+from utils import logging_utils
 from migration_utils import *
-from constants import *
+from utils.constants import *
 from dataplex_dao import *
 logger = logging_utils.get_logger()
 

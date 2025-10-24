@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import cycle
 from typing import Dict, List
-import logging_utils
+from utils import logging_utils
 from file_utils import *
 from gcs_dao import prepare_gcs_bucket
 from dataplex_dao import get_dataplex_service, create_and_monitor_job

@@ -5,7 +5,7 @@ Module for converting API response dicts into dataclass objects.
 from typing import List, Dict, Any, Optional
 from models import *
 from migration_utils import build_destination_entry_name_with_project_number
-import logging_utils
+from utils import logging_utils
 
 logging = logging_utils.get_logger()
 

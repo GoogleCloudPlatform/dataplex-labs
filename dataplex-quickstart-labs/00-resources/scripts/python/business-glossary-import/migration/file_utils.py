@@ -4,10 +4,10 @@ Helper functions for writing data to files and reading metadata from files.
 import json
 import os
 from typing import List, Dict, Any, Union
-import logging_utils
+from utils import logging_utils
 from models import GlossaryEntry, EntryLink
 from googleapiclient.errors import HttpError
-from constants import *
+from utils.constants import *
 import re
 from collections import defaultdict
 import threading
@@ -317,6 +317,9 @@ def calculate_entrylinks_count(entrylink_files):
 def write_import_stats(project_id: str, job: dict):
     logger.debug(f"Writing import stats for job: {job}")
     stats_path = os.path.join(SUMMARY_DIRECTORY_PATH, f"import-stats-{project_id}.txt")
+    # Ensure summary directory exists
+    ensure_dir(SUMMARY_DIRECTORY_PATH)
+    
     # Use a global lock for this module to synchronize threads
     if not hasattr(write_import_stats, "_lock"):
         write_import_stats._lock = threading.Lock()
