@@ -510,84 +510,65 @@ def test_get_migration_arguments_resume_import_flag():
         s = "projects/abc-123/locations/loc-xyz/entryGroups/g_2/entries/e-99"
         result = migration_utils.extract_entry_parts(s)
         assert result == ("projects/abc-123/locations/loc-xyz", "g_2", "e-99")
-        def test_get_entry_link_id_format():
-            entry_id = migration_utils.get_entry_link_id()
-            # Should start with 'g'
-            assert entry_id.startswith('g')
-            # Should be all lowercase letters and numbers
-            assert entry_id.isalnum()
-            assert entry_id == entry_id.lower()
-            # Should be length 33 ('g' + 32 hex digits)
-            assert len(entry_id) == 33
+        
+def test_get_dc_glossary_taxonomy_id_basic():
+    s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
 
-        def test_get_entry_link_id_uniqueness():
-            ids = {migration_utils.get_entry_link_id() for _ in range(100)}
-            # All IDs should be unique
-            assert len(ids) == 100
+def test_get_dc_glossary_taxonomy_id_with_special_chars():
+    s = "projects/x/locations/y/entryGroups/z/entries/entry-id_123"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == "entry-id_123"
 
-        def test_get_entry_link_id_hex_part():
-            entry_id = migration_utils.get_entry_link_id()
-            hex_part = entry_id[1:]
-            # Should be valid hex
-            int(hex_part, 16)  # Should not raise
-            def test_get_dc_glossary_taxonomy_id_basic():
-                s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
+def test_get_dc_glossary_taxonomy_id_no_entries_segment():
+    s = "projects/x/locations/y/entryGroups/z/entry/ENTRYID"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
 
-            def test_get_dc_glossary_taxonomy_id_with_special_chars():
-                s = "projects/x/locations/y/entryGroups/z/entries/entry-id_123"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == "entry-id_123"
+def test_get_dc_glossary_taxonomy_id_trailing_slash():
+    s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID/"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
 
-            def test_get_dc_glossary_taxonomy_id_no_entries_segment():
-                s = "projects/x/locations/y/entryGroups/z/entry/ENTRYID"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
+def test_get_dc_glossary_taxonomy_id_multiple_entries_segments():
+    s = "projects/x/locations/y/entryGroups/z/entries/abc/entries/ENTRYID"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
 
-            def test_get_dc_glossary_taxonomy_id_trailing_slash():
-                s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID/"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
+def test_get_dc_glossary_taxonomy_id_empty_string():
+    s = ""
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
 
-            def test_get_dc_glossary_taxonomy_id_multiple_entries_segments():
-                s = "projects/x/locations/y/entryGroups/z/entries/abc/entries/ENTRYID"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
+def test_get_dc_glossary_taxonomy_id_none():
+    assert migration_utils.get_dc_glossary_taxonomy_id(None) == ""
 
-            def test_get_dc_glossary_taxonomy_id_empty_string():
-                s = ""
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == ""
+def test_get_dc_glossary_taxonomy_id_entries_at_start():
+    s = "entries/ENTRYID"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
 
-            def test_get_dc_glossary_taxonomy_id_none():
-                assert migration_utils.get_dc_glossary_taxonomy_id(None) == ""
+def test_get_dc_glossary_taxonomy_id_entries_with_query_params():
+    s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID?foo=bar"
+    assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID?foo=bar"
+def test_trim_spaces_in_display_name_leading_and_trailing():
+    s = "  My Display Name  "
+    result = migration_utils.trim_spaces_in_display_name(s)
+    assert result == "My Display Name"
 
-            def test_get_dc_glossary_taxonomy_id_entries_at_start():
-                s = "entries/ENTRYID"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID"
+def test_trim_spaces_in_display_name_no_spaces():
+    s = "DisplayName"
+    result = migration_utils.trim_spaces_in_display_name(s)
+    assert result == "DisplayName"
 
-            def test_get_dc_glossary_taxonomy_id_entries_with_query_params():
-                s = "projects/x/locations/y/entryGroups/z/entries/ENTRYID?foo=bar"
-                assert migration_utils.get_dc_glossary_taxonomy_id(s) == "ENTRYID?foo=bar"
-                def test_trim_spaces_in_display_name_leading_and_trailing():
-                    s = "  My Display Name  "
-                    result = migration_utils.trim_spaces_in_display_name(s)
-                    assert result == "My Display Name"
+def test_trim_spaces_in_display_name_only_spaces():
+    s = "     "
+    result = migration_utils.trim_spaces_in_display_name(s)
+    assert result == ""
 
-                def test_trim_spaces_in_display_name_no_spaces():
-                    s = "DisplayName"
-                    result = migration_utils.trim_spaces_in_display_name(s)
-                    assert result == "DisplayName"
+def test_trim_spaces_in_display_name_spaces_inside():
+    s = "Name With  Spaces"
+    result = migration_utils.trim_spaces_in_display_name(s)
+    assert result == "Name With  Spaces"
 
-                def test_trim_spaces_in_display_name_only_spaces():
-                    s = "     "
-                    result = migration_utils.trim_spaces_in_display_name(s)
-                    assert result == ""
-
-                def test_trim_spaces_in_display_name_spaces_inside():
-                    s = "Name With  Spaces"
-                    result = migration_utils.trim_spaces_in_display_name(s)
-                    assert result == "Name With  Spaces"
-
-                def test_trim_spaces_in_display_name_empty_string():
-                    s = ""
-                    result = migration_utils.trim_spaces_in_display_name(s)
-                    assert result == ""
+def test_trim_spaces_in_display_name_empty_string():
+    s = ""
+    result = migration_utils.trim_spaces_in_display_name(s)
+    assert result == ""
 
 def test_trim_spaces_in_display_name_tab_and_newline():
     s = "\tDisplay Name\n"
