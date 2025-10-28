@@ -710,3 +710,4 @@ if __name__ == "__main__":
         logger.info(f"Export completed in {minutes} min {seconds} sec")
     else:
         logger.info(f"Export completed in {seconds} sec")
+        

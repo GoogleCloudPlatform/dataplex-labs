@@ -169,3 +169,4 @@ def fetch_api_response(
         'json': None,
         'error_msg': error_msg
     }
+  
