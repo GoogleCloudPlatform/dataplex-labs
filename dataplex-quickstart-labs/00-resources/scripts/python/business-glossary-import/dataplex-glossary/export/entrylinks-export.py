@@ -52,7 +52,7 @@ def export_entry_links(
     # Fetch entry links for each term
     all_links = []
     for term in terms:
-        entry_name = api_layer.generate_entry_name_from_term_name(term["name"])
+        entry_name = business_glossary_utils.generate_entry_name_from_term_name(term["name"])
         term_links = api_layer.lookup_entry_links_for_term(entry_name, user_project)
         if term_links:
             all_links.extend(sheet_utils.entry_links_to_rows(term_links))
