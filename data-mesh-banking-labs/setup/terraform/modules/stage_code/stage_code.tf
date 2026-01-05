@@ -66,6 +66,7 @@ resource "null_resource" "setup_code" {
   provisioner "local-exec" {
     command = <<-EOT
       cd ../resources/
+      # gsutil command not translated because the -u flag is not supported for gcloud storage cp.
       gsutil -u ${var.project_id} cp gs://dataplex-dataproc-templates-artifacts/* ./common/.
       wget -P ./common/ https://github.com/mansim07/dataplex-labs/raw/main/setup/resources/code_artifacts/libs/tagmanager-1.0-SNAPSHOT.jar
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_information
@@ -97,7 +98,7 @@ resource "null_resource" "setup_code" {
       sed -i s/_locations_/${var.location}/g code/transactions-consumer-configs/data-product-exchange-tag-manual.yaml
       sed -i s/_locations_/${var.location}/g code/customer-source-configs/data-product-exchange-tag-manual.yaml
       sed -i s/_locations_/${var.location}/g code/merchant-source-configs/data-product-exchange-tag-manual.yaml
-      gsutil -m cp -r * gs://${var.dataplex_process_bucket_name}
+      gcloud storage cp --recursive * gs://${var.dataplex_process_bucket_name}
     EOT
     }
     depends_on = [
@@ -106,4 +107,3 @@ resource "null_resource" "setup_code" {
                   google_storage_bucket.storage_bucket_bqtemp]
 
   }
-

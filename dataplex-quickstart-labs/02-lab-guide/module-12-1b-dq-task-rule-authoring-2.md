@@ -279,7 +279,7 @@ sed -i "s|YOUR_DATAPLEX_ZONE_ID|$DATA_QUALITY_ZONE_ID|g" customer_master_dq.yaml
 ```
 cd ~/tmp/dataplex-quickstart-labs/dq
 
-gsutil cp customer_master_dq.yaml gs://$DQ_SCRIPTS_BUCKET/dq-yaml/
+gcloud storage cp customer_master_dq.yaml gs://$DQ_SCRIPTS_BUCKET/dq-yaml/
 ```
 
 ### 2.5. Execute the DQ task
@@ -396,6 +396,5 @@ Author's output:
 This concludes the module. Proceed to the [next module](module-12-1c-dq-incident-mgmt.md).
 
 <hr>
-
 
 

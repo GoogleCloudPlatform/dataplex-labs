@@ -96,7 +96,7 @@ LOCATION="us-central1"
 DAG_BUCKET=`gcloud composer environments describe oda-$PROJECT_NBR-cc2 --location $LOCATION | grep dagGcsPrefix: | cut -d' ' -f4`
 
 # Upload the DAG
-gsutil cp ~/dataplex-quickstart-labs/00-resources/scripts/airflow/data-quality/customer_master_dq_automation_primer.py $DAG_BUCKET/data-quality/
+gcloud storage cp ~/dataplex-quickstart-labs/00-resources/scripts/airflow/data-quality/customer_master_dq_automation_primer.py $DAG_BUCKET/data-quality/
 ```
 
 ![LF](../01-images/m-12-1-f-01.png)   

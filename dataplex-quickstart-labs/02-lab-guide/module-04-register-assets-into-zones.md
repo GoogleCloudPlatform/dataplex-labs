@@ -1,4 +1,3 @@
-
 # M4: Register Assets into your Dataplex Lake Zones
 
 In the previous module, we created a Dataplex Lake with a Dataproc Metastore Service, and Dataplex Zones with discovery enabled. <br>
@@ -316,7 +315,7 @@ GCS Path: gs://raw-notebook-PROJECT_NBR
 
 To see the listing in Cloud Shell, paste the below command-
 ```
-gsutil ls gs://raw-notebook-$PROJECT_NBR
+gcloud storage ls gs://raw-notebook-$PROJECT_NBR
 ```
 The author's output is:<br>
 
@@ -359,7 +358,7 @@ GCS Path: gs://raw-code-PROJECT_NBR<br>
 
 To see the listing in Cloud Shell, paste the below command-
 ```
-gsutil ls -r gs://raw-code-$PROJECT_NBR
+gcloud storage ls --recursive gs://raw-code-$PROJECT_NBR
 ```
 The author's output is:<br>
 <br>
@@ -395,5 +394,4 @@ Navigate to Dataplex UI -> Manage -> ODA-LAKE -> ODA-MISC-ZONE -> Assets & famil
 This concludes the lab module. Proceed to the [next module](module-05-create-exploration-environment.md).
 
 <hr>
-
 

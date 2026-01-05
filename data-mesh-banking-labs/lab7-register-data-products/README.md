@@ -108,7 +108,7 @@ Make sure Data is populated by the DLP job profiler into ${PROJECT_ID}.central_d
 2. Upload the file to the temp gcs bucket
 
 ```bash 
-gsutil cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp/
+gcloud storage cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp/
 ```
 
 3. Run the below command to create the tag for customer_data product entity 
@@ -167,7 +167,7 @@ last_modify_date: ""
 8. upload the updated file to the temp gcs bucket 
 
 ```
-gsutil cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp
+gcloud storage cp ~/customer-tag.yaml gs://${PROJECT_ID}_dataplex_temp
 ```
 
 9.  Trigger another tagging job 

@@ -69,7 +69,7 @@ Review the two PySpark scripts
 2. Copy the PySpark scripts from local to the code bucket (in case you modified anything) -
 ```
 cd ~/dataplex-quickstart-labs/00-resources/scripts/pyspark/
-gsutil cp chicago-crimes-analytics/* gs://raw-code-${PROJECT_NBR}/pyspark/chicago-crimes-analytics/
+gcloud storage cp chicago-crimes-analytics/* gs://raw-code-${PROJECT_NBR}/pyspark/chicago-crimes-analytics/
 ```
 
 <hr>
@@ -471,5 +471,4 @@ SELECT * FROM `oda_product_zone.crimes_by_hour_spark` LIMIT 5
 This concludes the lab module. Proceed to the [next module](module-09-4-custom-lineage.md).
 
 <hr>
-
 

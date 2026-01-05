@@ -72,7 +72,7 @@ We will use Dataplex tasks to populate tags with Data Quality scores and this fe
 ```
 cd ~/tmp/dataplex-quickstart-labs/dq
 TAG_MANAGER_UTIL_JAR_FQP=gs://$DQ_MISC_BUCKET/dq-utils/tagmanager-1.0-SNAPSHOT.jar
-gsutil cp tagmanager-1.0-SNAPSHOT.jar $TAG_MANAGER_UTIL_JAR_FQP
+gcloud storage cp tagmanager-1.0-SNAPSHOT.jar $TAG_MANAGER_UTIL_JAR_FQP
 ```
 
 <hr>
@@ -141,7 +141,7 @@ cat data-quality-scores-tag.yaml
 
 ```
 TAG_POPULATION_YAML_FILE_FQP=gs://$DQ_MISC_BUCKET/dq-tag-population-yaml/data-quality-scores-tag.yaml
-gsutil cp data-quality-scores-tag.yaml $TAG_POPULATION_YAML_FILE_FQP
+gcloud storage cp data-quality-scores-tag.yaml $TAG_POPULATION_YAML_FILE_FQP
 ```
 
 <hr>
