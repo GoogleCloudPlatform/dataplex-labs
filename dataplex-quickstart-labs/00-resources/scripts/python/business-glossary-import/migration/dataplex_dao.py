@@ -123,7 +123,12 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
     job_path = f"projects/{project_id}/locations/{location}/metadataJobs/{job_id}"
 
     for i in range(max_polls):
-        time.sleep(poll_interval)
+        try:
+            time.sleep(poll_interval)
+        except KeyboardInterrupt:
+            logger.warning(f"Job '{job_id}' polling interrupted by user.")
+            raise
+        
         job, state = get_job_and_state(service, job_path, job_id)
         if job is None:
             return False

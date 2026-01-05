@@ -1,11 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import cycle
-from typing import Dict, List
+from typing import List
 import logging_utils
 from file_utils import *
-from gcs_dao import prepare_gcs_bucket
+from gcs_dao import prepare_gcs_bucket, ensure_folders_exist
 from dataplex_dao import get_dataplex_service, create_and_monitor_job
 from payloads import *
+from constants import MIGRATION_FOLDER_PREFIX
 import os
 from file_utils import *
 logger = logging_utils.get_logger()
@@ -21,7 +21,7 @@ def get_referenced_scopes(file_path: str, main_project_id: str) -> list:
     return list(scopes)
 
 
-def process_import_file(file_path: str, project_id: str, gcs_bucket: str) -> bool:
+def process_import_file(file_path: str, project_id: str, gcs_bucket: str, folder_name: str) -> bool:
     """
     Processes a single glossary or entrylink file:
     - Builds payload
@@ -40,13 +40,13 @@ def process_import_file(file_path: str, project_id: str, gcs_bucket: str) -> boo
 
     service = get_dataplex_service()
 
-    job_id, payload, job_location = build_payload(file_path, project_id, gcs_bucket)
+    job_id, payload, job_location = build_payload(file_path, project_id, gcs_bucket, folder_name)
     if not payload or not job_id or not job_location:
         return False
 
     try:
         # Upload file to GCS first; only continue if upload succeeded
-        upload_status = prepare_gcs_bucket(gcs_bucket, file_path, filename)
+        upload_status = prepare_gcs_bucket(gcs_bucket, folder_name, file_path, filename)
         if not upload_status:
             logger.error(f"Failed to prepare GCS bucket '{gcs_bucket}' for file '{filename}'. Skipping import.")
             return False
@@ -60,45 +60,62 @@ def process_import_file(file_path: str, project_id: str, gcs_bucket: str) -> boo
         return False
 
 
-def _process_files_for_bucket(files_for_bucket: List[str], project_id: str, bucket: str) -> List[bool]:
-    """Worker: processes all files assigned to a bucket sequentially."""
-    results = []
-    for f in files_for_bucket:
-        try:
-            result = process_import_file(f, project_id, bucket)
-        except Exception as e:
-            logger.error(f"Error processing file {f} in bucket {bucket}: {e}")
-            logger.debug(f"Error processing file {f} in bucket {bucket}: {e}", exc_info=True)
-            result = False
-        results.append(result)
-    return results
-
-
 def run_import_files(files: List[str], project_id: str, buckets: List[str]) -> List[bool]:
-    """
-    Distribute files round-robin to buckets, start one worker per bucket and process sequentially
-    to guarantee no two threads operate on the same bucket.
-    """
+    """Runs import for multiple files using ThreadPoolExecutor for concurrency."""
+    if not files:
+        return []
     if not buckets:
         logger.error("No buckets provided to run_import_files.")
         return [False] * len(files)
 
-    bucket_file_map: Dict[str, List[str]] = {b: [] for b in buckets}
-    cycler = cycle(buckets)
-    for f in files:
-        b = next(cycler)
-        bucket_file_map[b].append(f)
+    bucket = buckets[0]
+    if len(buckets) > 1:
+        logger.warning(f"Multiple buckets provided; using '{bucket}' with folder-based uploads.")
+
+    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{idx+1}" for idx in range(len(files))]
+    if not ensure_folders_exist(bucket, folder_names):
+        logger.error(f"Unable to ensure migration folders exist in bucket '{bucket}'.")
+        return [False] * len(files)
+
+    assignments = list(zip(files, folder_names))
+    logger.info(f"Starting import of {len(files)} files into bucket '{bucket}' using {len(folder_names)} folders.")
 
     results: List[bool] = []
-    with ThreadPoolExecutor(max_workers=len(buckets)) as executor:
-        future_map = {
-            executor.submit(_process_files_for_bucket, bucket_file_map[bucket], project_id, bucket): bucket
-            for bucket in buckets
-        }
-        for future in as_completed(future_map):
-            bucket_results = future.result() or []
-            results.extend(bucket_results)
+    max_workers = min(15, len(assignments))
+    import_files_with_threads(project_id, bucket, assignments, results, max_workers)  # Re-raise to propagate the interrupt
+            
     return results
+
+def import_files_with_threads(project_id, bucket, assignments, results, max_workers):
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(process_import_file, file_path, project_id, bucket, folder_name): (file_path, folder_name)
+            for file_path, folder_name in assignments
+        }
+        
+        try:
+            for future in as_completed(future_map):
+                file_path, folder_name = future_map[future]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.error(f"Error processing file {file_path} in bucket {bucket} folder {folder_name}: {e}")
+                    logger.debug(f"Error processing file {file_path} in bucket {bucket} folder {folder_name}: {e}", exc_info=True)
+                    result = False
+                results.append(result)
+        except KeyboardInterrupt:
+            logger.warning("\n*** Import interrupted by user (Ctrl+C) ***")
+            logger.info("Cancelling pending imports...")
+            
+            # Cancel all pending futures
+            for future in future_map.keys():
+                if not future.done():
+                    future.cancel()
+            
+            # Shutdown without waiting for threads
+            executor.shutdown(wait=False)
+            logger.info("Import process terminated by user")
+            raise
 
 
 def filter_files_for_phases(phase_name: str, exported_files: List[str]) -> List[str]:
