@@ -47,6 +47,7 @@ def process_import_file(file_path: str, project_id: str, gcs_bucket: str, folder
     try:
         # Upload file to GCS first; only continue if upload succeeded
         upload_status = prepare_gcs_bucket(gcs_bucket, folder_name, file_path, filename)
+        logger.debug(f"Upload status for file '{filename}': {upload_status} to bucket '{gcs_bucket}' in folder '{folder_name}'")
         if not upload_status:
             logger.error(f"Failed to prepare GCS bucket '{gcs_bucket}' for file '{filename}'. Skipping import.")
             return False

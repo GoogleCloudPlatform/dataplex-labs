@@ -9,7 +9,7 @@ from dataplex_dao import *
 logger = logging_utils.get_logger()
 
 
-def ensure_folder_exists(bucket_name: str, folder_name: str) -> bool:
+def create_folders(bucket_name: str, folder_name: str) -> bool:
     """Creates a zero-byte object to represent a folder prefix when missing."""
     normalized_folder = folder_name.strip("/")
     prefix = f"{normalized_folder}/"
@@ -32,14 +32,14 @@ def ensure_folders_exist(bucket_name: str, folder_names: list[str]) -> bool:
     """Ensures every folder prefix exists before uploads; returns False on first failure."""
     logger.info("Creating necessary folders in bucket '%s'...", bucket_name)
     for folder_name in folder_names:
-        if not ensure_folder_exists(bucket_name, folder_name):
+        if not create_folders(bucket_name, folder_name):
             return False
     return True
 
 
 def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filename: str) -> bool:
     destination_path = f"{folder_name.strip('/')}/{filename}"
-    if not ensure_folder_exists(gcs_bucket, folder_name):
+    if not create_folders(gcs_bucket, folder_name):
         return False
     return upload_to_gcs(gcs_bucket, file_path, destination_path)
 

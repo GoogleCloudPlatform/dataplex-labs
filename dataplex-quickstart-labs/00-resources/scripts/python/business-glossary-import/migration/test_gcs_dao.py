@@ -136,7 +136,7 @@ def test_ensure_folder_exists_success(monkeypatch, mock_storage_client, mock_log
     mock_bucket.list_blobs.return_value = []  # Folder doesn't exist
     mock_bucket.blob.return_value = mock_blob
 
-    result = ensure_folder_exists("test-bucket", "my-folder")
+    result = create_folders("test-bucket", "my-folder")
     mock_bucket.blob.assert_called_once_with("my-folder/")
     mock_blob.upload_from_string.assert_called_once_with("")
     mock_logger.debug.assert_called_once()
@@ -149,7 +149,7 @@ def test_ensure_folder_exists_already_exists(monkeypatch, mock_storage_client, m
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.return_value = [mock_blob]  # Folder exists
 
-    result = ensure_folder_exists("test-bucket", "existing-folder")
+    result = create_folders("test-bucket", "existing-folder")
     mock_bucket.blob.assert_not_called()
     assert result is True
 
@@ -160,7 +160,7 @@ def test_ensure_folder_exists_with_trailing_slash(monkeypatch, mock_storage_clie
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.return_value = []
 
-    result = ensure_folder_exists("test-bucket", "my-folder/")
+    result = create_folders("test-bucket", "my-folder/")
     mock_bucket.blob.assert_called_once_with("my-folder/")
     assert result is True
 
@@ -170,7 +170,7 @@ def test_ensure_folder_exists_exception(monkeypatch, mock_storage_client, mock_l
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.side_effect = Exception("List failed")
 
-    result = ensure_folder_exists("test-bucket", "fail-folder")
+    result = create_folders("test-bucket", "fail-folder")
     mock_logger.error.assert_called_once()
     assert result is False
 
