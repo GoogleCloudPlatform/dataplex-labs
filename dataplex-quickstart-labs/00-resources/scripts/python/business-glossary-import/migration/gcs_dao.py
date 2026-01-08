@@ -41,6 +41,8 @@ def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filena
     destination_path = f"{folder_name.strip('/')}/{filename}"
     if not create_folders(gcs_bucket, folder_name):
         return False
+    if not clear_gcs_path(gcs_bucket, folder_name):
+        return False
     return upload_to_gcs(gcs_bucket, file_path, destination_path)
 
 
@@ -57,12 +59,13 @@ def upload_to_gcs(bucket_name: str, file_path: str, destination_blob_name: str) 
         return False
 
 
-def clear_bucket(bucket_name: str) -> bool:
+def clear_gcs_path(bucket_name: str, folder_prefix: str = "") -> bool:
     """Deletes all objects in a bucket. Returns True on success, False on failure."""
     try:
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
-        blobs = list(bucket.list_blobs())
+        prefix = folder_prefix.strip("/") + "/" if folder_prefix else ""
+        blobs = list(bucket.list_blobs(prefix=prefix)) if prefix else list(bucket.list_blobs())
         if not blobs:
             logger.debug(f"Bucket '{bucket_name}' is already empty.")
             return True
