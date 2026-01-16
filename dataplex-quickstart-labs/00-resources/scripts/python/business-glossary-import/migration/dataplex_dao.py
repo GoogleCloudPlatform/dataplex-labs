@@ -116,11 +116,12 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
 
 
 def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> bool:
-    """Polls a metadata job until completion or failure."""
+    """Polls a metadata job until completion or failure with exponential backoff retry on transient errors."""
     logger.info(f"Polling status for job '{job_id}' every {POLL_INTERVAL_MINUTES} minutes...")
     poll_interval = POLL_INTERVAL_MINUTES * 60
     max_polls = MAX_POLLS
     job_path = f"projects/{project_id}/locations/{location}/metadataJobs/{job_id}"
+    backoff = INITIAL_BACKOFF_SECONDS
 
     for i in range(max_polls):
         try:
@@ -129,17 +130,36 @@ def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> b
             logger.warning(f"Job '{job_id}' polling interrupted by user.")
             raise
         
-        job, state = get_job_and_state(service, job_path, job_id)
-        if job is None:
-            return False
-        if is_job_succeeded(state):
-            write_import_stats(project_id, job)
-            logger.info(f"Job '{job_id}' SUCCEEDED.")
-            return True
-        if is_job_failed(state):
-            log_job_failure(job, job_id)
-            return False
-        logger.info(f"Job '{job_id}' is {state}. Continuing to wait... (check {i+1}/{max_polls})")
+        attempt = 1
+        while attempt <= MAX_ATTEMPTS:
+            try:
+                job, state = get_job_and_state(service, job_path, job_id)
+                if job is None:
+                    if attempt < MAX_ATTEMPTS:
+                        backoff = handle_transient_error(job_id, backoff, attempt, "Failed to retrieve job")
+                        attempt += 1
+                        continue
+                    return False
+                if is_job_succeeded(state):
+                    write_import_stats(project_id, job)
+                    logger.info(f"Job '{job_id}' SUCCEEDED.")
+                    return True
+                if is_job_failed(state):
+                    log_job_failure(job, job_id)
+                    return False
+                logger.info(f"Job '{job_id}' is {state}. Continuing to wait... (check {i+1}/{max_polls})")
+                
+                break
+            except (HttpError, Exception) as e:
+                error_detail = extract_error_detail(e) if isinstance(e, HttpError) else str(e)
+                is_transient = is_transient_http_error(e) if isinstance(e, HttpError) else isinstance(e, TRANSIENT_EXCEPTIONS)
+                if is_transient and attempt < MAX_ATTEMPTS:
+                    backoff = handle_transient_error(job_id, backoff, attempt, error_detail)
+                    attempt += 1
+                    continue
+                logger.error(f"Error polling job '{job_id}': {error_detail}")
+                return False
+    
     logger.warning(f"Polling timed out for job '{job_id}'.")
     return False
 

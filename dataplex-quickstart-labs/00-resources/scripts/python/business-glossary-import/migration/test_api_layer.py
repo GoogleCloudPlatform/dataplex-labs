@@ -161,7 +161,7 @@ def test_fetch_dc_glossary_taxonomy_entries_pagination(monkeypatch):
         return {"json": {}, "error_msg": "Some error"}
     monkeypatch.setattr(api_layer, "_fetch_glossary_taxonomy_entries_page", dummy_fetch_api_response)
     monkeypatch.setattr(api_layer, "convert_glossary_taxonomy_entries_to_objects", lambda entries: entries)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         api_layer.fetch_dc_glossary_taxonomy_entries(DummyContext())
         api_layer.fetch_dc_glossary_taxonomy_entries(DummyContext())
 
@@ -275,14 +275,14 @@ def test_extract_project_number_from_info_missing_name(monkeypatch):
     # Should call sys.exit(1) if 'name' is missing
     project_info = {}
     monkeypatch.setattr(api_layer.logger, "error", lambda msg: None)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         api_layer._extract_project_number_from_info(project_info)
 
 def test_extract_project_number_from_info_invalid_name(monkeypatch):
     # Should call sys.exit(1) if name does not contain a project number
     project_info = {"name": "invalid_name"}
     monkeypatch.setattr(api_layer.logger, "error", lambda msg: None)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         api_layer._extract_project_number_from_info(project_info)
 
 def test__fetch_project_info_success(monkeypatch):
@@ -300,7 +300,7 @@ def test__fetch_project_info_error(monkeypatch):
         return {"json": {}, "error_msg": "API error"}
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     monkeypatch.setattr(api_layer.logger, "error", lambda msg: None)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         api_layer._fetch_project_info("test-project", "user-project")
 
 def test__fetch_project_info_empty_json(monkeypatch):
@@ -363,7 +363,7 @@ def test__fetch_glossary_display_name_error(monkeypatch):
     monkeypatch.setattr(api_layer.api_call_utils, "fetch_api_response", dummy_fetch_api_response)
     monkeypatch.setattr(api_layer.logger, "error", lambda msg: None)
     context = DummyContext()
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         api_layer.fetch_glossary_display_name(context)
 
 def test__build_dataplex_lookup_entry_url_basic():

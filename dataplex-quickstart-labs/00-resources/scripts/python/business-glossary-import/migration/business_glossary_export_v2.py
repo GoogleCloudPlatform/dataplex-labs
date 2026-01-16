@@ -29,7 +29,7 @@ def _build_export_context(glossary_url: str, user_project: str, org_ids: List[st
             "No organization IDs found. Provide --orgIds or configure gcloud correctly. "
             "You need 'resourcemanager.organizations.get' permission on all Organizations with linked Entries."
         )
-        sys.exit(1)
+        raise Exception("No organization IDs found. Provide --orgIds or configure gcloud correctly.")
 
     user_project = user_project or url_parts["project"]
     project_number = get_project_number(url_parts["project"], user_project=user_project)

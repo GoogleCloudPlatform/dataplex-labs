@@ -36,14 +36,14 @@ def get_org_ids_from_gcloud() -> List[str]:
         org_ids = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
         if not org_ids:
             logger.error("gcloud found no organization IDs.")
-            sys.exit(1)
+            raise Exception("No organization IDs found via gcloud.")
         return org_ids
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.error(
             f"Error fetching organization IDs via gcloud: {e}. "
             "Please pass IDs via --orgIds or ensure gcloud is authenticated."
         )
-        sys.exit(1)
+        raise Exception(f"Failed to fetch organization IDs: {e}")
 
 
 def get_export_arguments() -> argparse.ArgumentParser:
@@ -70,7 +70,7 @@ def parse_glossary_url(url: str) -> Dict[str, str]:
             "Invalid --url provided. It must contain the pattern: "
             "projects/.../locations/.../entryGroups/.../glossaries/..."
         )
-        sys.exit(1)
+        raise Exception(f"Invalid glossary URL format: {url}")
     return match.groupdict()
 
 def normalize_id(name: str) -> str:
@@ -81,7 +81,7 @@ def normalize_id(name: str) -> str:
     # Ensure starts with a letter
     if not normalized or not normalized[0].isalpha():
         normalized = "g" + normalized
-    return normalized
+    return normalized[:64]
 
 def trim_spaces_in_display_name(display_name: str) -> str:
     return display_name.strip()
