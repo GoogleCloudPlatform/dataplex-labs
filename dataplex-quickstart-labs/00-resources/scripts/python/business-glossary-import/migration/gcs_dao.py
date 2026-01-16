@@ -1,10 +1,7 @@
-
 from google.cloud import storage
-from gcs_dao import *
 
 import httplib2
 import google_auth_httplib2
-from google.cloud import storage
 import logging_utils
 from migration_utils import *
 from constants import *
@@ -12,31 +9,63 @@ from dataplex_dao import *
 logger = logging_utils.get_logger()
 
 
-def prepare_gcs_bucket(gcs_bucket: str, file_path: str, filename: str) -> bool:
-    clear_bucket(gcs_bucket)
-    upload_to_gcs(gcs_bucket, file_path, filename)
-    return True
-
-
-def upload_to_gcs(bucket_name: str, file_path: str, file_name: str) -> bool:
+def create_folders(bucket_name: str, folder_name: str) -> bool:
+    """Creates a zero-byte object to represent a folder prefix when missing."""
+    normalized_folder = folder_name.strip("/")
+    prefix = f"{normalized_folder}/"
     try:
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(file_name)
+        existing = list(bucket.list_blobs(prefix=prefix, max_results=1))
+        if existing:
+            return True
+        blob = bucket.blob(prefix)
+        blob.upload_from_string("")
+        logger.debug(f"Created folder placeholder gs://{bucket_name}/{prefix}")
+        return True
+    except Exception as error:
+        logger.error("Failed to ensure folder '%s' in bucket '%s': %s", prefix, bucket_name, error)
+        return False
+
+
+def ensure_folders_exist(bucket_name: str, folder_names: list[str]) -> bool:
+    """Ensures every folder prefix exists before uploads; returns False on first failure."""
+    logger.info("Creating necessary folders in bucket '%s'...", bucket_name)
+    for folder_name in folder_names:
+        if not create_folders(bucket_name, folder_name):
+            return False
+    return True
+
+
+def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filename: str) -> bool:
+    destination_path = f"{folder_name.strip('/')}/{filename}"
+    if not create_folders(gcs_bucket, folder_name):
+        return False
+    if not clear_gcs_path_content(gcs_bucket, folder_name):
+        return False
+    return upload_to_gcs(gcs_bucket, file_path, destination_path)
+
+
+def upload_to_gcs(bucket_name: str, file_path: str, destination_blob_name: str) -> bool:
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
         blob.upload_from_filename(file_path)
-        logger.debug(f"Uploaded {file_path} -> gs://{bucket_name}/{file_name}")
+        logger.debug(f"Uploaded {file_path} -> gs://{bucket_name}/{destination_blob_name}")
         return True
     except Exception as error:
         logger.error("Failed to upload '%s' to bucket '%s' with error '%s'", file_path, bucket_name, error)
         return False
 
 
-def clear_bucket(bucket_name: str) -> bool:
+def clear_gcs_path_content(bucket_name: str, folder_prefix: str = "") -> bool:
     """Deletes all objects in a bucket. Returns True on success, False on failure."""
     try:
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
-        blobs = list(bucket.list_blobs())
+        prefix = folder_prefix.strip("/") + "/" if folder_prefix else ""
+        blobs = list(bucket.list_blobs(prefix=prefix)) if prefix else list(bucket.list_blobs())
         if not blobs:
             logger.debug(f"Bucket '{bucket_name}' is already empty.")
             return True
@@ -48,11 +77,12 @@ def clear_bucket(bucket_name: str) -> bool:
         return False
 
 def build_dummy_payload(bucket_name):
+    folder_name = "permission-check"
     return {
         "type": "IMPORT",
         "import_spec": {
             "log_level": "DEBUG",
-            "source_storage_uri": f"gs://{bucket_name}/",
+            "source_storage_uri": f"gs://{bucket_name}/{folder_name}/",
             "entry_sync_mode": "FULL",
             "aspect_sync_mode": "INCREMENTAL",
             "scope": {

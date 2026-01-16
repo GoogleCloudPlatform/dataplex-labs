@@ -46,7 +46,7 @@ def test_process_import_file_empty(monkeypatch, is_empty):
     monkeypatch.setattr(business_glossary_import_v2, "prepare_gcs_bucket", lambda *a, **kw: True)
     monkeypatch.setattr(business_glossary_import_v2, "create_and_monitor_job", lambda *a, **kw: True)
 
-    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket")
+    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket", "migration_folder_1")
     if is_empty:
         assert result is True
     else:
@@ -58,7 +58,7 @@ def test_process_import_file_payload_missing(monkeypatch):
     # Simulate missing payload/job_id/job_location
     monkeypatch.setattr(business_glossary_import_v2, "build_payload", lambda *a, **kw: (None, None, None))
 
-    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket")
+    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket", "migration_folder_1")
     assert result is False
 
 def test_process_import_file_gcs_upload_failed(monkeypatch):
@@ -67,7 +67,7 @@ def test_process_import_file_gcs_upload_failed(monkeypatch):
     monkeypatch.setattr(business_glossary_import_v2, "build_payload", lambda *a, **kw: ("jobid", {"payload": True}, "location"))
     monkeypatch.setattr(business_glossary_import_v2, "prepare_gcs_bucket", lambda *a, **kw: False)
 
-    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket")
+    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket", "migration_folder_1")
     assert result is False
 
 def test_process_import_file_job_failed(monkeypatch):
@@ -77,7 +77,7 @@ def test_process_import_file_job_failed(monkeypatch):
     monkeypatch.setattr(business_glossary_import_v2, "prepare_gcs_bucket", lambda *a, **kw: True)
     monkeypatch.setattr(business_glossary_import_v2, "create_and_monitor_job", lambda *a, **kw: False)
 
-    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket")
+    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket", "migration_folder_1")
     assert result is False
 
 def test_process_import_file_exception(monkeypatch):
@@ -88,50 +88,16 @@ def test_process_import_file_exception(monkeypatch):
     def raise_exc(*a, **kw): raise Exception("fail")
     monkeypatch.setattr(business_glossary_import_v2, "create_and_monitor_job", raise_exc)
 
-    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket")
+    result = business_glossary_import_v2.process_import_file("file.txt", "proj", "bucket", "migration_folder_1")
     assert result is False
 
-def test__process_files_for_bucket_all_success(monkeypatch):
-    # All files processed successfully
-    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", lambda f, p, b: True)
-    files = ["file1.txt", "file2.txt"]
-    project_id = "proj"
-    bucket = "bucket"
-    results = business_glossary_import_v2._process_files_for_bucket(files, project_id, bucket)
-    assert results == [True, True]
 
-def test__process_files_for_bucket_some_fail(monkeypatch):
-    # Alternate files fail
-    def mock_process_import_file(f, p, b):
-        return f == "file1.txt"
-    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", mock_process_import_file)
-    files = ["file1.txt", "file2.txt"]
-    project_id = "proj"
-    bucket = "bucket"
-    results = business_glossary_import_v2._process_files_for_bucket(files, project_id, bucket)
-    assert results == [True, False]
-
-def test__process_files_for_bucket_exception(monkeypatch):
-    # process_import_file raises exception for one file
-    def mock_process_import_file(f, p, b):
-        if f == "file2.txt":
-            raise Exception("fail")
-        return True
-    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", mock_process_import_file)
-    files = ["file1.txt", "file2.txt"]
-    project_id = "proj"
-    bucket = "bucket"
-    results = business_glossary_import_v2._process_files_for_bucket(files, project_id, bucket)
-    assert results == [True, False]
-
-def test__process_files_for_bucket_empty(monkeypatch):
-    # No files to process
-    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", lambda f, p, b: True)
+def test_run_import_files_no_files(monkeypatch):
     files = []
     project_id = "proj"
-    bucket = "bucket"
-    results = business_glossary_import_v2._process_files_for_bucket(files, project_id, bucket)
-    assert results == []
+    buckets = ["bucket"]
+    result = business_glossary_import_v2.run_import_files(files, project_id, buckets)
+    assert result == []
 
 def test_run_import_files_no_buckets(monkeypatch):
     files = ["file1.txt", "file2.txt"]
@@ -140,68 +106,101 @@ def test_run_import_files_no_buckets(monkeypatch):
     result = business_glossary_import_v2.run_import_files(files, project_id, buckets)
     assert result == [False, False]
 
-def test_run_import_files_round_robin_distribution(monkeypatch):
-    # Simulate _process_files_for_bucket returning True for each file
-    def mock_process_files_for_bucket(files_for_bucket, project_id, bucket):
-        # Return True for each file in the bucket
-        return [True for _ in files_for_bucket]
-    monkeypatch.setattr(business_glossary_import_v2, "_process_files_for_bucket", mock_process_files_for_bucket)
+def test_run_import_files_single_bucket_folder_based(monkeypatch):
+    """Test that files are assigned to different folders within a single bucket."""
+    monkeypatch.setattr(business_glossary_import_v2, "ensure_folders_exist", lambda b, f: True)
+    monkeypatch.setattr(business_glossary_import_v2, "import_files_with_threads", lambda pid, b, assignments, results, mw: results.extend([True, True]))
+    
+    files = ["file1.txt", "file2.txt"]
+    project_id = "proj"
+    buckets = ["bucketA"]
+    
+    result = business_glossary_import_v2.run_import_files(files, project_id, buckets)
+    assert len(result) == 2
+    assert result == [True, True]
 
-    files = ["file1.txt", "file2.txt", "file3.txt", "file4.txt"]
+def test_run_import_files_multiple_buckets_uses_first(monkeypatch):
+    """Test that only first bucket is used when multiple buckets provided."""
+    monkeypatch.setattr(business_glossary_import_v2, "ensure_folders_exist", lambda b, f: True)
+    monkeypatch.setattr(business_glossary_import_v2, "import_files_with_threads", lambda pid, b, assignments, results, mw: results.extend([True, True]))
+    
+    files = ["file1.txt", "file2.txt"]
     project_id = "proj"
     buckets = ["bucketA", "bucketB"]
-
+    
     result = business_glossary_import_v2.run_import_files(files, project_id, buckets)
-    # Should have one result per file, all True
-    assert result == [True, True, True, True]
+    assert len(result) == 2
 
-def test_run_import_files_bucket_mapping(monkeypatch):
-    # Track which files go to which bucket
-    bucket_calls = {}
-    def mock_process_files_for_bucket(files_for_bucket, project_id, bucket):
-        bucket_calls[bucket] = list(files_for_bucket)
-        return [True for _ in files_for_bucket]
-    monkeypatch.setattr(business_glossary_import_v2, "_process_files_for_bucket", mock_process_files_for_bucket)
-
-    files = ["f1", "f2", "f3"]
-    buckets = ["b1", "b2"]
-    business_glossary_import_v2.run_import_files(files, "proj", buckets)
-    # Round robin: b1 gets f1, f3; b2 gets f2
-    assert bucket_calls["b1"] == ["f1", "f3"]
-    assert bucket_calls["b2"] == ["f2"]
-
-def test_run_import_files_some_failures(monkeypatch):
-    # Simulate some files failing
-    def mock_process_files_for_bucket(files_for_bucket, project_id, bucket):
-        return [f == "file1.txt" for f in files_for_bucket]
-    monkeypatch.setattr(business_glossary_import_v2, "_process_files_for_bucket", mock_process_files_for_bucket)
-
+def test_run_import_files_folder_creation_fails(monkeypatch):
+    """Test that import fails if folder creation fails."""
+    monkeypatch.setattr(business_glossary_import_v2, "ensure_folders_exist", lambda b, f: False)
+    
     files = ["file1.txt", "file2.txt"]
+    project_id = "proj"
     buckets = ["bucketA"]
-    result = business_glossary_import_v2.run_import_files(files, "proj", buckets)
-    assert result == [True, False]
+    
+    result = business_glossary_import_v2.run_import_files(files, project_id, buckets)
+    assert result == [False, False]
 
-def test_run_import_files_empty_files(monkeypatch):
-    # No files to process
-    def mock_process_files_for_bucket(files_for_bucket, project_id, bucket):
-        return []
-    monkeypatch.setattr(business_glossary_import_v2, "_process_files_for_bucket", mock_process_files_for_bucket)
+def test_import_files_with_threads_success(monkeypatch):
+    """Test import_files_with_threads with successful imports."""
+    results = []
+    call_count = [0]
+    
+    def mock_process_import_file(file_path, project_id, bucket, folder_name):
+        call_count[0] += 1
+        return True
+    
+    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", mock_process_import_file)
+    
+    assignments = [("file1.txt", "migration_folder_1"), ("file2.txt", "migration_folder_2")]
+    project_id = "proj"
+    bucket = "bucketA"
+    max_workers = 2
+    
+    business_glossary_import_v2.import_files_with_threads(project_id, bucket, assignments, results, max_workers)
+    assert len(results) == 2
+    assert all(results)
 
-    files = []
-    buckets = ["bucketA", "bucketB"]
-    result = business_glossary_import_v2.run_import_files(files, "proj", buckets)
-    assert result == []
+def test_import_files_with_threads_partial_failure(monkeypatch):
+    """Test import_files_with_threads with partial failures."""
+    results = []
+    
+    def mock_process_import_file(file_path, project_id, bucket, folder_name):
+        return file_path == "file1.txt"
+    
+    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", mock_process_import_file)
+    
+    assignments = [("file1.txt", "migration_folder_1"), ("file2.txt", "migration_folder_2")]
+    project_id = "proj"
+    bucket = "bucketA"
+    max_workers = 2
+    
+    business_glossary_import_v2.import_files_with_threads(project_id, bucket, assignments, results, max_workers)
+    assert len(results) == 2
+    assert results.count(True) == 1
+    assert results.count(False) == 1
 
-def test_run_import_files_bucket_worker_returns_none(monkeypatch):
-    # Simulate worker returning None (should be treated as empty list)
-    def mock_process_files_for_bucket(files_for_bucket, project_id, bucket):
-        return None
-    monkeypatch.setattr(business_glossary_import_v2, "_process_files_for_bucket", mock_process_files_for_bucket)
+def test_import_files_with_threads_keyboard_interrupt(monkeypatch):
+    """Test import_files_with_threads handles keyboard interrupt."""
+    results = []
+    
+    def mock_process_import_file(file_path, project_id, bucket, folder_name):
+        if file_path == "file2.txt":
+            raise KeyboardInterrupt()
+        return True
+    
+    monkeypatch.setattr(business_glossary_import_v2, "process_import_file", mock_process_import_file)
+    
+    assignments = [("file1.txt", "migration_folder_1"), ("file2.txt", "migration_folder_2")]
+    project_id = "proj"
+    bucket = "bucketA"
+    max_workers = 2
+    
+    with pytest.raises(KeyboardInterrupt):
+        business_glossary_import_v2.import_files_with_threads(project_id, bucket, assignments, results, max_workers)
 
-    files = ["file1.txt", "file2.txt"]
-    buckets = ["bucketA", "bucketB"]
-    result = business_glossary_import_v2.run_import_files(files, "proj", buckets)
-    assert result == []
+
 
 def test_filter_files_for_phases_entrylinks_all_pass(monkeypatch):
     # All files pass dependency check

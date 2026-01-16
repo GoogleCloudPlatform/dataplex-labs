@@ -6,10 +6,11 @@ from migration_utils import normalize_id
 
 logger = logging_utils.get_logger()
 
-def build_import_spec_base(gcs_bucket: str) -> dict:
+def build_import_spec_base(gcs_bucket: str, folder_name: str) -> dict:
+    normalized_folder = folder_name.strip("/")
     return {
         "log_level": "DEBUG",
-        "source_storage_uri": f"gs://{gcs_bucket}/",
+        "source_storage_uri": f"gs://{gcs_bucket}/{normalized_folder}/",
         "entry_sync_mode": "FULL",
         "aspect_sync_mode": "INCREMENTAL"
     }
@@ -149,8 +150,8 @@ def build_entrylink_payload(file_path: str, project_id: str, import_spec_base: d
         return build_synonym_related_entrylink_payload(file_path, project_id, import_spec_base)
 
 
-def build_payload(file_path: str, project_id: str, gcs_bucket: str):
-    import_spec_base = build_import_spec_base(gcs_bucket)
+def build_payload(file_path: str, project_id: str, gcs_bucket: str, folder_name: str):
+    import_spec_base = build_import_spec_base(gcs_bucket, folder_name)
     filename = os.path.basename(file_path)
     if filename.startswith("glossary_"):
         return build_glossary_payload(filename, project_id, import_spec_base)

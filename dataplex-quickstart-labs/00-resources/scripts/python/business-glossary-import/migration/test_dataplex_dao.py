@@ -231,6 +231,25 @@ def test_poll_metadata_job_multiple_polls_then_succeeds(monkeypatch):
     assert result is True
     mock_logger.info.assert_any_call("Job 'testjob-1234' SUCCEEDED.")
 
+def test_poll_metadata_job_keyboard_interrupt(monkeypatch):
+    """Test that keyboard interrupt is properly raised during polling."""
+    mock_service = MagicMock()
+    mock_logger = MagicMock()
+    # Patch sleep to raise KeyboardInterrupt
+    def mock_sleep(interval):
+        raise KeyboardInterrupt()
+    
+    monkeypatch.setattr(dataplex_dao, "get_job_and_state", MagicMock(return_value=({"status": {"state": "QUEUED"}}, "QUEUED")))
+    monkeypatch.setattr(dataplex_dao, "is_job_succeeded", MagicMock(return_value=False))
+    monkeypatch.setattr(dataplex_dao, "is_job_failed", MagicMock(return_value=False))
+    monkeypatch.setattr(dataplex_dao, "logger", mock_logger)
+    monkeypatch.setattr(dataplex_dao.time, "sleep", mock_sleep)
+    
+    with pytest.raises(KeyboardInterrupt):
+        dataplex_dao.poll_metadata_job(mock_service, "test-project", "us-central1", "testjob-1234")
+    
+    mock_logger.warning.assert_called_with("Job 'testjob-1234' polling interrupted by user.")
+
 def test_get_job_and_state_success(monkeypatch):
     mock_service = MagicMock()
     mock_logger = MagicMock()

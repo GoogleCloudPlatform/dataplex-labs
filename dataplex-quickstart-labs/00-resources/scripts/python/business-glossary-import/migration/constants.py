@@ -58,6 +58,7 @@ GLOSSARIES_DIRECTORY = "pending_glossaries"
 UNGROUPED_ENTRYLINKS_DIRECTORY = "ungrouped_entrylinks"
 LOGS_DIRECTORY = "logs"
 SUMMARY_DIRECTORY = "summary"
+MIGRATION_FOLDER_PREFIX = "migration_folder_"
 
 MAX_BUCKETS = 20
 MAX_POLLS = 12*12  # 12 hours

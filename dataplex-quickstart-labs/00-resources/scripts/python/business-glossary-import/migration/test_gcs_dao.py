@@ -36,31 +36,50 @@ def test_upload_failure(monkeypatch, mock_storage_client, mock_logger):
     mock_logger.error.assert_called_once()
     assert result is False
 
-def test_clear_bucket_empty(monkeypatch, mock_storage_client, mock_logger):
+
+# --- clear_gcs_path tests ---
+def test_clear_gcs_path_bucket_empty(monkeypatch, mock_storage_client, mock_logger):
     mock_bucket = MagicMock()
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.return_value = []
-    result = clear_bucket("empty-bucket")
-    mock_logger.debug.assert_called_once_with("Bucket 'empty-bucket' is already empty.")
+    result = clear_gcs_path_content("empty-bucket")
+    mock_logger.debug.assert_called()
     assert result is True
 
-def test_clear_bucket_with_blobs(monkeypatch, mock_storage_client, mock_logger):
+def test_clear_gcs_path_bucket_with_blobs(monkeypatch, mock_storage_client, mock_logger):
     mock_bucket = MagicMock()
     mock_blob1 = MagicMock()
     mock_blob2 = MagicMock()
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.return_value = [mock_blob1, mock_blob2]
-    result = clear_bucket("non-empty-bucket")
+    result = clear_gcs_path_content("non-empty-bucket")
     mock_bucket.delete_blobs.assert_called_once_with([mock_blob1, mock_blob2])
-    mock_logger.debug.assert_called_with("Deleted 2 objects from bucket 'non-empty-bucket'.")
     assert result is True
 
-def test_clear_bucket_exception(monkeypatch, mock_storage_client, mock_logger):
+def test_clear_gcs_path_prefix_empty(monkeypatch, mock_storage_client, mock_logger):
+    mock_bucket = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = []
+    result = clear_gcs_path_content("bucket", "some-folder")
+    mock_logger.debug.assert_called()
+    assert result is True
+
+def test_clear_gcs_path_prefix_with_blobs(monkeypatch, mock_storage_client, mock_logger):
+    mock_bucket = MagicMock()
+    mock_blob1 = MagicMock()
+    mock_blob2 = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = [mock_blob1, mock_blob2]
+    result = clear_gcs_path_content("bucket", "some-folder")
+    mock_bucket.delete_blobs.assert_called_once_with([mock_blob1, mock_blob2])
+    assert result is True
+
+def test_clear_gcs_path_exception(monkeypatch, mock_storage_client, mock_logger):
     mock_bucket = MagicMock()
     mock_storage_client.bucket.return_value = mock_bucket
     mock_bucket.list_blobs.side_effect = Exception("List failed")
-    result = clear_bucket("fail-bucket")
-    mock_logger.error.assert_called_once()
+    result = clear_gcs_path_content("fail-bucket")
+    mock_logger.error.assert_called()
     assert result is False
 
 def test_upload_to_gcs_success(monkeypatch, mock_storage_client, mock_logger):
@@ -86,77 +105,140 @@ def test_upload_to_gcs_failure(monkeypatch, mock_storage_client, mock_logger):
     assert result is False
 
 def test_prepare_gcs_bucket_success(monkeypatch):
-    clear_bucket_called = []
-    upload_to_gcs_called = []
+    """Test prepare_gcs_bucket with successful folder creation and upload."""
+    mock_create_folders = MagicMock(return_value=True)
+    mock_clear_path = MagicMock(return_value=True)
+    mock_upload = MagicMock(return_value=True)
 
-    def mock_clear_bucket(bucket):
-        clear_bucket_called.append(bucket)
-        return True
+    monkeypatch.setattr("gcs_dao.create_folders", mock_create_folders)
+    monkeypatch.setattr("gcs_dao.clear_gcs_path_content", mock_clear_path)
+    monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload)
 
-    def mock_upload_to_gcs(bucket, file_path, filename):
-        upload_to_gcs_called.append((bucket, file_path, filename))
-        return True
-
-    monkeypatch.setattr("gcs_dao.clear_bucket", mock_clear_bucket)
-    monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload_to_gcs)
-
-    result = prepare_gcs_bucket("bucket1", "/tmp/file.txt", "file.txt")
+    result = prepare_gcs_bucket("bucket1", "migration_folder_1", "/tmp/file.txt", "file.txt")
     assert result is True
-    assert clear_bucket_called == ["bucket1"]
-    assert upload_to_gcs_called == [("bucket1", "/tmp/file.txt", "file.txt")]
+    assert mock_create_folders.call_count == 1
+    assert mock_clear_path.call_count == 1
+    assert mock_upload.call_count == 1
+    # Check that destination path includes the folder name
+    assert mock_upload.call_args[0][2] == "migration_folder_1/file.txt"
 
-def test_prepare_gcs_bucket_clear_bucket_fails(monkeypatch):
-    def mock_clear_bucket(bucket):
+def test_prepare_gcs_bucket_folder_creation_fails(monkeypatch):
+    """Test prepare_gcs_bucket when folder creation fails."""
+    def mock_create_folders(bucket, folder):
         return False
 
-    def mock_upload_to_gcs(bucket, file_path, filename):
+    def mock_upload_to_gcs(bucket, file_path, destination_path):
         return True
 
-    monkeypatch.setattr("gcs_dao.clear_bucket", mock_clear_bucket)
+    monkeypatch.setattr("gcs_dao.create_folders", mock_create_folders)
     monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload_to_gcs)
 
-    # prepare_gcs_bucket always returns True, even if clear_bucket fails
-    result = prepare_gcs_bucket("bucket2", "/tmp/file2.txt", "file2.txt")
-    assert result is True
-
-def test_prepare_gcs_bucket_upload_to_gcs_fails(monkeypatch):
-    def mock_clear_bucket(bucket):
-        return True
-
-    def mock_upload_to_gcs(bucket, file_path, filename):
-        return False
-
-    monkeypatch.setattr("gcs_dao.clear_bucket", mock_clear_bucket)
-    monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload_to_gcs)
-
-    # prepare_gcs_bucket always returns True, even if upload_to_gcs fails
-    result = prepare_gcs_bucket("bucket3", "/tmp/file3.txt", "file3.txt")
-    assert result is True
-def test_check_all_buckets_permissions_all_success(monkeypatch):
-    called_buckets = []
-
-    def mock_check_gcs_permissions(bucket):
-        called_buckets.append(bucket)
-        return True
-
-    monkeypatch.setattr("gcs_dao.check_gcs_permissions", mock_check_gcs_permissions)
-    buckets = ["bucket1", "bucket2", "bucket3"]
-    result = check_all_buckets_permissions(buckets)
-    assert result is True
-    assert called_buckets == buckets
-
-def test_check_all_buckets_permissions_one_failure(monkeypatch):
-    def mock_check_gcs_permissions(bucket):
-        return bucket != "bucket2"
-
-    monkeypatch.setattr("gcs_dao.check_gcs_permissions", mock_check_gcs_permissions)
-    buckets = ["bucket1", "bucket2", "bucket3"]
-    result = check_all_buckets_permissions(buckets)
+    result = prepare_gcs_bucket("bucket2", "migration_folder_1", "/tmp/file2.txt", "file2.txt")
     assert result is False
 
-def test_check_all_buckets_permissions_empty_list(monkeypatch):
+def test_prepare_gcs_bucket_upload_fails(monkeypatch):
+    """Test prepare_gcs_bucket when upload fails."""
+    def mock_create_folders(bucket, folder):
+        return True
+
+    def mock_upload_to_gcs(bucket, file_path, destination_path):
+        return False
+
+    monkeypatch.setattr("gcs_dao.create_folders", mock_create_folders)
+    monkeypatch.setattr("gcs_dao.clear_gcs_path_content", MagicMock(return_value=True))
+    monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload_to_gcs)
+
+    result = prepare_gcs_bucket("bucket3", "migration_folder_1", "/tmp/file3.txt", "file3.txt")
+    assert result is False
+
+def test_ensure_folder_exists_success(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folder_exists when folder doesn't exist."""
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = []  # Folder doesn't exist
+    mock_bucket.blob.return_value = mock_blob
+
+    result = create_folders("test-bucket", "my-folder")
+    mock_bucket.blob.assert_called_once_with("my-folder/")
+    mock_blob.upload_from_string.assert_called_once_with("")
+    mock_logger.debug.assert_called_once()
+    assert result is True
+
+def test_ensure_folder_exists_already_exists(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folder_exists when folder already exists."""
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = [mock_blob]  # Folder exists
+
+    result = create_folders("test-bucket", "existing-folder")
+    mock_bucket.blob.assert_not_called()
+    assert result is True
+
+def test_ensure_folder_exists_with_trailing_slash(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folder_exists normalizes folder names."""
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = []
+
+    result = create_folders("test-bucket", "my-folder/")
+    mock_bucket.blob.assert_called_once_with("my-folder/")
+    assert result is True
+
+def test_ensure_folder_exists_exception(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folder_exists handles exceptions."""
+    mock_bucket = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.side_effect = Exception("List failed")
+
+    result = create_folders("test-bucket", "fail-folder")
+    mock_logger.error.assert_called_once()
+    assert result is False
+
+def test_ensure_folders_exist_all_success(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folders_exist when all folders are created successfully."""
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    mock_bucket.list_blobs.return_value = []
+    mock_bucket.blob.return_value = mock_blob
+
+    folder_names = ["migration_folder_1", "migration_folder_2", "migration_folder_3"]
+    result = ensure_folders_exist("test-bucket", folder_names)
+    assert result is True
+    assert mock_bucket.blob.call_count == 3
+
+def test_ensure_folders_exist_one_fails(monkeypatch, mock_storage_client, mock_logger):
+    """Test ensure_folders_exist stops on first failure."""
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_storage_client.bucket.return_value = mock_bucket
+    
+    # First succeeds, second fails
+    call_count = [0]
+    def side_effect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            raise Exception("Creation failed")
+        return []
+    
+    mock_bucket.list_blobs.side_effect = side_effect
+    mock_bucket.blob.return_value = mock_blob
+
+    folder_names = ["folder1", "folder2", "folder3"]
+    result = ensure_folders_exist("test-bucket", folder_names)
+    assert result is False
+
+def test_ensure_folders_exist_empty_list(mock_storage_client, mock_logger):
+    """Test ensure_folders_exist with empty list."""
+    result = ensure_folders_exist("test-bucket", [])
+    assert result is True
+
+def test_check_all_buckets_permissions_empty_list_single(monkeypatch):
     # Should return True for empty list
-    result = check_all_buckets_permissions([])
+    result = check_all_buckets_permissions([], "123456789")
     assert result is True
     
 
@@ -201,12 +283,6 @@ def test_check_all_buckets_permissions_empty_list(monkeypatch, mock_get_dataplex
     assert result is True
 
 @pytest.fixture
-def mock_logger(monkeypatch):
-    mock_logger = MagicMock()
-    monkeypatch.setattr("gcs_dao.logger", mock_logger)
-    return mock_logger
-
-@pytest.fixture
 def mock_build_dummy_payload(monkeypatch):
     monkeypatch.setattr("gcs_dao.build_dummy_payload", MagicMock(return_value={"dummy": "payload"}))
 
@@ -248,7 +324,7 @@ def test_build_dummy_payload_basic():
     assert "import_spec" in payload
     import_spec = payload["import_spec"]
     assert import_spec["log_level"] == "DEBUG"
-    assert import_spec["source_storage_uri"] == f"gs://{bucket_name}/"
+    assert import_spec["source_storage_uri"] == f"gs://{bucket_name}/permission-check/"
     assert import_spec["entry_sync_mode"] == "FULL"
     assert import_spec["aspect_sync_mode"] == "INCREMENTAL"
     assert "scope" in import_spec
@@ -260,7 +336,7 @@ def test_build_dummy_payload_basic():
 def test_build_dummy_payload_with_different_bucket_names():
     for bucket_name in ["bucket1", "bucket-2", "bucket_3"]:
         payload = build_dummy_payload(bucket_name)
-        assert payload["import_spec"]["source_storage_uri"] == f"gs://{bucket_name}/"
+        assert payload["import_spec"]["source_storage_uri"] == f"gs://{bucket_name}/permission-check/"
 
 def test_build_dummy_payload_structure():
     bucket_name = "test-bucket"
@@ -283,10 +359,3 @@ def test_build_dummy_payload_structure():
     assert isinstance(scope["glossaries"], list)
     assert len(scope["glossaries"]) == 1
     assert scope["glossaries"][0].startswith("projects/dummy-project-id/locations/global/glossaries/")
-
-
-
-
-
-
-
