@@ -111,7 +111,7 @@ def test_prepare_gcs_bucket_success(monkeypatch):
     mock_upload = MagicMock(return_value=True)
 
     monkeypatch.setattr("gcs_dao.create_folders", mock_create_folders)
-    monkeypatch.setattr("gcs_dao.clear_gcs_path", mock_clear_path)
+    monkeypatch.setattr("gcs_dao.clear_gcs_path_content", mock_clear_path)
     monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload)
 
     result = prepare_gcs_bucket("bucket1", "migration_folder_1", "/tmp/file.txt", "file.txt")
@@ -145,7 +145,7 @@ def test_prepare_gcs_bucket_upload_fails(monkeypatch):
         return False
 
     monkeypatch.setattr("gcs_dao.create_folders", mock_create_folders)
-    monkeypatch.setattr("gcs_dao.clear_gcs_path", MagicMock(return_value=True))
+    monkeypatch.setattr("gcs_dao.clear_gcs_path_content", MagicMock(return_value=True))
     monkeypatch.setattr("gcs_dao.upload_to_gcs", mock_upload_to_gcs)
 
     result = prepare_gcs_bucket("bucket3", "migration_folder_1", "/tmp/file3.txt", "file3.txt")
