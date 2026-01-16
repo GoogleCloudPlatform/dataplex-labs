@@ -5,7 +5,7 @@ from file_utils import *
 from gcs_dao import prepare_gcs_bucket, ensure_folders_exist
 from dataplex_dao import get_dataplex_service, create_and_monitor_job
 from payloads import *
-from constants import MIGRATION_FOLDER_PREFIX
+from constants import MIGRATION_FOLDER_PREFIX, MAX_FOLDERS
 import os
 from file_utils import *
 logger = logging_utils.get_logger()
@@ -73,7 +73,7 @@ def run_import_files(files: List[str], project_id: str, buckets: List[str]) -> L
     if len(buckets) > 1:
         logger.warning(f"Multiple buckets provided; using '{bucket}' with folder-based uploads.")
 
-    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{idx+1}" for idx in range(len(files))]
+    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{idx+1}" for idx in range(min(MAX_FOLDERS, len(files)))]
     if not ensure_folders_exist(bucket, folder_names):
         logger.error(f"Unable to ensure migration folders exist in bucket '{bucket}'.")
         return [False] * len(files)
@@ -82,7 +82,7 @@ def run_import_files(files: List[str], project_id: str, buckets: List[str]) -> L
     logger.info(f"Starting import of {len(files)} files into bucket '{bucket}' using {len(folder_names)} folders.")
 
     results: List[bool] = []
-    max_workers = min(15, len(assignments))
+    max_workers = min(MAX_FOLDERS, len(assignments))
     import_files_with_threads(project_id, bucket, assignments, results, max_workers)  # Re-raise to propagate the interrupt
             
     return results
