@@ -263,7 +263,7 @@ def test_parse_entry_url_missing_entries():
 
 def test_parse_glossary_url_invalid_url():
     url = "https://example.com/not/a/valid/url"
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.parse_glossary_url(url)
 
 
@@ -644,22 +644,22 @@ def test_parse_glossary_url_with_query_params():
 
 def test_parse_glossary_url_missing_glossaries_segment():
     url = "projects/p/locations/l/entryGroups/g/"
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.parse_glossary_url(url)
 
 def test_parse_glossary_url_missing_entry_group():
     url = "projects/p/locations/l/glossaries/e"
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.parse_glossary_url(url)
 
 def test_parse_glossary_url_missing_project():
     url = "locations/l/entryGroups/g/glossaries/e"
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.parse_glossary_url(url)
 
 def test_parse_glossary_url_empty_string():
     url = ""
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.parse_glossary_url(url)
 
 def test_get_export_arguments_required_args():
@@ -725,21 +725,21 @@ def test_get_org_ids_from_gcloud_empty(monkeypatch):
     def dummy_run(*args, **kwargs):
         return DummyCompletedProcess("\n")
     monkeypatch.setattr(subprocess, "run", dummy_run)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.get_org_ids_from_gcloud()
 
 def test_get_org_ids_from_gcloud_called_process_error(monkeypatch):
     def dummy_run(*args, **kwargs):
         raise subprocess.CalledProcessError(1, "gcloud")
     monkeypatch.setattr(subprocess, "run", dummy_run)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.get_org_ids_from_gcloud()
 
 def test_get_org_ids_from_gcloud_file_not_found_error(monkeypatch):
     def dummy_run(*args, **kwargs):
         raise FileNotFoundError("gcloud not found")
     monkeypatch.setattr(subprocess, "run", dummy_run)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Exception):
         migration_utils.get_org_ids_from_gcloud()
 
 def test__parse_id_list_basic():

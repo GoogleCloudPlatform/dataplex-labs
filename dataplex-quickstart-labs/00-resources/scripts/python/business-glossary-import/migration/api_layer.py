@@ -118,7 +118,7 @@ def _fetch_project_info(project_id: str, user_project: str) -> dict:
     response = api_call_utils.fetch_api_response(requests.get, url, user_project)
     if response["error_msg"]:
         logger.error(f"Failed to fetch project info for '{project_id}': {response['error_msg']}")
-        sys.exit(1)
+        raise Exception(f"Failed to fetch project info for '{project_id}': {response['error_msg']}")
     return response.get("json", {})
 
 
@@ -129,7 +129,7 @@ def _extract_project_number_from_info(project_info: dict) -> str:
     if match:
         return match.group(1)
     logger.error("Project number not found in project info.")
-    sys.exit(1)
+    raise Exception("Project number not found in project info.")
 
 
 def get_project_number(project_id: str, user_project: str) -> str:
@@ -147,7 +147,7 @@ def fetch_glossary_display_name(context: Context) -> str:
     api_response = api_call_utils.fetch_api_response(requests.get, glossary_entry_url, context.user_project)
     if api_response["error_msg"]:
         logger.error(f"Failed to get original glossary details: {api_response['error_msg']}")
-        sys.exit(1)
+        raise Exception(f"Failed to fetch glossary display name: {api_response['error_msg']}")
     return api_response.get("json", {}).get("displayName", context.dp_glossary_id)
 
 @lru_cache(maxsize=1024)
@@ -168,8 +168,8 @@ def fetch_dc_glossary_taxonomy_entries(context: Context) -> List[GlossaryTaxonom
         url = f"{base_url}&pageToken={page_token}" if page_token else base_url
         api_response = _fetch_glossary_taxonomy_entries_page(url, context.user_project)
         if api_response["error_msg"]:
-            logger.error(f"Cannot fetch entries, which is a fatal error: {api_response['error_msg']}")
-            sys.exit(1)
+            logger.error(f"Cannot fetch entries: {api_response['error_msg']}")
+            raise Exception(f"Cannot fetch entries: {api_response['error_msg']}")
         dc_entries.extend(api_response.get("json", {}).get("entries", []))
         page_token = api_response.get("json", {}).get("nextPageToken")
         if not page_token:

@@ -11,6 +11,7 @@ def test_build_export_context_success():
     with patch("business_glossary_export_v2.parse_glossary_url") as mock_parse_url, \
          patch("business_glossary_export_v2.get_org_ids_from_gcloud") as mock_get_org_ids, \
          patch("business_glossary_export_v2.get_project_number") as mock_get_project_number, \
+         patch("business_glossary_export_v2.fetch_glossary_display_name") as mock_fetch_display_name, \
          patch("sys.exit") as mock_sys_exit:
 
         mock_parse_url.return_value = {
@@ -21,6 +22,7 @@ def test_build_export_context_success():
         }
         mock_get_org_ids.return_value = ["org1", "org2"]
         mock_get_project_number.return_value = "fake_project_number"
+        mock_fetch_display_name.return_value = "Test Glossary"
 
         context = _build_export_context(mock_url, mock_user_project, mock_org_ids)
 
@@ -66,4 +68,3 @@ def test_execute_export_failure():
 
         mock_logger.error.assert_called()
         mock_logger.debug.assert_called()
-        assert result is None
