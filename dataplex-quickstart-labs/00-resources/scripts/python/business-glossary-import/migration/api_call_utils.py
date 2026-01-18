@@ -142,7 +142,7 @@ def create_error_message(
   return f'{method_name} call to {url} returned: {err_description}'
 
 
-def _should_retry_and_backoff(
+def _retry_and_backoff(
   start_time: float,
   current_backoff: float,
   context: str,
@@ -207,15 +207,15 @@ def fetch_api_response(
 
       # Retry for infra-related HTTP errors (e.g., 500s, 429 rate limit)
       if res.status_code >= 500 or res.status_code == 429:
-        should_retry, backoff = _should_retry_and_backoff(start_time, backoff, context, max_retry_duration)
-        if should_retry:
+        is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+        if is_retriable:
           continue
         return {'json': data, 'error_msg': error_msg}
 
       # Retry if connection is lost (e.g., requests.ConnectionError)
       if res.status_code == 0:
-        should_retry, backoff = _should_retry_and_backoff(start_time, backoff, context, max_retry_duration)
-        if should_retry:
+        is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+        if is_retriable:
           continue
         return {'json': data, 'error_msg': f"Connection lost after 10 minutes of retries: {error_msg}"}
 
@@ -224,8 +224,8 @@ def fetch_api_response(
 
     except requests.exceptions.RequestException as err:
       error_msg = create_error_message(method_name, url, err)
-      should_retry, backoff = _should_retry_and_backoff(start_time, backoff, context, max_retry_duration)
-      if should_retry:
+      is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+      if is_retriable:
         continue
       logger.error(f"{context} {error_msg}")
       return {'json': None, 'error_msg': error_msg}
