@@ -81,7 +81,7 @@ def normalize_id(name: str) -> str:
     # Ensure starts with a letter
     if not normalized or not normalized[0].isalpha():
         normalized = "g" + normalized
-    return normalized[:64]
+    return normalized[:63]
 
 def trim_spaces_in_display_name(display_name: str) -> str:
     return display_name.strip()
