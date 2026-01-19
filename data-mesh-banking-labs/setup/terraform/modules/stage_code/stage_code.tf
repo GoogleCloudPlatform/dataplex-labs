@@ -66,8 +66,7 @@ resource "null_resource" "setup_code" {
   provisioner "local-exec" {
     command = <<-EOT
       cd ../resources/
-      # gsutil command not translated because the -u flag is not supported for gcloud storage cp.
-      gsutil -u ${var.project_id} cp gs://dataplex-dataproc-templates-artifacts/* ./common/.
+      gcloud storage cp gs://dataplex-dataproc-templates-artifacts/* ./common/ --billing-project="${var.project_id}"
       wget -P ./common/ https://github.com/mansim07/dataplex-labs/raw/main/setup/resources/code_artifacts/libs/tagmanager-1.0-SNAPSHOT.jar
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_information
       java -cp common/tagmanager-1.0-SNAPSHOT.jar  com.google.cloud.dataplex.setup.CreateTagTemplates ${var.project_id} ${var.location} data_product_classification
