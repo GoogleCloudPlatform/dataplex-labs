@@ -142,6 +142,23 @@ def create_error_message(
   return f'{method_name} call to {url} returned: {err_description}'
 
 
+def _retry_and_backoff(
+  start_time: float,
+  current_backoff: float,
+  context: str,
+  max_retry_duration: int = 600,
+) -> tuple[bool, float]:
+  """Check if we should retry based on time elapsed."""
+  if time.time() - start_time > max_retry_duration:
+    logger.error(f"{context} Max retry duration (10 minutes) exceeded. Giving up.")
+    return False, current_backoff
+  
+  logger.info(f"{context} Retrying in {current_backoff} seconds...")
+  time.sleep(current_backoff + random.uniform(0, 0.5))  # Add jitter
+  new_backoff = min(current_backoff * 2, MAX_BACKOFF_SECONDS)
+  return True, new_backoff
+
+
 def fetch_api_response(
   method: Callable[..., Any],
   url: str,
@@ -165,6 +182,8 @@ def fetch_api_response(
   logger.debug(f'{context} Starting API call with project_id={project_id} and request_body={request_body}')
 
   backoff = INITIAL_BACKOFF_SECONDS
+  start_time = time.time()
+  max_retry_duration = 600  # 10 minutes in seconds
 
   while True:
     try:
@@ -186,27 +205,27 @@ def fetch_api_response(
       error_msg = data.get('error', {}).get('message') or f'Call returned HTTP {res.status_code}.'
       logger.debug(f'{context} Bad response: {error_msg}')
 
-      # Retry only for infra-related HTTP errors (e.g., 500s, 429 rate limit)
+      # Retry for infra-related HTTP errors (e.g., 500s, 429 rate limit)
       if res.status_code >= 500 or res.status_code == 429:
-        logger.info(f"{context} Retrying in {backoff} seconds due to transient error...")
-        time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
-        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-        continue
+        is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+        if is_retriable:
+          continue
+        return {'json': data, 'error_msg': error_msg}
 
       # Retry if connection is lost (e.g., requests.ConnectionError)
       if res.status_code == 0:
-        logger.info(f"{context} Retrying in {backoff} seconds due to connection lost (status 0)...")
-        time.sleep(backoff + random.uniform(0, 0.5))
-        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-        continue
+        is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+        if is_retriable:
+          continue
+        return {'json': data, 'error_msg': f"Connection lost after 10 minutes of retries: {error_msg}"}
 
       # For client errors (e.g., 400, 401), do not retry
       return {'json': data, 'error_msg': error_msg}
 
     except requests.exceptions.RequestException as err:
       error_msg = create_error_message(method_name, url, err)
-      logger.debug(f'{context} Exception occurred: {error_msg}. Retrying in {backoff} seconds...')
-
-      time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
-      backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-      continue
+      is_retriable, backoff = _retry_and_backoff(start_time, backoff, context, max_retry_duration)
+      if is_retriable:
+        continue
+      logger.error(f"{context} {error_msg}")
+      return {'json': None, 'error_msg': error_msg}
