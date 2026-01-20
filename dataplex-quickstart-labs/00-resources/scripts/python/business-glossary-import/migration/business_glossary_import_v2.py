@@ -73,7 +73,7 @@ def run_import_files(files: List[str], project_id: str, buckets: List[str]) -> L
     if len(buckets) > 1:
         logger.warning(f"Multiple buckets provided; using '{bucket}' with folder-based uploads.")
 
-    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{idx+1}" for idx in range(min(MAX_FOLDERS, len(files)))]
+    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{(idx % MAX_FOLDERS)+1}" for idx in range(len(files))]
     if not ensure_folders_exist(bucket, folder_names):
         logger.error(f"Unable to ensure migration folders exist in bucket '{bucket}'.")
         return [False] * len(files)
