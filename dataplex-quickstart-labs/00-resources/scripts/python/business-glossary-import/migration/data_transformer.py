@@ -340,8 +340,8 @@ def build_entry_link_for_entry_to_term(context, dc_glossary_term_entry, dc_entry
 def process_entry_to_term_entrylinks(context: Context, dc_glossary_term_entry: GlossaryTaxonomyEntry, search_entry_result: SearchEntryResult) -> List[EntryLink]:
     """Processes asset relationships for a given search result and returns flat list of EntryLink objects."""
     dataplex_entry_links: List[EntryLink] = []
-    if not lookup_dataplex_entry(context, search_entry_result):
-        return dataplex_entry_links
+    # if not lookup_dataplex_entry(context, search_entry_result):
+    #     return dataplex_entry_links
 
     dc_asset_entry_name = search_entry_result.relativeResourceName
     dc_linked_resource = normalize_linked_resource(search_entry_result.linkedResource)
