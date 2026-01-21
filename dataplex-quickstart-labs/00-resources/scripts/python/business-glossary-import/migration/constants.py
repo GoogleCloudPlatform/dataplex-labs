@@ -2,7 +2,7 @@
 
 # --- URLs ---
 DATACATALOG_BASE_URL = "https://datacatalog.googleapis.com/v2"
-DATAPLEX_BASE_URL = "https://dataplex.googleapis.com/v1"
+DATAPLEX_BASE_URL = "https://staging-dataplex.sandbox.googleapis.com/v1"
 SEARCH_BASE_URL = "https://datacatalog.googleapis.com/v1/catalog:search"
 CLOUD_RESOURCE_MANAGER_BASE_URL = "https://cloudresourcemanager.googleapis.com/v3"
 
@@ -41,7 +41,7 @@ TERMS = "terms"
 MAX_DESC_SIZE_BYTES = 120 * 1024
 MAX_WORKERS = 10
 PAGE_SIZE = 1000
-PROJECT_NUMBER = "655216118709"
+PROJECT_NUMBER = "418487367933"
 ROLE_STEWARD = "steward"
 MAX_FOLDERS = 15
 
