@@ -208,14 +208,13 @@ THIS IS INFORMATIONAL
 
 -BANKING DATA SAMPLE-
 ---------------------
-├── banking
-│   ├── customers_raw
-│   │   ├── credit_card_customers
-│   │   │   └── date=2022-05-01
-│   │   │       └── credit_card_customers.csv
-│   │   └── customers
-│   │       └── date=2022-05-01
-│   │           └── customers.csv
+
+├── credit_card_customers
+│   └── date=2022-05-01
+│       └── credit_card_customers.csv
+└── customers
+    └── date=2022-05-01
+        └── customers.csv
 
 
 ```
@@ -295,7 +294,7 @@ THIS IS INFORMATIONAL
 You should see the listing below, when you paste the command below in Cloud Shell-
 
 ```
-gsutil ls -r gs://raw-notebook-$PROJECT_NBR/
+gsutil ls -r gs://raw-code-$PROJECT_NBR/
 ```
 
 This is what it should look like-
