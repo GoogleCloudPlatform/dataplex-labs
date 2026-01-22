@@ -75,7 +75,7 @@ LOCATION="us-central1"
 DAG_BUCKET=`gcloud composer environments describe oda-$PROJECT_NBR-cc2 --location $LOCATION | grep dagGcsPrefix: | cut -d' ' -f4`
 
 # Upload the DAG
-gsutil cp ~/dataplex-quickstart-labs/00-resources/scripts/airflow/data-quality/customer_master_dq_automation_e2e.py $DAG_BUCKET/data-quality/
+gcloud storage cp ~/dataplex-quickstart-labs/00-resources/scripts/airflow/data-quality/customer_master_dq_automation_e2e.py $DAG_BUCKET/data-quality/
 ```
 
 ![LF](../01-images/m-12-1-g-01.png)   
@@ -194,4 +194,3 @@ Expect a delay of a few minutes.
 This concludes the lab module. Proceed to the [next module](module-13-1a-big-lake-basics.md).
 
 <hr>
-

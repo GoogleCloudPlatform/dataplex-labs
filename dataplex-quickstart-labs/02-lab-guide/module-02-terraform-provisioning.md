@@ -131,7 +131,7 @@ YOUR_GCP_MULTI_REGION="US"
 
 You should see the listing below, when you paste the command below in Cloud Shell-
 ```
-gsutil ls
+gcloud storage ls
 ```
 
 The author's output-
@@ -157,7 +157,7 @@ gs://us-central1-oda-70549534098-275215ea-bucket/ <-- created by Cloud Composer
 You should see the listing below, when you paste the command below in Cloud Shell-
 
 ```
-gsutil ls -r gs://raw-data-$PROJECT_NBR/
+gcloud storage ls --recursive gs://raw-data-$PROJECT_NBR/
 ```
 
 This is what it should look like-
@@ -199,7 +199,7 @@ THIS IS INFORMATIONAL
 You should see the listing below-
 
 ```
-gsutil ls -r gs://raw-data-sensitive-$PROJECT_NBR/
+gcloud storage ls --recursive gs://raw-data-sensitive-$PROJECT_NBR/
 ```
 
 This is what it should look like-
@@ -225,7 +225,7 @@ THIS IS INFORMATIONAL
 You should see the listing below, when you paste the command below in Cloud Shell-
 
 ```
-gsutil ls -r gs://curated-data-$PROJECT_NBR/
+gcloud storage ls --recursive gs://curated-data-$PROJECT_NBR/
 ```
 
 This is what it should look like-
@@ -255,7 +255,7 @@ THIS IS INFORMATIONAL
 You should see the listing below, when you paste the command below in Cloud Shell-
 
 ```
-gsutil ls -r gs://raw-notebook-$PROJECT_NBR/
+gcloud storage ls --recursive gs://raw-notebook-$PROJECT_NBR/
 ```
 
 This is what it should look like-
@@ -295,7 +295,7 @@ THIS IS INFORMATIONAL
 You should see the listing below, when you paste the command below in Cloud Shell-
 
 ```
-gsutil ls -r gs://raw-notebook-$PROJECT_NBR/
+gcloud storage ls --recursive gs://raw-notebook-$PROJECT_NBR/
 ```
 
 This is what it should look like-
