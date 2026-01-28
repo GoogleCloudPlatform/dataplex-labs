@@ -8,7 +8,14 @@ from payloads import *
 from constants import MIGRATION_FOLDER_PREFIX, MAX_FOLDERS
 import os
 from file_utils import *
+from datetime import datetime
 logger = logging_utils.get_logger()
+
+
+def get_run_timestamp() -> str:
+    """Generate a timestamp string in the format: run_jan29_07_12_53"""
+    now = datetime.now()
+    return now.strftime("run_%b%d_%H_%M_%S").lower()
 
 
 def get_referenced_scopes(file_path: str, main_project_id: str) -> list:
@@ -73,13 +80,15 @@ def run_import_files(files: List[str], project_id: str, buckets: List[str]) -> L
     if len(buckets) > 1:
         logger.warning(f"Multiple buckets provided; using '{bucket}' with folder-based uploads.")
 
-    folder_names = [f"{MIGRATION_FOLDER_PREFIX}{(idx % MAX_FOLDERS)+1}" for idx in range(len(files))]
+    # Create a unique folder for each file under run_time_stamp
+    run_timestamp = get_run_timestamp()
+    folder_names = [f"{run_timestamp}/{MIGRATION_FOLDER_PREFIX}{idx+1}" for idx in range(len(files))]
     if not ensure_folders_exist(bucket, folder_names):
         logger.error(f"Unable to ensure migration folders exist in bucket '{bucket}'.")
         return [False] * len(files)
 
     assignments = list(zip(files, folder_names))
-    logger.info(f"Starting import of {len(files)} files into bucket '{bucket}' using {len(folder_names)} folders.")
+    logger.info(f"Starting import of {len(files)} files into bucket '{bucket}' using {len(folder_names)} unique folders.")
 
     results: List[bool] = []
     max_workers = min(MAX_FOLDERS, len(assignments))

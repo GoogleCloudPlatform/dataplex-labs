@@ -1,7 +1,6 @@
 from google.cloud import storage
 
-import httplib2
-import google_auth_httplib2
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging_utils
 from migration_utils import *
 from constants import *
@@ -29,12 +28,23 @@ def create_folders(bucket_name: str, folder_name: str) -> bool:
 
 
 def ensure_folders_exist(bucket_name: str, folder_names: list[str]) -> bool:
-    """Ensures every folder prefix exists before uploads; returns False on first failure."""
+    """Ensures every folder prefix exists before uploads; returns False on first failure. Uses threads for parallel creation."""
     logger.info("Creating necessary folders in bucket '%s'...", bucket_name)
-    for folder_name in folder_names:
-        if not create_folders(bucket_name, folder_name):
-            return False
-    return True
+    results = []
+    with ThreadPoolExecutor(max_workers=len(folder_names)) as executor:
+        future_to_folder = {executor.submit(create_folders, bucket_name, folder_name): folder_name for folder_name in folder_names}
+        for future in as_completed(future_to_folder):
+            folder_name = future_to_folder[future]
+            try:
+                result = future.result()
+            except Exception as exc:
+                logger.error(f"Exception while creating folder '{folder_name}': {exc}")
+                return False
+            if not result:
+                logger.error(f"Failed to create folder '{folder_name}' in bucket '{bucket_name}'")
+                return False
+            results.append(result)
+    return all(results)
 
 
 def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filename: str) -> bool:
