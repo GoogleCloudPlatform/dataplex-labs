@@ -32,7 +32,7 @@ LOCATION = "us"
 # NOTE: We no longer use a single ENTRY_GROUP_ID for all glossaries.
 # Instead we will create per-glossary entry groups named:
 #   dc_glossary__bulk_import_{i}
-ENTRY_GROUP_PREFIX = "dc_lavishg_migration_issue"   # must start with dc_glossary_
+ENTRY_GROUP_PREFIX = "dc_glossary_lavishg_migration_issue"   # must start with dc_glossary_
 GLOSSARY_ID_PREFIX = "lavishg_migration_issue"
 BASE_DISPLAY_NAME = "lavishg_migration_issue"  # displayName prefix
 COUNT = 250                    # how many glossaries to create
