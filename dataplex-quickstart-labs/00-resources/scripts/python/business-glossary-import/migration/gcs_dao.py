@@ -6,14 +6,13 @@ from migration_utils import *
 from constants import *
 from dataplex_dao import *
 logger = logging_utils.get_logger()
-
+storage_client = storage.Client()
 
 def create_folders(bucket_name: str, folder_name: str) -> bool:
     """Creates a zero-byte object to represent a folder prefix when missing."""
     normalized_folder = folder_name.strip("/")
     prefix = f"{normalized_folder}/"
     try:
-        storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         existing = list(bucket.list_blobs(prefix=prefix, max_results=1))
         if existing:
@@ -30,21 +29,21 @@ def create_folders(bucket_name: str, folder_name: str) -> bool:
 def ensure_folders_exist(bucket_name: str, folder_names: list[str]) -> bool:
     """Ensures every folder prefix exists before uploads; returns False on first failure. Uses threads for parallel creation."""
     logger.info("Creating necessary folders in bucket '%s'...", bucket_name)
-    results = []
-    with ThreadPoolExecutor(max_workers=len(folder_names)) as executor:
-        future_to_folder = {executor.submit(create_folders, bucket_name, folder_name): folder_name for folder_name in folder_names}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_folder = {
+            executor.submit(create_folders, bucket_name, folder_name): folder_name 
+            for folder_name in folder_names
+        }
         for future in as_completed(future_to_folder):
             folder_name = future_to_folder[future]
             try:
-                result = future.result()
+                if not future.result():
+                    logger.error(f"Failed to create folder '{folder_name}' in bucket '{bucket_name}'")
+                    return False
             except Exception as exc:
                 logger.error(f"Exception while creating folder '{folder_name}': {exc}")
                 return False
-            if not result:
-                logger.error(f"Failed to create folder '{folder_name}' in bucket '{bucket_name}'")
-                return False
-            results.append(result)
-    return all(results)
+    return True
 
 
 def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filename: str) -> bool:
@@ -58,7 +57,6 @@ def prepare_gcs_bucket(gcs_bucket: str, folder_name: str, file_path: str, filena
 
 def upload_to_gcs(bucket_name: str, file_path: str, destination_blob_name: str) -> bool:
     try:
-        storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(destination_blob_name)
         blob.upload_from_filename(file_path)
@@ -70,15 +68,14 @@ def upload_to_gcs(bucket_name: str, file_path: str, destination_blob_name: str) 
 
 
 def clear_gcs_path_content(bucket_name: str, folder_prefix: str = "") -> bool:
-    """Deletes all objects in a bucket. Returns True on success, False on failure."""
+    """Deletes all objects in a bucket prefix."""
     try:
-        storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         prefix = folder_prefix.strip("/") + "/" if folder_prefix else ""
-        blobs = list(bucket.list_blobs(prefix=prefix)) if prefix else list(bucket.list_blobs())
+        blobs = list(bucket.list_blobs(prefix=prefix))
         if not blobs:
-            logger.debug(f"Bucket '{bucket_name}' is already empty.")
-            return True
+            logger.debug(f"Path '{prefix}' in bucket '{bucket_name}' is already empty.")
+            return True         
         bucket.delete_blobs(blobs)
         logger.debug(f"Deleted {len(blobs)} objects from bucket '{bucket_name}'.")
         return True
