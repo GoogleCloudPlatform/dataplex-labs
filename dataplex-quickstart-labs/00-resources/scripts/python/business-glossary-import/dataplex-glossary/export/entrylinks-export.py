@@ -13,6 +13,7 @@ Usage:
 # Standard library imports
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add parent directories to Python path to find modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # For api_layer
@@ -25,6 +26,25 @@ logger = logging_utils.get_logger()
 
 # Constants
 SHEET_HEADERS = ["entry_link_type", "source_entry", "target_entry", "source_path"]
+MAX_WORKERS = 10  # Number of threads for parallel API calls
+
+
+def _fetch_entry_links_for_term(term: dict, user_project: str) -> list:
+    """
+    Fetch entry links for a single term.
+    
+    Args:
+        term: The glossary term dictionary
+        user_project: The project to bill for the export
+    
+    Returns:
+        List of entry link rows, empty if no links found
+    """
+    entry_name = business_glossary_utils.generate_entry_name_from_term_name(term["name"])
+    term_links = api_layer.lookup_entry_links_for_term(entry_name, user_project)
+    if term_links:
+        return sheet_utils.entry_links_to_rows(term_links)
+    return []
 
 
 def export_entry_links(
@@ -49,13 +69,24 @@ def export_entry_links(
         logger.warning("No terms found in the glossary")
         return False
 
-    # Fetch entry links for each term
+    # Fetch entry links for each term using thread pool
     all_links = []
-    for term in terms:
-        entry_name = business_glossary_utils.generate_entry_name_from_term_name(term["name"])
-        term_links = api_layer.lookup_entry_links_for_term(entry_name, user_project)
-        if term_links:
-            all_links.extend(sheet_utils.entry_links_to_rows(term_links))
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Submit all tasks
+        future_to_term = {
+            executor.submit(_fetch_entry_links_for_term, term, user_project): term 
+            for term in terms
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_term):
+            term = future_to_term[future]
+            try:
+                term_links = future.result()
+                if term_links:
+                    all_links.extend(term_links)
+            except Exception as exc:
+                logger.error("Failed to fetch entry links for term %s: %s", term.get("name"), exc)
 
     if not all_links:
         logger.info("No entry links found for any terms")

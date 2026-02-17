@@ -38,7 +38,7 @@ from utils.constants import (
     ENTRY_REFERENCE_TYPE_TARGET,
     SOURCE_ENTRY_PATTERN,
 )
-from utils.models import EntryLink, EntryLinkData, EntryReference, SpreadsheetRow
+from utils.models import EntryLink, EntryReference, SpreadsheetRow
 
 logger = logging_utils.get_logger()
 
@@ -87,8 +87,8 @@ def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> List
     
     for entrylink in entrylinks:
         try:
-            # Extract entry references from the EntryLink model
-            entry_refs = entrylink.entryLink.entryReferences
+            # Extract entry references from the EntryLinkData model
+            entry_refs = entrylink.entryReferences
             lookup_entries(dataplex_service, missing_entries, checked_entries, entry_refs)          
         except HttpError as e:
             logger.error(f"Error while checking entry existence: {e}")
@@ -162,13 +162,12 @@ def build_entry_link(row: SpreadsheetRow) -> EntryLink:
     # EntryLink name uses the source entry's project/location/entryGroups path
     entrylink_base = f"projects/{project_id}/locations/{location}/entryGroups/{entry_group}"
     
-    entry_link_data = EntryLinkData(
+    entrylink = EntryLink(
         name=f"{entrylink_base}/entryLinks/{business_glossary_utils.get_entry_link_id()}",
         entryLinkType=constants.LINK_TYPES[link_type],
         entryReferences=entry_references
     )
     
-    entrylink = EntryLink(entryLink=entry_link_data)
     logger.debug(f"input row: {row}, output entrylink: {entrylink}")
     return entrylink
 
@@ -216,7 +215,7 @@ def group_entrylinks_by_entry_type_and_entry_group(entrylinks: List[EntryLink]) 
     grouped_entrylinks = {}
     for entrylink in entrylinks:
         # Get the link type using regex pattern
-        entry_link_type_name = entrylink.entryLink.entryLinkType
+        entry_link_type_name = entrylink.entryLinkType
         type_match = constants.ENTRYLINK_TYPE_PATTERN.match(entry_link_type_name)
         if not type_match:
             logger.warning(f"Invalid entryLinkType format: {entry_link_type_name}")
@@ -228,7 +227,7 @@ def group_entrylinks_by_entry_type_and_entry_group(entrylinks: List[EntryLink]) 
             entry_link_type = 'related-synonym'  # Group both types together
             
         # Extract project/location/entryGroup from the entryLink name
-        entrylink_name = entrylink.entryLink.name
+        entrylink_name = entrylink.name
         project_id, location, entry_group = extract_entrylink_components(entrylink_name)
         
         # Create group key using project_id, location, and entryGroup

@@ -242,7 +242,6 @@ def read_from_sheet(sheets_service: build, spreadsheet_id: str, range_name: str 
             range=range_name
         ).execute()
         values = result.get('values', [])
-        logger.info(f"Read {len(values)} rows from spreadsheet: {spreadsheet_id}")
         return values
     except Exception as e:
         logger.error(f"Error while reading from spreadsheet: {e}")

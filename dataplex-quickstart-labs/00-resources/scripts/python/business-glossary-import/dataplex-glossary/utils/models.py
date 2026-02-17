@@ -36,45 +36,33 @@ class EntryReference:
 
 
 @dataclass
-class EntryLinkData:
-    """Represents the inner entryLink data structure."""
+class EntryLink:
+    """Represents a complete EntryLink for import/export operations."""
     name: str
     entryLinkType: str
     entryReferences: List[EntryReference] = field(default_factory=list)
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EntryLinkData':
-        """Create EntryLinkData from a dictionary."""
-        refs = [EntryReference.from_dict(ref) for ref in data.get('entryReferences', [])]
+    def from_dict(cls, data: Dict[str, Any]) -> 'EntryLink':
+        """Create EntryLink from a dictionary."""
+        # Handle both nested and flat dictionary formats
+        entry_data = data.get('entryLink', data)
+        refs = [EntryReference.from_dict(ref) for ref in entry_data.get('entryReferences', [])]
         return cls(
-            name=data.get('name', ''),
-            entryLinkType=data.get('entryLinkType', ''),
+            name=entry_data.get('name', ''),
+            entryLinkType=entry_data.get('entryLinkType', ''),
             entryReferences=refs
         )
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
-            'name': self.name,
-            'entryLinkType': self.entryLinkType,
-            'entryReferences': [ref.to_dict() for ref in self.entryReferences]
+            'entryLink': {
+                'name': self.name,
+                'entryLinkType': self.entryLinkType,
+                'entryReferences': [ref.to_dict() for ref in self.entryReferences]
+            }
         }
-
-
-@dataclass
-class EntryLink:
-    """Represents a complete EntryLink for import/export operations."""
-    entryLink: EntryLinkData
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EntryLink':
-        """Create an EntryLink from a dictionary."""
-        entry_link_data = EntryLinkData.from_dict(data.get('entryLink', {}))
-        return cls(entryLink=entry_link_data)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {'entryLink': self.entryLink.to_dict()}
 
 
 @dataclass

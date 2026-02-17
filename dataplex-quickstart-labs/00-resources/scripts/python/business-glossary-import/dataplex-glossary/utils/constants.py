@@ -25,7 +25,7 @@ DATAPLEX_ENTRY_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(
 
 # EntryLink Patterns
 ENTRYLINK_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entryLinks/(?P<entrylink_id>[^/]+)")
-ENTRYLINK_TYPE_PATTERN = re.compile(r"projects/655216118709/locations/global/entryLinkTypes/(?P<link_type>[^/]+)")
+ENTRYLINK_TYPE_PATTERN = re.compile(r"projects/(?:655216118709|dataplex-types)/locations/global/entryLinkTypes/(?P<link_type>[^/]+)")
 
 # Source Entry Pattern (for extracting project/location/entryGroup from full entry paths)
 SOURCE_ENTRY_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entries/")
