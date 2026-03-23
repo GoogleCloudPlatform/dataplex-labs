@@ -1,0 +1,11 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    *,
+    avg_payment_ratio * is_participating_int AS interaction_feature
+FROM
+  ${ref("supplier_agg6")}

@@ -1,0 +1,37 @@
+config {
+    type: "table",
+    schema: "documentation_impact_analysis",
+    tags: ["impact-analysis"]
+}
+
+SELECT
+  npi,
+  nppes_provider_last_org_name,
+  nppes_provider_first_name,
+  nppes_provider_mi,
+  nppes_credentials,
+  nppes_provider_gender,
+  nppes_entity_code,
+  nppes_provider_street1,
+  nppes_provider_street2,
+  nppes_provider_city,
+  nppes_provider_zip,
+  nppes_provider_state,
+  nppes_provider_country,
+  provider_type,
+  medicare_participation_indicator,
+  place_of_service,
+  hcpcs_code,
+  hcpcs_description,
+  hcpcs_drug_indicator,
+  line_srvc_cnt,
+  bene_unique_cnt,
+  bene_day_srvc_cnt,
+  average_medicare_allowed_amt,
+  stdev_medicare_allowed_amt,
+  average_submitted_chrg_amt,
+  stdev_submitted_chrg_amt,
+  average_medicare_payment_amt,
+  stdev_medicare_payment_amt
+FROM
+  `bigquery-public-data.cms_medicare.physicians_and_other_supplier_2012`

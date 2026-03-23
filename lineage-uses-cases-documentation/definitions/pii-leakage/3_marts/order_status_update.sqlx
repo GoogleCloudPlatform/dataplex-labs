@@ -1,0 +1,16 @@
+config { 
+    type: "table",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT
+    order_id,
+    order_status,
+    email AS user_email,
+    full_name AS user_full_name -- PII Leak: Full Name
+FROM
+    ${ref("email_notification_prep_v")}
+WHERE
+    order_status IN ('Pending', 'Processing', 'Complete')
+LIMIT 10000

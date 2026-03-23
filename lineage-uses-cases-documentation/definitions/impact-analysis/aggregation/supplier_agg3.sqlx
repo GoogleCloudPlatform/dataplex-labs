@@ -1,0 +1,11 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    *,
+    POW(avg_payment_ratio, 2) AS avg_payment_ratio_sq
+FROM
+  ${ref("supplier_agg2")}

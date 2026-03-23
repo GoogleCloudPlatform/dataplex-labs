@@ -1,0 +1,8 @@
+config { 
+    type: "table",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT * FROM ${ref("orders")}
+LIMIT 10000

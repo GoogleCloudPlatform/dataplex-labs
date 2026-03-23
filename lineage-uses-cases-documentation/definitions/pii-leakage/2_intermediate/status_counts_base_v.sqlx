@@ -1,0 +1,12 @@
+config { 
+    type: "view",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT
+    order_status,
+    COUNT(order_id) AS total_orders
+FROM
+    ${ref("order_status_update")}
+GROUP BY 1

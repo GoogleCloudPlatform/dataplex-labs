@@ -1,0 +1,14 @@
+config { 
+    type: "view",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT
+    id AS user_id,
+    email,
+    first_name,
+    last_name,
+    CONCAT(first_name, ' ', last_name) AS full_name
+FROM
+    ${ref("stg_users")}

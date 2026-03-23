@@ -1,0 +1,13 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    npi,
+    hcpcs_code,
+    hcpcs_description,
+    LENGTH(hcpcs_description) AS description_length
+FROM
+  ${ref("supplier_stg1")}

@@ -1,0 +1,16 @@
+config { 
+    type: "view",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT
+    t1.user_id,
+    t1.email,
+    t1.full_name,
+    t2.order_id,
+    t2.status AS order_status
+FROM
+    ${ref("users_with_full_name_v")} AS t1
+INNER JOIN
+    ${ref("stg_orders")} AS t2 ON t1.user_id = t2.user_id

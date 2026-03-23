@@ -1,0 +1,7 @@
+config { 
+    type: "view",
+    schema: "documentation_pii_leakage",
+    tags: ["pii-leakage"],
+}
+
+SELECT * FROM ${ref("weekly_summary_t")}

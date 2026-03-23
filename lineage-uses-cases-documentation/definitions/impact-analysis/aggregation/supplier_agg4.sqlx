@@ -1,0 +1,11 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    *,
+    IF(is_medicare_participating_bool, 1, 0) AS is_participating_int
+FROM
+  ${ref("supplier_agg3")}

@@ -1,0 +1,12 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  *
+FROM
+  ${ref("qcew_base")}
+WHERE
+  area_fips LIKE '49%'

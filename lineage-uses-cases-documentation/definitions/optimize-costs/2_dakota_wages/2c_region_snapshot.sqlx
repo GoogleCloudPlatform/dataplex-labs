@@ -1,0 +1,14 @@
+config {
+    type: "view",
+    schema: "documentation_cost_analysis",
+    description: "Adhoc snapshot of Dakota regions",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  DISTINCT area_fips,
+  geoid
+FROM
+  ${ref("qcew_base")}
+WHERE
+  area_fips = '38%'

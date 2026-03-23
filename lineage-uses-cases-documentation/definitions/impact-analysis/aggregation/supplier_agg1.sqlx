@@ -1,0 +1,16 @@
+config {
+    type: "table",
+    schema: "documentation_impact_analysis",
+    tags: ["impact-analysis"]
+}
+
+SELECT
+  npi,
+  is_medicare_participating_bool,
+  AVG(payment_ratio) AS avg_payment_ratio,
+  AVG(description_length) AS avg_description_length
+FROM
+  ${ref("supplier_transform4")}
+GROUP BY
+  npi,
+  is_medicare_participating_bool

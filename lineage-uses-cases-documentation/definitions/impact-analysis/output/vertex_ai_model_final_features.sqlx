@@ -1,0 +1,19 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    t4.npi,
+    a7.avg_payment_ratio,
+    a7.avg_description_length,
+    a7.high_coverage_flag,
+    t4.is_medicare_participating_bool,
+    a7.interaction_feature,
+    t4.average_medicare_payment_amt
+FROM
+  ${ref("supplier_transform4")} AS t4
+INNER JOIN
+  ${ref("supplier_agg7")} AS a7
+  ON t4.npi = a7.npi AND t4.is_medicare_participating_bool = a7.is_medicare_participating_bool

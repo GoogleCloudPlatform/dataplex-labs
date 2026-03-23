@@ -1,0 +1,12 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    description: "Dakota total average weekly wage",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  area_fips,
+  avg_wkly_wage_10_total_all_industries
+FROM
+  ${ref("2a_dakota_raw")}

@@ -1,0 +1,15 @@
+config {
+    type: "table",
+    schema: "documentation_impact_analysis",
+    tags: ["impact-analysis"]
+}
+
+SELECT
+  npi,
+  medicare_participation_indicator,
+  (UPPER(medicare_participation_indicator) = 'Y') AS is_medicare_participating_bool,
+  payment_ratio,
+  average_medicare_payment_amt,
+  hcpcs_code
+FROM
+  ${ref("supplier_stg3")}
