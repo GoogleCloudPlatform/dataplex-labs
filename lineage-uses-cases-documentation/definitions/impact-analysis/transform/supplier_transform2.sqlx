@@ -1,0 +1,12 @@
+config {
+    type: "table",
+    schema: "documentation_impact_analysis",
+    tags: ["impact-analysis"]
+}
+
+SELECT
+  npi,
+  SPLIT(nppes_credentials, ',') AS credentials_array,
+  nppes_credentials
+FROM
+  ${ref("supplier_stg1")}

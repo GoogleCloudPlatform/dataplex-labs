@@ -1,0 +1,17 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    description: "Adhoc industry analysis for 2017",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  qtrly_estabs_1024_professional_and_business_services,
+  avg_wkly_wage_1024_professional_and_business_services,
+  lq_avg_wkly_wage_1024_professional_and_business_services,
+  lq_qtrly_estabs_1024_professional_and_business_services,
+  lq_month3_emplvl_1024_professional_and_business_services,
+FROM
+  `bigquery-public-data.bls_qcew.2017_q4`
+WHERE
+  area_fips LIKE '49%'

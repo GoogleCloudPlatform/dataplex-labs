@@ -1,0 +1,10 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  *
+FROM
+  `bigquery-public-data.bls_qcew.2019_q1`

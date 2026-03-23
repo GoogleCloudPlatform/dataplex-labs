@@ -1,0 +1,14 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    description: "Final summary table for Utah construction employment",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  area_fips,
+  SUM(CAST(month3_emplvl_23_construction AS INT64)) AS total_m3_emplvl_constr
+FROM
+  ${ref("1b_utah_construction_view")}
+GROUP BY
+  area_fips

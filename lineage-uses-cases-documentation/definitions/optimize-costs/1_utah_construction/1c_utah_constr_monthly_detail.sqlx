@@ -1,0 +1,15 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    description: "Intermediate aggregation for Utah construction - now redundant",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  area_fips,
+  SUM(CAST(qtrly_estabs_23_construction AS INT64)) AS total_constr_estabs,
+  AVG(CAST(avg_wkly_wage_23_construction AS FLOAT64)) AS avg_constr_wage
+FROM
+  ${ref("1b_utah_construction_view")}
+GROUP BY
+  area_fips

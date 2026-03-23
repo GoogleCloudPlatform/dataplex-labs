@@ -1,0 +1,11 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"],
+}
+
+SELECT
+    npi, nppes_credentials, medicare_participation_indicator, hcpcs_code,
+    hcpcs_description, average_submitted_chrg_amt, average_medicare_payment_amt
+FROM
+  ${ref("physicians_and_other_supplier_2012_original")}

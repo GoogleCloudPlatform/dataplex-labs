@@ -1,0 +1,17 @@
+config {
+    type: "view",
+    tags: ["optimize-costs"],
+    schema: "documentation_cost_analysis",
+}
+
+SELECT
+  geoid,
+  area_fips,
+  qtrly_estabs_23_construction,
+  avg_wkly_wage_23_construction,
+  month3_emplvl_23_construction,
+  lq_avg_wkly_wage_23_construction,
+  lq_qtrly_estabs_23_construction,
+  lq_month3_emplvl_23_construction
+FROM
+  ${ref("1a_utah_raw")}

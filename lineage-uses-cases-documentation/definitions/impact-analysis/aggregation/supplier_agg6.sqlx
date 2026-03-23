@@ -1,0 +1,14 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    a4.*,
+    a5.total_participation_index
+FROM
+  ${ref("supplier_agg4")} AS a4
+INNER JOIN
+  ${ref("supplier_agg5")} AS a5
+  ON a4.npi = a5.npi

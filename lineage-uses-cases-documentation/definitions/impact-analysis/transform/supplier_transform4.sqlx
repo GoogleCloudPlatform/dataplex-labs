@@ -1,0 +1,18 @@
+config { 
+  type: "table",
+  schema: "documentation_impact_analysis",
+  tags: ["impact-analysis"]
+}
+
+SELECT
+    t1.npi,
+    t1.medicare_participation_indicator,
+    t1.is_medicare_participating_bool,
+    t1.payment_ratio,
+    t1.average_medicare_payment_amt,
+    t3.description_length
+FROM
+  ${ref("supplier_transform1")} AS t1
+INNER JOIN
+  ${ref("supplier_transform3")} AS t3
+  ON t1.npi = t3.npi AND t1.hcpcs_code = t3.hcpcs_code

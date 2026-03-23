@@ -1,0 +1,13 @@
+config {
+    type: "table",
+    schema: "documentation_cost_analysis",
+    description: "QCEW data filtered for Pittsburgh area (Allegheny County)",
+    tags: ["optimize-costs"]
+}
+
+SELECT
+  *
+FROM
+  ${ref("qcew_base")}
+WHERE
+  area_fips = '38%'

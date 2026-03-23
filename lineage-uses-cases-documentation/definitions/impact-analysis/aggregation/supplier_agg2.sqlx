@@ -1,0 +1,11 @@
+config {
+    type: "table",
+    schema: "documentation_impact_analysis",
+    tags: ["impact-analysis"]
+}
+
+SELECT
+  *,
+  (avg_payment_ratio > 0.6) AS high_coverage_flag
+FROM
+  ${ref("supplier_agg1")}

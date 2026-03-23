@@ -1,0 +1,4 @@
+defaultProject: [CHANGE TO YOUR GCP PROJECT NAME]
+defaultDataset: "default_dataset"
+defaultAssertionDataset: dataform_assertions
+dataformCoreVersion: 3.0.35
