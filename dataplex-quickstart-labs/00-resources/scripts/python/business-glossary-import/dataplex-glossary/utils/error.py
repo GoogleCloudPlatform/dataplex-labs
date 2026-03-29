@@ -17,6 +17,10 @@ class SheetsAPIError(Exception):
     """Raised when there is an error interacting with the Google Sheets API."""
     pass
 
+class NetworkError(Exception):
+    """Raised when there is a persistent network connectivity issue."""
+    pass
+
 class NoCategoriesFoundError(Exception):
     """Raised when no categories are found for the given glossary."""
     pass

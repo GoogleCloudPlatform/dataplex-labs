@@ -5,10 +5,25 @@ from typing import Any, Callable, Dict
 import time
 import random
 import requests
+from requests.exceptions import (
+    ConnectionError,
+    Timeout,
+    ChunkedEncodingError,
+)
+from urllib3.exceptions import (
+    NewConnectionError,
+    MaxRetryError,
+    ProtocolError,
+)
 from utils import logging_utils
-from utils.constants import MAX_BACKOFF_SECONDS, INITIAL_BACKOFF_SECONDS
+from utils.constants import (
+    MAX_BACKOFF_SECONDS,
+    INITIAL_BACKOFF_SECONDS,
+    MAX_RETRY_DURATION_SECONDS,
+)
 import google.auth
 from google.auth.transport.requests import Request
+from google.auth.exceptions import TransportError, RefreshError
 
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
@@ -22,15 +37,161 @@ last_refresh_time = 0
 
 REFRESH_INTERVAL_SECONDS = 55 * 60  # 55 minutes
 
+# Error patterns that indicate transient network issues (safe to retry)
+TRANSIENT_ERROR_PATTERNS = [
+    "Network is unreachable",
+    "Connection refused",
+    "Connection reset",
+    "Connection timed out",
+    "Temporary failure in name resolution",
+    "Name or service not known",
+    "No route to host",
+    "Connection aborted",
+    "Remote end closed connection",
+    "Read timed out",
+    "Failed to establish a new connection",
+    "Max retries exceeded",
+]
+
+
+def is_transient_error(error: Exception) -> bool:
+    """Check if an exception represents a transient network error that's safe to retry.
+    
+    Args:
+        error: The exception to check.
+    
+    Returns:
+        True if the error is transient and can be retried, False otherwise.
+    """
+    # Check exception types known to be transient
+    if isinstance(error, (
+        ConnectionError,
+        Timeout,
+        ChunkedEncodingError,
+        NewConnectionError,
+        MaxRetryError,
+        ProtocolError,
+        TransportError,
+        OSError,  # Includes network-related OS errors like ENETUNREACH
+    )):
+        return True
+    
+    # Also check error message for known transient patterns
+    error_str = str(error).lower()
+    for pattern in TRANSIENT_ERROR_PATTERNS:
+        if pattern.lower() in error_str:
+            return True
+    
+    return False
+
+
+def _format_retry_wait_time(seconds: float) -> str:
+    """Format seconds into a human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes = seconds / 60
+    return f"{minutes:.1f}m"
+
+
 def _refresh_adc_token():
-    """Refresh ADC credentials and update cache."""
+    """Refresh ADC credentials and update cache with retry logic for network errors.
+    
+    Retries transient network errors with exponential backoff for up to 
+    MAX_RETRY_DURATION_SECONDS (10 minutes).
+    
+    Raises:
+        TransportError: If token refresh fails after all retries.
+    """
     global cached_creds, cached_token, last_refresh_time
-    creds, _ = google.auth.default()
-    creds.refresh(Request())
-    cached_creds = creds
-    cached_token = creds.token
-    last_refresh_time = time.time()
-    logger.debug("ADC token refreshed successfully.")
+    
+    start_time = time.time()
+    backoff = INITIAL_BACKOFF_SECONDS
+    attempt = 0
+    
+    while True:
+        attempt += 1
+        elapsed = time.time() - start_time
+        
+        try:
+            creds, _ = google.auth.default()
+            creds.refresh(Request())
+            cached_creds = creds
+            cached_token = creds.token
+            last_refresh_time = time.time()
+            if attempt > 1:
+                logger.info("ADC token refreshed successfully after %d attempts", attempt)
+            else:
+                logger.debug("ADC token refreshed successfully.")
+            return
+            
+        except (TransportError, RefreshError, OSError) as e:
+            elapsed = time.time() - start_time
+            remaining = MAX_RETRY_DURATION_SECONDS - elapsed
+            
+            if not is_transient_error(e) or remaining <= 0:
+                # Non-transient error or timeout exceeded
+                if remaining <= 0:
+                    logger.error(
+                        "Network connectivity issue persists after retrying for %s. "
+                        "Please check your internet connection.",
+                        _format_retry_wait_time(elapsed)
+                    )
+                raise
+            
+            # Log and retry
+            logger.warning(
+                "Network error during authentication (attempt %d): %s. "
+                "Retrying in %s... (will retry for up to %s more)",
+                attempt,
+                _get_friendly_error_message(e),
+                _format_retry_wait_time(backoff),
+                _format_retry_wait_time(remaining)
+            )
+            
+            time.sleep(backoff + random.uniform(0, 0.5))
+            backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
+
+
+def _get_friendly_error_message(error: Exception) -> str:
+    """Extract a user-friendly error message from an exception.
+    
+    Args:
+        error: The exception to extract message from.
+    
+    Returns:
+        A concise, user-friendly error message.
+    """
+    error_str = str(error)
+    
+    # Check for common network error patterns and return friendly messages
+    if "Network is unreachable" in error_str:
+        return "Network is unreachable"
+    if "Connection refused" in error_str:
+        return "Connection refused"
+    if "Connection timed out" in error_str or "timed out" in error_str.lower():
+        return "Connection timed out"
+    if "Name or service not known" in error_str or "name resolution" in error_str.lower():
+        return "DNS resolution failed"
+    if "No route to host" in error_str:
+        return "No route to host"
+    if "Connection reset" in error_str:
+        return "Connection reset by server"
+    
+    # For other errors, try to extract the core message
+    # Often the actual message is after the last colon
+    if ": " in error_str:
+        parts = error_str.split(": ")
+        # Return the last meaningful part
+        for part in reversed(parts):
+            part = part.strip()
+            if part and len(part) > 5 and not part.startswith("<"):
+                return part
+    
+    # Truncate very long messages
+    if len(error_str) > 100:
+        return error_str[:100] + "..."
+    
+    return error_str
 
 
 def _get_header(project_id: str) -> Dict[str, str]:
@@ -149,6 +310,9 @@ def fetch_api_response(
   request_body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
   """REST API call helper with exponential backoff retry mechanism.
+  
+  Handles transient network errors and server errors (5xx, 429) with
+  exponential backoff retry for up to MAX_RETRY_DURATION_SECONDS (10 minutes).
 
   Args:
     method: HTTP method name.
@@ -164,9 +328,15 @@ def fetch_api_response(
 
   logger.debug(f'{context} Starting API call with project_id={project_id} and request_body={request_body}')
 
+  start_time = time.time()
   backoff = INITIAL_BACKOFF_SECONDS
+  attempt = 0
 
   while True:
+    attempt += 1
+    elapsed = time.time() - start_time
+    remaining = MAX_RETRY_DURATION_SECONDS - elapsed
+    
     try:
       res = method(url, headers=_get_header(project_id), json=request_body)
       logger.debug(f'{context} Response status: {res.status_code}, Response text: {res.text}')
@@ -188,25 +358,47 @@ def fetch_api_response(
 
       # Retry only for infra-related HTTP errors (e.g., 500s, 429 rate limit)
       if res.status_code >= 500 or res.status_code == 429:
-        logger.info(f"{context} Retrying in {backoff} seconds due to transient error...")
+        if remaining <= 0:
+          logger.error(f"{context} Max retry duration exceeded. Last error: {error_msg}")
+          return {'json': data, 'error_msg': error_msg}
+        
+        logger.warning(
+          f"Server error (HTTP {res.status_code}), attempt {attempt}. "
+          f"Retrying in {_format_retry_wait_time(backoff)}... "
+          f"(will retry for up to {_format_retry_wait_time(remaining)} more)"
+        )
         time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
         backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
         continue
 
-      # Retry if connection is lost (e.g., requests.ConnectionError)
-      if res.status_code == 0:
-        logger.info(f"{context} Retrying in {backoff} seconds due to connection lost (status 0)...")
-        time.sleep(backoff + random.uniform(0, 0.5))
-        backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-        continue
-
-      # For client errors (e.g., 400, 401), do not retry
+      # For client errors (e.g., 400, 401, 403, 404), do not retry
       return {'json': data, 'error_msg': error_msg}
 
     except requests.exceptions.RequestException as err:
-      error_msg = create_error_message(method_name, url, err)
-      logger.debug(f'{context} Exception occurred: {error_msg}. Retrying in {backoff} seconds...')
-
+      elapsed = time.time() - start_time
+      remaining = MAX_RETRY_DURATION_SECONDS - elapsed
+      
+      # Only retry transient network errors
+      if not is_transient_error(err) or remaining <= 0:
+        if remaining <= 0:
+          logger.error(
+            "Network connectivity issue persists after retrying for %s. "
+            "Please check your internet connection.",
+            _format_retry_wait_time(elapsed)
+          )
+        error_msg = create_error_message(method_name, url, err)
+        return {'json': None, 'error_msg': error_msg}
+      
+      # Log and retry for transient errors
+      logger.warning(
+        "Network error (attempt %d): %s. Retrying in %s... "
+        "(will retry for up to %s more)",
+        attempt,
+        _get_friendly_error_message(err),
+        _format_retry_wait_time(backoff),
+        _format_retry_wait_time(remaining)
+      )
+      
       time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
       backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
       continue

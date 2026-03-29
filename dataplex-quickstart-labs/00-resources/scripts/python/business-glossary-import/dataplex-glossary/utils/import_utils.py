@@ -34,7 +34,7 @@ def create_import_json_files(grouped_entrylinks: Dict[str, Dict[str, List[Dict]]
             filename = f"entrylinks_{link_type}_{group_key}.json"
             json_file = file_utils.write_entrylinks_to_file(group_entrylinks, archive_dir, filename)
             import_files.append(json_file)
-            logger.info(f"Created import file: {json_file} with {len(group_entrylinks)} entrylinks")
+            logger.debug(f"Created import file: {json_file} with {len(group_entrylinks)} entrylinks")
     
     return import_files
 

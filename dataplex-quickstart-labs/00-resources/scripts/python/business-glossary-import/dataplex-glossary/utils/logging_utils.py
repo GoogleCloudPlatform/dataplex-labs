@@ -103,7 +103,7 @@ def setup_file_logging():
             handler.addFilter(ConsoleLogFilter())
             break
     
-    logger.info("Debug logging is active. Logs will be saved in %s", log_filename)
+    logger.info("Debug logging is active. Logs will be saved in %s", log_path)
 
 
 class _LogFormatter(logging.Formatter):

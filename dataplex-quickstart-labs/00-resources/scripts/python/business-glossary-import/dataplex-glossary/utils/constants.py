@@ -21,7 +21,7 @@ CATEGORY_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?
 
 # Entry Patterns
 ENTRY_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entries/(?P<entry_id>.*)")
-DATAPLEX_ENTRY_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/@dataplex/entries/.*")
+CATALOG_ENTRY_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entries/.*")
 
 # EntryLink Patterns
 ENTRYLINK_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entryLinks/(?P<entrylink_id>[^/]+)")
@@ -30,8 +30,8 @@ ENTRYLINK_TYPE_PATTERN = re.compile(r"projects/(?:655216118709|dataplex-types)/l
 # Source Entry Pattern (for extracting project/location/entryGroup from full entry paths)
 SOURCE_ENTRY_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/entryGroups/(?P<entry_group>[^/]+)/entries/")
 
-# Google Sheets Pattern
-SPREADSHEET_URL_PATTERN = re.compile(r"https://docs\.google\.com/spreadsheets/d/(?P<spreadsheet_id>[^/]+)")
+# Google Sheets Pattern (captures optional gid parameter for specific sheet)
+SPREADSHEET_URL_PATTERN = re.compile(r"https://docs\.google\.com/spreadsheets/d/(?P<spreadsheet_id>[^/]+)(?:.*[?&#]gid=(?P<gid>\d+))?")
 
 # Validation Patterns
 EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
@@ -41,6 +41,21 @@ LABEL_PATTERN = re.compile(r"^[a-z0-9_-]+$")
 
 # Project Pattern
 PROJECT_PATTERN = re.compile(r"projects/(?P<project_number>\d+)")
+
+# --- Location Constants ---
+# Location type identifiers
+LOCATION_TYPE_REGIONAL = "regional"
+LOCATION_TYPE_GLOBAL = "global"
+LOCATION_TYPE_MULTI_REGIONAL = "multi_regional"
+
+# Multi-regional location identifiers
+# NOTE: Multi-regional locations ('us', 'eu') are distinct location types,
+# NOT aggregations of regional endpoints. 'us' is NOT 'us-central1' + 'us-east1'.
+MULTI_REGION_US = "us"
+MULTI_REGION_EU = "eu"
+
+# Set of multi-regional identifiers (for quick lookup)
+MULTI_REGIONAL_LOCATIONS = {MULTI_REGION_US, MULTI_REGION_EU}
 
 
 # --- Dataplex Constants ---
@@ -68,14 +83,18 @@ ASPECT_TYPE_TERM = "glossary-term-aspect"
 CATEGORIES = "categories"
 TERMS = "terms"
 MAX_DESC_SIZE_BYTES = 120 * 1024
-MAX_WORKERS = 10
+MAX_WORKERS = 5
 PAGE_SIZE = 1000
+
+# Symmetric link types (A,B) and (B,A) are equivalent
+SYMMETRIC_LINK_TYPES = {"synonym", "related"}
 PROJECT_NUMBER = "655216118709"
 
 # -- BACKOFF Constants ---
 MAX_ATTEMPTS = 10
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 300
+MAX_RETRY_DURATION_SECONDS = 600  # 10 minutes total retry window for transient errors
 
 # --- Filesystem Constants ---
 LOGS_DIRECTORY = "logs"
