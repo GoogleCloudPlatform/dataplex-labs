@@ -82,15 +82,19 @@ def get_sheet_name_for_url(spreadsheet_url: str) -> str:
     return _get_first_sheet_name(sheets_service, spreadsheet_id)
 
 
-def read_from_spreadsheet_url(spreadsheet_url: str, column_range: str = 'A:Z') -> List[List[str]]:
-    """Read data from a Google Sheet URL, handling sheet gid if specified."""
+def read_from_spreadsheet_url(spreadsheet_url: str, column_range: str = 'A:Z', sheet_name: str = None) -> List[List[str]]:
+    """Read data from a Google Sheet URL, handling sheet gid if specified.
+    
+    If sheet_name is provided, use it directly instead of looking up from gid.
+    """
     sheets_service = authenticate_sheets()
     spreadsheet_id = get_spreadsheet_id(spreadsheet_url)
     
-    sheet_gid = get_sheet_gid(spreadsheet_url)
-    target_sheet_name = None
-    if sheet_gid:
-        target_sheet_name = get_sheet_name_from_gid(sheets_service, spreadsheet_id, sheet_gid)
+    target_sheet_name = sheet_name
+    if not target_sheet_name:
+        sheet_gid = get_sheet_gid(spreadsheet_url)
+        if sheet_gid:
+            target_sheet_name = get_sheet_name_from_gid(sheets_service, spreadsheet_id, sheet_gid)
     
     return read_from_sheet(sheets_service, spreadsheet_id, column_range, target_sheet_name)
 

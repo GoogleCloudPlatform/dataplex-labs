@@ -154,8 +154,11 @@ def _collect_unique_entry_references(entrylinks: List[EntryLink]) -> List:
     return unique_references
 
 
-def _lookup_and_check_entry(entry_ref, dataplex_service, missing_entries: List, failed_entries: List, lock) -> None:
-    """Lookup a single entry and track if missing or failed."""
+def _lookup_and_check_entry(entry_ref, missing_entries: List, failed_entries: List, lock) -> None:
+    """Lookup a single entry and track if missing or failed.
+    
+    Creates its own dataplex_service to ensure thread safety (httplib2 is not thread-safe).
+    """
     entry_name = entry_ref.name
     entry_name_match = CATALOG_ENTRY_PATTERN.match(entry_name)
     
@@ -166,6 +169,9 @@ def _lookup_and_check_entry(entry_ref, dataplex_service, missing_entries: List, 
     project_id = entry_name_match.group('project_id')
     location = entry_name_match.group('location_id')
     project_location = f"projects/{project_id}/locations/{location}"
+    
+    # Create thread-local service instance (httplib2 is not thread-safe)
+    dataplex_service = api_layer.authenticate_dataplex()
     
     try:
         result = api_layer.lookup_entry(dataplex_service, entry_name, project_location)
@@ -201,7 +207,7 @@ def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> tupl
     
     with ThreadPoolExecutor(max_workers=10) as executor:
         lookup_futures = [
-            executor.submit(_lookup_and_check_entry, ref, dataplex_service, missing_entry_names, failed_entry_names, lock)
+            executor.submit(_lookup_and_check_entry, ref, missing_entry_names, failed_entry_names, lock)
             for ref in unique_entry_refs
         ]
         for completed_future in as_completed(lookup_futures):
@@ -213,9 +219,9 @@ def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> tupl
     return missing_entry_names, failed_entry_names
 
 
-def convert_spreadsheet_to_entrylinks(spreadsheet_url: str) -> List[EntryLink]:
+def convert_spreadsheet_to_entrylinks(spreadsheet_url: str, sheet_name: str = None) -> List[EntryLink]:
     """Convert spreadsheet rows to EntryLink entries."""
-    spreadsheet_data = sheet_utils.read_from_spreadsheet_url(spreadsheet_url)
+    spreadsheet_data = sheet_utils.read_from_spreadsheet_url(spreadsheet_url, sheet_name=sheet_name)
     
     if not spreadsheet_data or len(spreadsheet_data) < 2:
         return []
@@ -421,7 +427,7 @@ def _run_import_workflow(parsed_args) -> int:
     if not check_and_clean_archive_folder(archive_dir):
         return 1
     
-    entrylinks = convert_spreadsheet_to_entrylinks(parsed_args.spreadsheet_url)
+    entrylinks = convert_spreadsheet_to_entrylinks(parsed_args.spreadsheet_url, sheet_name=sheet_name)
     if not entrylinks:
         logger.warning("Spreadsheet is empty or has no valid entries")
         return 1
