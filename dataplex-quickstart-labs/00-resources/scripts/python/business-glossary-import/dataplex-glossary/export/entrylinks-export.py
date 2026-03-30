@@ -115,6 +115,12 @@ def _write_entry_links_to_sheet(entry_links: list, spreadsheet_url: str, sheets_
     return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, export_data)
 
 
+def _clear_sheet_with_headers(spreadsheet_url: str, sheets_service) -> str:
+    """Clear sheet and write only headers. Returns sheet name."""
+    spreadsheet_id = sheet_utils.get_spreadsheet_id(spreadsheet_url)
+    return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, [SHEET_HEADERS])
+
+
 def export_entry_links(glossary_resource: str, spreadsheet_url: str, billing_project: str) -> bool:
     """Export all EntryLinks from a glossary to Google Sheets."""
     dataplex_service = api_layer.authenticate_dataplex()
@@ -124,11 +130,13 @@ def export_entry_links(glossary_resource: str, spreadsheet_url: str, billing_pro
     glossary_terms = api_layer.list_glossary_terms(dataplex_service, glossary_resource)
     if not glossary_terms:
         logger.warning("No terms found in the glossary")
+        _clear_sheet_with_headers(spreadsheet_url, sheets_service)
         return False
 
     all_entry_links = fetch_all_entry_links(glossary_terms, billing_project)
     if not all_entry_links:
         logger.info("No entry links found")
+        _clear_sheet_with_headers(spreadsheet_url, sheets_service)
         return False
 
     unique_entry_links = deduplicate_entry_links(all_entry_links)

@@ -1,8 +1,45 @@
 
 
+import random
+import time
 from google.cloud import storage
+from google.api_core import exceptions as gcs_exceptions
 from utils import logging_utils, dataplex_dao
+from utils.constants import INITIAL_BACKOFF_SECONDS, MAX_ATTEMPTS, MAX_BACKOFF_SECONDS
+
 logger = logging_utils.get_logger()
+
+# GCS transient exceptions that warrant retry
+GCS_TRANSIENT_EXCEPTIONS = (
+    gcs_exceptions.ServiceUnavailable,
+    gcs_exceptions.InternalServerError,
+    gcs_exceptions.TooManyRequests,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _is_transient_gcs_error(error: Exception) -> bool:
+    """Check if a GCS error is transient and should be retried."""
+    return isinstance(error, GCS_TRANSIENT_EXCEPTIONS)
+
+
+def _execute_with_retry(operation, operation_name: str):
+    """Execute a GCS operation with exponential backoff retry."""
+    backoff = INITIAL_BACKOFF_SECONDS
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return operation()
+        except Exception as error:
+            if _is_transient_gcs_error(error) and attempt < MAX_ATTEMPTS:
+                sleep_time = backoff + random.uniform(0, 0.5)
+                logger.info(f"Transient GCS error during {operation_name} (attempt {attempt}/{MAX_ATTEMPTS}): {error}. "
+                           f"Retrying in {sleep_time:.1f}s...")
+                time.sleep(sleep_time)
+                backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
+                continue
+            raise
+    return None
 
 
 def prepare_gcs_bucket(gcs_bucket: str, file_path: str, filename: str) -> bool:
@@ -19,21 +56,25 @@ def prepare_gcs_bucket(gcs_bucket: str, file_path: str, filename: str) -> bool:
 
 
 def upload_to_gcs(bucket_name: str, file_path: str, file_name: str) -> bool:
-    try:
+    """Upload a file to GCS with retry logic."""
+    def _upload():
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(file_name)
         blob.upload_from_filename(file_path)
         logger.debug(f"Uploaded {file_path} -> gs://{bucket_name}/{file_name}")
         return True
+    
+    try:
+        return _execute_with_retry(_upload, f"upload to gs://{bucket_name}/{file_name}")
     except Exception as error:
-        logger.error("Failed to upload '%s' to bucket '%s' with error '%s'", file_path, bucket_name, error)
+        logger.error(f"Failed to upload '{file_path}' to bucket '{bucket_name}' with error: {error}")
         return False
 
 
 def clear_bucket(bucket_name: str) -> bool:
-    """Deletes all objects in a bucket. Returns True on success, False on failure."""
-    try:
+    """Deletes all objects in a bucket with retry logic. Returns True on success, False on failure."""
+    def _clear():
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blobs = list(bucket.list_blobs())
@@ -43,8 +84,11 @@ def clear_bucket(bucket_name: str) -> bool:
         bucket.delete_blobs(blobs)
         logger.debug(f"Deleted {len(blobs)} objects from bucket '{bucket_name}'.")
         return True
+    
+    try:
+        return _execute_with_retry(_clear, f"clear bucket '{bucket_name}'")
     except Exception as error:
-        logger.error("Failed to clear GCS bucket '%s' with error as '%s'", bucket_name, error)
+        logger.error(f"Failed to clear GCS bucket '{bucket_name}' with error: {error}")
         return False
 
 def build_dummy_payload(bucket_name):

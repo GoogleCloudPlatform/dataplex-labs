@@ -81,30 +81,8 @@ def generate_entry_name_from_term_name(term_name: str) -> str:
 def extract_location_from_name(resource_name: str) -> str:
     """
     Extracts the location from a Dataplex resource name (glossary, term, category, entry).
-    
-    Supports various resource name formats that follow the pattern:
-    projects/{project}/locations/{location}/...
-    
-    Args:
-        resource_name: The full resource name containing a location segment
-                       (e.g., 'projects/my-project/locations/us-central1/glossaries/my-glossary')
-    
-    Returns:
-        The location identifier (e.g., 'us-central1', 'global', 'us')
-    
-    Raises:
-        ValueError: If the resource name doesn't contain a valid location segment
-    
-    Example:
-        >>> extract_location_from_name('projects/my-project/locations/us-central1/glossaries/my-glossary')
-        'us-central1'
-        >>> extract_location_from_name('projects/my-project/locations/global/glossaries/my-glossary/terms/my-term')
-        'global'
-        >>> extract_location_from_name('projects/my-project/locations/us/glossaries/my-glossary')
-        'us'
     """
     # Generic pattern to extract location from any resource name
-    # Matches: projects/{project}/locations/{location}/...
     location_pattern = re.compile(r"projects/[^/]+/locations/(?P<location_id>[^/]+)")
     
     match = location_pattern.search(resource_name)
@@ -146,17 +124,6 @@ def get_entry_link_id() -> str:
     """
     Generate a unique entry link ID that starts with a lowercase letter 
     and contains only lowercase letters and numbers.
-    
-    Returns:
-        A unique entry link ID in format: g{uuid_hex}
-        
-    Example:
-        >>> id = get_entry_link_id()
-        >>> id.startswith('g')
-        True
-        >>> len(id)
-        33
     """
     entrylink_id = 'g' + uuid.uuid4().hex
     return entrylink_id
-
