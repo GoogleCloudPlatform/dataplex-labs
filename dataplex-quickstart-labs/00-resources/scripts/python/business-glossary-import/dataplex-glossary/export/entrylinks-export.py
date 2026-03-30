@@ -202,6 +202,9 @@ def main() -> int:
     """Main entry point."""
     try:
         return _run_export()
+    except KeyboardInterrupt:
+        logger.info("Export cancelled by user")
+        os._exit(130)
     except Exception as export_exception:
         return _handle_export_exception(export_exception)
 

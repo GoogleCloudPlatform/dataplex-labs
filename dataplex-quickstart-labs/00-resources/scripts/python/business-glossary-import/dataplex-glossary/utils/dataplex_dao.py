@@ -124,12 +124,14 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
 def poll_metadata_job(service, project_id: str, location: str, job_id: str) -> bool:
     """Polls a metadata job until completion or failure."""
     logger.info(f"Polling status for job '{job_id}' every {POLL_INTERVAL_MINUTES} minutes...")
-    poll_interval = POLL_INTERVAL_MINUTES * 60
+    poll_interval_seconds = POLL_INTERVAL_MINUTES * 60
     max_polls = MAX_POLLS
     job_path = f"projects/{project_id}/locations/{location}/metadataJobs/{job_id}"
 
     for i in range(max_polls):
-        time.sleep(poll_interval)
+        # Sleep in smaller chunks (10s) to allow faster response to KeyboardInterrupt
+        for _ in range(poll_interval_seconds // 10):
+            time.sleep(10)
         job, state = get_job_and_state(service, job_path, job_id)
         if job is None:
             return False

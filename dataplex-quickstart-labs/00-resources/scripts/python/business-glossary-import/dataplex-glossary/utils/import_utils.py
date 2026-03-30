@@ -133,7 +133,8 @@ def run_import_files(files: List[str], buckets: List[str]) -> List[bool]:
         bucket_file_map[b].append(f)
 
     results: List[bool] = []
-    with ThreadPoolExecutor(max_workers=len(buckets)) as executor:
+    executor = ThreadPoolExecutor(max_workers=len(buckets))
+    try:
         future_map = {
             executor.submit(_process_files_for_bucket, bucket_file_map[bucket], bucket): bucket
             for bucket in buckets
@@ -141,4 +142,9 @@ def run_import_files(files: List[str], buckets: List[str]) -> List[bool]:
         for future in as_completed(future_map):
             bucket_results = future.result() or []
             results.extend(bucket_results)
+    except KeyboardInterrupt:
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    finally:
+        executor.shutdown(wait=False)
     return results

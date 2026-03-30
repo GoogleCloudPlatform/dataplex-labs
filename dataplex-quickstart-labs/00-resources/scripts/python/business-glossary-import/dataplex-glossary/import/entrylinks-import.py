@@ -394,17 +394,34 @@ def _validate_bucket_permissions_for_projects(
     buckets: List[str], 
     user_project: str
 ) -> bool:
-    """Validate GCS bucket permissions for all entry projects."""
+    """Validate GCS bucket permissions for all entry projects. Reports all failures at once."""
     logger.debug(f"Found {len(unique_projects)} unique entry project(s): {unique_projects}")
+    all_failures = []  # List of (project_id, project_number, failed_buckets)
     
     for project_id in unique_projects:
         project_number = api_layer.get_project_number(project_id, user_project)
         logger.debug(f"Checking bucket permissions for project: {project_id} (number: {project_number})")
-        if not gcs_dao.check_all_buckets_permissions(buckets, project_number):
-            logger.error(f"GCS bucket permission check failed for project '{project_id}'. "
-                        f"Please ensure the Dataplex service account has the required permissions.")
-            return False
-    return True
+        failed_buckets = gcs_dao.check_all_buckets_permissions(buckets, project_number)
+        if failed_buckets:
+            all_failures.append((project_id, project_number, failed_buckets))
+    
+    if not all_failures:
+        logger.info("All bucket permission checks passed.")
+        return True
+    
+    _log_permission_failures(all_failures)
+    return False
+
+
+def _log_permission_failures(failures: List[tuple]) -> None:
+    """Log all permission failures in a clear format."""
+    logger.error(f"GCS bucket permission check failed for {len(failures)} project(s):")
+    for project_id, project_number, failed_buckets in failures:
+        bucket_list = ', '.join(failed_buckets)
+        logger.error(f"  - Project '{project_id}' (service account: service-{project_number}@gcp-sa-dataplex.iam.gserviceaccount.com)")
+        logger.error(f"    Failed buckets: {bucket_list}")
+    logger.error("Please grant the Dataplex service accounts the required permissions: "
+                 "[storage.buckets.get, storage.objects.get, storage.objects.list].")
 
 
 def _handle_entry_validation_failures(failed_entries: List[str]) -> bool:
@@ -480,12 +497,13 @@ def _run_import_workflow(parsed_args) -> int:
 def _execute_import(entrylinks: List[EntryLink], buckets: List[str]) -> int:
     """Group entrylinks, create import files, and run import jobs."""
     grouped_entrylinks = group_entrylinks_by_type_and_entry_group(entrylinks)
-    logger.info(f"Found {len(grouped_entrylinks)} entry group(s). This will result in {len(grouped_entrylinks)} separate import job(s).")
     
     import_files = import_utils.create_import_json_files(grouped_entrylinks, _get_archive_directory())
     if not import_files:
         logger.warning("No files to process")
         return 1
+    
+    logger.info(f"Created {len(import_files)} import file(s). This will result in {len(import_files)} separate import job(s).")
     
     import_results = import_utils.run_import_files(import_files, buckets)
     return _report_import_results(import_results)
@@ -506,6 +524,10 @@ def main():
         logging_utils.setup_file_logging()
         parsed_args = argument_parser.get_import_entrylinks_arguments()
         return _run_import_workflow(parsed_args)
+    except KeyboardInterrupt:
+        # Use os._exit to bypass atexit handlers that would try to join threads
+        logger.info("Import cancelled by user")
+        os._exit(130)
     except Exception as import_exception:
         return _handle_import_exception(import_exception)
 
