@@ -11,7 +11,7 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(curr_dir))
 sys.path.append(os.path.dirname(os.path.dirname(curr_dir)))
 
-from utils import api_layer, argument_parser, business_glossary_utils, constants, import_utils, logging_utils, sheet_utils
+from utils import api_layer, argument_parser, business_glossary_utils, constants, gcs_dao, import_utils, logging_utils, sheet_utils
 from utils.constants import (
     BIGQUERY_SYSTEM_ENTRY_GROUP,
     CATALOG_ENTRY_PATTERN,
@@ -380,6 +380,42 @@ def _get_archive_directory() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "archive")
 
 
+def _extract_unique_entry_projects(entrylinks: List[EntryLink]) -> set:
+    """Extract all unique project IDs from entrylinks."""
+    unique_projects = set()
+    for entrylink in entrylinks:
+        project_id, _, _ = extract_entrylink_components(entrylink.name)
+        unique_projects.add(project_id)
+    return unique_projects
+
+
+def _validate_bucket_permissions_for_projects(
+    unique_projects: set, 
+    buckets: List[str], 
+    user_project: str
+) -> bool:
+    """Validate GCS bucket permissions for all entry projects."""
+    logger.debug(f"Found {len(unique_projects)} unique entry project(s): {unique_projects}")
+    
+    for project_id in unique_projects:
+        project_number = api_layer.get_project_number(project_id, user_project)
+        logger.debug(f"Checking bucket permissions for project: {project_id} (number: {project_number})")
+        if not gcs_dao.check_all_buckets_permissions(buckets, project_number):
+            logger.error(f"GCS bucket permission check failed for project '{project_id}'. "
+                        f"Please ensure the Dataplex service account has the required permissions.")
+            return False
+    return True
+
+
+def _handle_entry_validation_failures(failed_entries: List[str]) -> bool:
+    """Handle failed entry lookups. Returns True if should abort."""
+    if not failed_entries:
+        return False
+    logger.error(f"Cannot proceed: {len(failed_entries)} entry lookups failed due to network errors.")
+    logger.error("Please check your network connection and try again.")
+    return True
+
+
 def _is_network_error(exception: Exception) -> bool:
     """Check if exception is network-related."""
     network_indicators = ["network", "connection", "unreachable", "timed out", "name resolution", "no route"]
@@ -402,29 +438,16 @@ def _handle_import_exception(exception: Exception) -> int:
     return 1
 
 
-def _validate_and_get_project() -> str:
-    """Validate and return the default project from ADC."""
-    billing_project = api_layer.get_default_project()
-    if not billing_project:
-        logger.error("No project configured. Set a default project via 'gcloud config set project PROJECT_ID'")
-        return None
-    logger.debug(f"Using project from ADC: {billing_project}")
-    return billing_project
-
-
 def _run_import_workflow(parsed_args) -> int:
     """Execute the main import workflow."""
     sheet_name = sheet_utils.get_sheet_name_for_url(parsed_args.spreadsheet_url)
     logger.info(f"Starting EntryLink import from sheet: '{sheet_name}'")
     
     dataplex_service = api_layer.authenticate_dataplex()
+    user_project = parsed_args.user_project
+    logger.debug(f"Using user project for API quota: {user_project}")
     
-    billing_project = _validate_and_get_project()
-    if not billing_project:
-        return 1
-    
-    archive_dir = _get_archive_directory()
-    if not check_and_clean_archive_folder(archive_dir):
+    if not check_and_clean_archive_folder(_get_archive_directory()):
         return 1
     
     entrylinks = convert_spreadsheet_to_entrylinks(parsed_args.spreadsheet_url, sheet_name=sheet_name)
@@ -432,31 +455,38 @@ def _run_import_workflow(parsed_args) -> int:
         logger.warning("Spreadsheet is empty or has no valid entries")
         return 1
     
-    missing_entries, failed_entries = check_entry_existence(entrylinks, dataplex_service)
+    unique_projects = _extract_unique_entry_projects(entrylinks)
+    if not _validate_bucket_permissions_for_projects(unique_projects, parsed_args.buckets, user_project):
+        return 1
     
-    # If there were network failures, abort - these entries might actually exist
-    if failed_entries:
-        logger.error(f"Cannot proceed: {len(failed_entries)} entry lookups failed due to network errors.")
-        logger.error("Please check your network connection and try again.")
+    missing_entries, failed_entries = check_entry_existence(entrylinks, dataplex_service)
+    if _handle_entry_validation_failures(failed_entries):
         return 1
     
     prompt_user_on_missing_entries(missing_entries)
     
+    return _execute_import(entrylinks, parsed_args.buckets)
+
+
+def _execute_import(entrylinks: List[EntryLink], buckets: List[str]) -> int:
+    """Group entrylinks, create import files, and run import jobs."""
     grouped_entrylinks = group_entrylinks_by_type_and_entry_group(entrylinks)
-    entry_group_count = len(grouped_entrylinks)
-    logger.info(f"Found {entry_group_count} entry group(s). This will result in {entry_group_count} separate import job(s).")
+    logger.info(f"Found {len(grouped_entrylinks)} entry group(s). This will result in {len(grouped_entrylinks)} separate import job(s).")
     
-    import_files = import_utils.create_import_json_files(grouped_entrylinks, archive_dir)
+    import_files = import_utils.create_import_json_files(grouped_entrylinks, _get_archive_directory())
     if not import_files:
         logger.warning("No files to process")
         return 1
     
-    import_success = import_utils.run_import_files(import_files, parsed_args.buckets)
-    
-    if import_success:
+    import_results = import_utils.run_import_files(import_files, buckets)
+    return _report_import_results(import_results)
+
+
+def _report_import_results(import_results: List[bool]) -> int:
+    """Report import results and return exit code."""
+    if import_results and all(import_results):
         logger.info("EntryLink Import Completed Successfully!")
         return 0
-    
     logger.error("Some import jobs failed. Check logs for details.")
     return 1
 

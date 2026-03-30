@@ -42,6 +42,11 @@ def configure_export_entrylinks_argument_parser(parser: argparse.ArgumentParser)
         required=True,
         help="Google Sheets URL to export EntryLinks data"
     )
+    parser.add_argument(
+        "--user-project",
+        required=True,
+        help="Project ID to use for billing and API quota (e.g., 'my-project-id')"
+    )
     return parser
 
 def get_export_entrylinks_arguments(argv=None) -> argparse.Namespace:
@@ -74,4 +79,9 @@ def configure_import_entrylinks_argument_parser(parser):
         type=lambda s: [item.strip() for item in s.split(",") if item.strip()],
         required=True,
         metavar="[bucket-1,bucket-2,...]"
+    )
+    parser.add_argument(
+        "--user-project",
+        required=True,
+        help="Project ID to use for billing and API quota (e.g., 'my-project-id')"
     )

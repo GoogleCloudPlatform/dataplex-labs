@@ -172,15 +172,11 @@ def _run_export() -> int:
     parsed_args = argument_parser.get_export_entrylinks_arguments()
     glossary_resource = business_glossary_utils.extract_glossary_name(parsed_args.glossary_url)
     
-    billing_project = api_layer.get_default_project()
-    if not billing_project:
-        logger.error("No project configured. Set a default project via 'gcloud config set project PROJECT_ID'")
-        return 1
-    
-    logger.debug(f"Using project from ADC: {billing_project}")
+    user_project = parsed_args.user_project
+    logger.debug(f"Using project: {user_project}")
     logger.info(f"Starting EntryLink Export for: {glossary_resource}")
     
-    export_successful = export_entry_links(glossary_resource, parsed_args.spreadsheet_url, billing_project)
+    export_successful = export_entry_links(glossary_resource, parsed_args.spreadsheet_url, user_project)
     logger.info("Export completed successfully" if export_successful else "No EntryLinks found to export")
     return 0
 
