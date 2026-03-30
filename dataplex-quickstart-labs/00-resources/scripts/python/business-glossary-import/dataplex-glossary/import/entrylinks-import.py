@@ -154,8 +154,8 @@ def _collect_unique_entry_references(entrylinks: List[EntryLink]) -> List:
     return unique_references
 
 
-def _lookup_and_check_entry(entry_ref, dataplex_service, missing_entries: List, lock) -> None:
-    """Lookup a single entry and track if missing."""
+def _lookup_and_check_entry(entry_ref, dataplex_service, missing_entries: List, failed_entries: List, lock) -> None:
+    """Lookup a single entry and track if missing or failed."""
     entry_name = entry_ref.name
     entry_name_match = CATALOG_ENTRY_PATTERN.match(entry_name)
     
@@ -167,14 +167,28 @@ def _lookup_and_check_entry(entry_ref, dataplex_service, missing_entries: List, 
     location = entry_name_match.group('location_id')
     project_location = f"projects/{project_id}/locations/{location}"
     
-    if not api_layer.lookup_entry(dataplex_service, entry_name, project_location):
+    try:
+        result = api_layer.lookup_entry(dataplex_service, entry_name, project_location)
+        if result is None:
+            # Entry genuinely not found (404)
+            with lock:
+                missing_entries.append(entry_name)
+            logger.debug(f"Entry not found (404): {entry_name}")
+    except Exception as e:
+        # Network/SSL error - entry lookup failed, not necessarily missing
         with lock:
-            missing_entries.append(entry_name)
-        logger.debug(f"Entry not found: {entry_name}")
+            failed_entries.append(entry_name)
+        logger.error(f"Failed to lookup entry (network error): {entry_name}: {e}")
 
 
-def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> List[str]:
-    """Check if entries exist using parallel lookups."""
+def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> tuple:
+    """Check if entries exist using parallel lookups.
+    
+    Returns:
+        tuple: (missing_entry_names, failed_entry_names)
+            - missing_entry_names: Entries that returned 404 (don't exist)
+            - failed_entry_names: Entries that failed due to network errors
+    """
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import threading
     
@@ -182,20 +196,21 @@ def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> List
     logger.info(f"Validating {len(unique_entry_refs)} unique entries...")
     
     missing_entry_names = []
-    missing_lock = threading.Lock()
+    failed_entry_names = []
+    lock = threading.Lock()
     
     with ThreadPoolExecutor(max_workers=10) as executor:
         lookup_futures = [
-            executor.submit(_lookup_and_check_entry, ref, dataplex_service, missing_entry_names, missing_lock)
+            executor.submit(_lookup_and_check_entry, ref, dataplex_service, missing_entry_names, failed_entry_names, lock)
             for ref in unique_entry_refs
         ]
         for completed_future in as_completed(lookup_futures):
             try:
                 completed_future.result()
             except Exception as lookup_error:
-                logger.error(f"Error checking entry existence: {lookup_error}")
+                logger.error(f"Unexpected error during entry lookup: {lookup_error}")
     
-    return missing_entry_names
+    return missing_entry_names, failed_entry_names
 
 
 def convert_spreadsheet_to_entrylinks(spreadsheet_url: str) -> List[EntryLink]:
@@ -411,7 +426,14 @@ def _run_import_workflow(parsed_args) -> int:
         logger.warning("Spreadsheet is empty or has no valid entries")
         return 1
     
-    missing_entries = check_entry_existence(entrylinks, dataplex_service)
+    missing_entries, failed_entries = check_entry_existence(entrylinks, dataplex_service)
+    
+    # If there were network failures, abort - these entries might actually exist
+    if failed_entries:
+        logger.error(f"Cannot proceed: {len(failed_entries)} entry lookups failed due to network errors.")
+        logger.error("Please check your network connection and try again.")
+        return 1
+    
     prompt_user_on_missing_entries(missing_entries)
     
     grouped_entrylinks = group_entrylinks_by_type_and_entry_group(entrylinks)

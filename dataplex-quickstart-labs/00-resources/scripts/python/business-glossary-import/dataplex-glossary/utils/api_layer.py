@@ -16,7 +16,7 @@ import httplib2
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from . import api_call_utils, logging_utils
-from .api_call_utils import fetch_api_response, is_transient_error, _get_friendly_error_message, _format_retry_wait_time
+from .api_call_utils import fetch_api_response, _get_friendly_error_message, _format_retry_wait_time
 from .constants import (
     CLOUD_RESOURCE_MANAGER_BASE_URL,
     DATAPLEX_BASE_URL,
@@ -55,21 +55,19 @@ def get_default_project() -> Optional[str]:
 
 
 def _is_retryable_google_api_error(api_error: Exception) -> bool:
-    """Check if a Google API client error is retryable."""
-    if is_transient_error(api_error):
-        return True
-    
+    """Check if a Google API client error is retryable based on HTTP status codes."""
+    # Check for socket/network-level errors - always retry
     if isinstance(api_error, (socket.timeout, socket.error, TimeoutError, 
                           httplib2.ServerNotFoundError, httplib2.RelativeURIError)):
         return True
     
+    # Check HTTP status codes for HttpError
     if isinstance(api_error, HttpError):
         http_status = api_error.resp.status if hasattr(api_error, 'resp') else 0
         return http_status >= 500 or http_status == 429
     
-    error_message_lower = str(api_error).lower()
-    timeout_patterns = ['timed out', 'timeout', 'deadline exceeded']
-    return any(pattern in error_message_lower for pattern in timeout_patterns)
+    # For other exceptions, don't retry by default
+    return False
 
 
 def _execute_with_retry(
@@ -337,22 +335,37 @@ def lookup_entry(dataplex_service: build, entry_id: str, project_location_name: 
     Args:
         dataplex_service: The Dataplex API service object.
         entry_id: The entry ID to look up.
+        project_location_name: The project/location path for the lookup.
 
     Returns:
-        The entry response as a dictionary, or None if an error occurs.
+        The entry response as a dictionary, or None if entry not found (404) or permission denied.
 
     Raises:
-        DataplexAPIError: If there is an error during the API call.
+        Exception: For non-recoverable errors after retries.
     """
-    try:
+    def do_lookup():
         logger.debug(f"[LOOKUP ENTRY] Request: entry_id={entry_id}, location={project_location_name}")
         request = dataplex_service.projects().locations().lookupEntry(name=project_location_name, entry=entry_id, view="ALL")
         response = request.execute()
         logger.debug(f"[LOOKUP ENTRY] Response: found entry with name={response.get('name', 'N/A')}")
         return response
+    
+    try:
+        return _execute_with_retry(do_lookup, f"Lookup entry {entry_id}")
+    except HttpError as e:
+        status_code = e.resp.status if hasattr(e, 'resp') else None
+        logger.debug(f"[LOOKUP ENTRY] HttpError for {entry_id}: status={status_code}")
+        # 404 means entry genuinely doesn't exist
+        if status_code == 404:
+            return None
+        # 401/403 means permission issue
+        if status_code in (401, 403):
+            logger.warning(f"[LOOKUP ENTRY] Permission denied for {entry_id}")
+            return None
+        raise
     except Exception as e:
-        logger.debug(f"[LOOKUP ENTRY] Failed for {entry_id}: {e}")
-        return None
+        logger.debug(f"[LOOKUP ENTRY] Exception for {entry_id}: {type(e).__name__}: {e}")
+        raise
 
 
 def _get_project_url(project_id: str) -> str:
