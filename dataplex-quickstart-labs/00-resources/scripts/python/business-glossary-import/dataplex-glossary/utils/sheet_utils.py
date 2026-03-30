@@ -122,29 +122,40 @@ def read_from_sheet(sheets_service, spreadsheet_id: str, column_range: str = 'A:
         raise SheetsAPIError(f"Error reading spreadsheet: {read_error}")
 
 
-def _get_first_sheet_info(sheets_service, spreadsheet_id: str) -> tuple:
-    """Get the name and ID of the first sheet."""
-    spreadsheet_metadata = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
-    first_sheet_props = spreadsheet_metadata['sheets'][0]['properties']
-    return first_sheet_props['title'], first_sheet_props['sheetId']
+def _get_sheet_info(sheets_service, spreadsheet_id: str, sheet_name: str = None) -> tuple:
+    """Get sheet name and ID. Uses provided name or defaults to first sheet."""
+    metadata = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    sheets = metadata.get('sheets', [])
+    
+    if sheet_name:
+        for sheet in sheets:
+            props = sheet.get('properties', {})
+            if props.get('title') == sheet_name:
+                return props['title'], props['sheetId']
+        logger.warning(f"Sheet '{sheet_name}' not found, using first sheet")
+    
+    first_props = sheets[0]['properties']
+    return first_props['title'], first_props['sheetId']
 
 
-def write_to_sheet(sheets_service, spreadsheet_id: str, row_data: List[List[str]], start_cell: str = 'A1') -> str:
+def write_to_sheet(sheets_service, spreadsheet_id: str, row_data: List[List[str]], start_cell: str = 'A1', sheet_name: str = None) -> str:
     """Write data to Google Sheet with formatting. Returns sheet name."""
     try:
-        logger.debug(f"[WRITE SHEET] Request: spreadsheet_id={spreadsheet_id}, rows={len(row_data)}")
+        logger.debug(f"[WRITE SHEET] Request: spreadsheet_id={spreadsheet_id}, rows={len(row_data)}, sheet_name={sheet_name}")
         
-        sheet_name, sheet_id = _get_first_sheet_info(sheets_service, spreadsheet_id)
+        target_sheet_name, sheet_id = _get_sheet_info(sheets_service, spreadsheet_id, sheet_name)
         
-        sheets_service.spreadsheets().values().clear(spreadsheetId=spreadsheet_id, range='A:ZZ').execute()
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=spreadsheet_id, range=f"'{target_sheet_name}'!A:ZZ"
+        ).execute()
         sheets_service.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id, range=start_cell,
+            spreadsheetId=spreadsheet_id, range=f"'{target_sheet_name}'!{start_cell}",
             valueInputOption='USER_ENTERED', body={'values': row_data}
         ).execute()
         
         _apply_sheet_formatting(sheets_service, spreadsheet_id, sheet_id, len(row_data))
-        logger.debug(f"[WRITE SHEET] Response: wrote {len(row_data)} rows to sheet '{sheet_name}'")
-        return sheet_name
+        logger.debug(f"[WRITE SHEET] Response: wrote {len(row_data)} rows to sheet '{target_sheet_name}'")
+        return target_sheet_name
     except Exception as write_error:
         logger.error(f"Error writing to spreadsheet: {write_error}")
         raise SheetsAPIError(f"Error writing to spreadsheet: {write_error}")

@@ -111,14 +111,16 @@ def fetch_all_entry_links(glossary_terms: list, billing_project: str) -> list:
 def _write_entry_links_to_sheet(entry_links: list, spreadsheet_url: str, sheets_service) -> str:
     """Write entry links to spreadsheet and return sheet name."""
     spreadsheet_id = sheet_utils.get_spreadsheet_id(spreadsheet_url)
+    target_sheet_name = sheet_utils.get_sheet_name_for_url(spreadsheet_url)
     export_data = [SHEET_HEADERS] + entry_links
-    return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, export_data)
+    return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, export_data, sheet_name=target_sheet_name)
 
 
 def _clear_sheet_with_headers(spreadsheet_url: str, sheets_service) -> str:
     """Clear sheet and write only headers. Returns sheet name."""
     spreadsheet_id = sheet_utils.get_spreadsheet_id(spreadsheet_url)
-    return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, [SHEET_HEADERS])
+    target_sheet_name = sheet_utils.get_sheet_name_for_url(spreadsheet_url)
+    return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, [SHEET_HEADERS], sheet_name=target_sheet_name)
 
 
 def export_entry_links(glossary_resource: str, spreadsheet_url: str, billing_project: str) -> bool:
@@ -174,17 +176,24 @@ def _handle_export_exception(exception: Exception) -> int:
     return 1
 
 
+def _log_export_arguments(parsed_args) -> None:
+    """Log the parsed export arguments."""
+    logger.debug("Export Arguments:")
+    logger.debug(f"  glossary_url: {parsed_args.glossary_url}")
+    logger.debug(f"  spreadsheet_url: {parsed_args.spreadsheet_url}")
+    logger.debug(f"  user_project: {parsed_args.user_project}")
+
+
 def _run_export() -> int:
     """Execute the export workflow and return exit code."""
     logging_utils.setup_file_logging()
     parsed_args = argument_parser.get_export_entrylinks_arguments()
-    glossary_resource = business_glossary_utils.extract_glossary_name(parsed_args.glossary_url)
+    _log_export_arguments(parsed_args)
     
-    user_project = parsed_args.user_project
-    logger.debug(f"Using project: {user_project}")
+    glossary_resource = business_glossary_utils.extract_glossary_name(parsed_args.glossary_url)
     logger.info(f"Starting EntryLink Export for: {glossary_resource}")
     
-    export_successful = export_entry_links(glossary_resource, parsed_args.spreadsheet_url, user_project)
+    export_successful = export_entry_links(glossary_resource, parsed_args.spreadsheet_url, parsed_args.user_project)
     logger.info("Export completed successfully" if export_successful else "No EntryLinks found to export")
     return 0
 

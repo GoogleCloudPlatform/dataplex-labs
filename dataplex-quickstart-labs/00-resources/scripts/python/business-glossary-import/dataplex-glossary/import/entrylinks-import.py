@@ -438,8 +438,17 @@ def _handle_import_exception(exception: Exception) -> int:
     return 1
 
 
+def _log_import_arguments(parsed_args) -> None:
+    """Log the parsed import arguments."""
+    logger.debug("Import Arguments:")
+    logger.debug(f"  spreadsheet_url: {parsed_args.spreadsheet_url}")
+    logger.debug(f"  buckets: {parsed_args.buckets}")
+    logger.debug(f"  user_project: {parsed_args.user_project}")
+
+
 def _run_import_workflow(parsed_args) -> int:
     """Execute the main import workflow."""
+    _log_import_arguments(parsed_args)
     sheet_name = sheet_utils.get_sheet_name_for_url(parsed_args.spreadsheet_url)
     logger.info(f"Starting EntryLink import from sheet: '{sheet_name}'")
     
