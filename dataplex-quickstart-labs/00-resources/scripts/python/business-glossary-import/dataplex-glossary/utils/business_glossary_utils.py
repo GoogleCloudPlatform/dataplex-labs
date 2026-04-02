@@ -12,43 +12,24 @@ import uuid
 from utils.constants import (
     DATAPLEX_SYSTEM_ENTRY_GROUP,
     GLOSSARY_NAME_PATTERN,
-    GLOSSARY_URL_PATTERN,
     TERM_NAME_PATTERN,
 )
 from utils.error import InvalidTermNameError
 
 
 def extract_glossary_name(url: str) -> str:
-    """
-    Extract the glossary resource name from a Dataplex URL or resource name.
+    """Extract the glossary resource name from a Dataplex URL or resource name.
     
-    Args:
-        url: Either a full Dataplex glossary URL or a glossary resource name
-        
-    Returns:
-        The glossary resource name in format: projects/{project}/locations/{location}/glossaries/{glossary}
-        
-    Raises:
-        ValueError: If the URL/resource name format is invalid
+    Searches for 'projects/{project}/locations/{location}/glossaries/{glossary}'
+    pattern anywhere in the input string.
     """
-    # First try to match as a URL
-    match = GLOSSARY_URL_PATTERN.match(url)
+    match = GLOSSARY_NAME_PATTERN.search(url)
     if match:
-        project_id = match.group('project_id')
-        location_id = match.group('location_id')
-        glossary_id = match.group('glossary_id')
-        return f"projects/{project_id}/locations/{location_id}/glossaries/{glossary_id}"
-    
-    # Try to match as a direct resource name
-    glossary_name = url.strip().rstrip('/')
-    match = GLOSSARY_NAME_PATTERN.match(glossary_name)
-    if match:
-        return glossary_name
+        return f"projects/{match.group('project_id')}/locations/{match.group('location_id')}/glossaries/{match.group('glossary_id')}"
     
     raise ValueError(
-        f"Could not extract glossary resource from URL: {url}. "
-        f"Expected format: 'projects/{{project}}/locations/{{location}}/glossaries/{{glossary}}' "
-        f"or a URL containing this pattern."
+        f"Could not extract glossary resource from: {url}. "
+        f"Expected format: 'projects/{{project}}/locations/{{location}}/glossaries/{{glossary}}'"
     )
 
 

@@ -15,7 +15,7 @@ BIGQUERY_SYSTEM_ENTRY_GROUP = "@bigquery"
 # --- Regex Patterns ---
 # Glossary and Term Patterns
 GLOSSARY_URL_PATTERN = re.compile(r".*dp-glossaries/projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+).*")
-GLOSSARY_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/]+)")
+GLOSSARY_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#&]+)")
 TERM_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/]+)/terms/(?P<term_id>[^/]+)")
 CATEGORY_NAME_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+)/categories/(?P<category_id>[^/]+)")
 
@@ -99,6 +99,8 @@ MAX_RETRY_DURATION_SECONDS = 600  # 10 minutes total retry window for transient 
 # --- Filesystem Constants ---
 LOGS_DIRECTORY = "logs"
 SUMMARY_DIRECTORY = "summary"
+ARCHIVE_DIRECTORY = "archive"
+PROCESSED_DIRECTORY = "processed"
 
 MAX_BUCKETS = 20
 MAX_POLLS = 12*12  # 12 hours

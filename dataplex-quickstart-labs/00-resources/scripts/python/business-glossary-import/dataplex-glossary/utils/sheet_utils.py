@@ -12,17 +12,21 @@ from utils.constants import (
     SPREADSHEET_URL_PATTERN,
 )
 from utils.error import InvalidSpreadsheetURLError, SheetsAPIError
+from utils.retry_utils import execute_with_retry, is_network_error
 
 logger = logging_utils.get_logger()
 
 
 def authenticate_sheets() -> build:
-    """Authenticate with Google Sheets API."""
-    try:
+    """Authenticate with Google Sheets API with retry for transient errors."""
+    def _do_auth():
         logger.debug("[SHEETS AUTH] Authenticating with Google Sheets API...")
         credentials, _ = default(scopes=['https://www.googleapis.com/auth/spreadsheets'])
         logger.debug("[SHEETS AUTH] Authenticated successfully.")
         return build('sheets', 'v4', credentials=credentials)
+    
+    try:
+        return execute_with_retry(_do_auth, "Sheets authentication", is_retryable=is_network_error)
     except Exception as auth_error:
         logger.error(f"Sheets auth error: {auth_error}")
         raise SheetsAPIError(f"Sheets auth error: {auth_error}")
@@ -105,16 +109,18 @@ def _build_sheet_range(sheet_name: str, column_range: str) -> str:
 
 
 def read_from_sheet(sheets_service, spreadsheet_id: str, column_range: str = 'A:Z', sheet_name: str = None) -> List[List[str]]:
-    """Read data from a Google Sheet."""
-    try:
-        full_range = _build_sheet_range(sheet_name, column_range)
-        logger.debug(f"[READ SHEET] Request: spreadsheet_id={spreadsheet_id}, range={full_range}")
-        
+    """Read data from a Google Sheet with retry."""
+    full_range = _build_sheet_range(sheet_name, column_range)
+    logger.debug(f"[READ SHEET] Request: spreadsheet_id={spreadsheet_id}, range={full_range}")
+    
+    def _do_read():
         read_result = sheets_service.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id, range=full_range
         ).execute()
-        
-        sheet_rows = read_result.get('values', [])
+        return read_result.get('values', [])
+    
+    try:
+        sheet_rows = execute_with_retry(_do_read, f"Read sheet {spreadsheet_id}", is_retryable=is_network_error)
         logger.debug(f"[READ SHEET] Response: {len(sheet_rows)} rows retrieved")
         return sheet_rows
     except Exception as read_error:
@@ -140,9 +146,9 @@ def _get_sheet_info(sheets_service, spreadsheet_id: str, sheet_name: str = None)
 
 def write_to_sheet(sheets_service, spreadsheet_id: str, row_data: List[List[str]], start_cell: str = 'A1', sheet_name: str = None) -> str:
     """Write data to Google Sheet with formatting. Returns sheet name."""
-    try:
-        logger.debug(f"[WRITE SHEET] Request: spreadsheet_id={spreadsheet_id}, rows={len(row_data)}, sheet_name={sheet_name}")
-        
+    logger.debug(f"[WRITE SHEET] Request: spreadsheet_id={spreadsheet_id}, rows={len(row_data)}, sheet_name={sheet_name}")
+    
+    def _do_write():
         target_sheet_name, sheet_id = _get_sheet_info(sheets_service, spreadsheet_id, sheet_name)
         
         sheets_service.spreadsheets().values().clear(
@@ -154,8 +160,12 @@ def write_to_sheet(sheets_service, spreadsheet_id: str, row_data: List[List[str]
         ).execute()
         
         _apply_sheet_formatting(sheets_service, spreadsheet_id, sheet_id, len(row_data))
-        logger.debug(f"[WRITE SHEET] Response: wrote {len(row_data)} rows to sheet '{target_sheet_name}'")
         return target_sheet_name
+    
+    try:
+        result = execute_with_retry(_do_write, f"Write sheet {spreadsheet_id}", is_retryable=is_network_error)
+        logger.debug(f"[WRITE SHEET] Response: wrote {len(row_data)} rows")
+        return result
     except Exception as write_error:
         logger.error(f"Error writing to spreadsheet: {write_error}")
         raise SheetsAPIError(f"Error writing to spreadsheet: {write_error}")

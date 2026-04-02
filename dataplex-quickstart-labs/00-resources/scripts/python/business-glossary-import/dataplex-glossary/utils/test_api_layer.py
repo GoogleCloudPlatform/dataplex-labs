@@ -51,6 +51,7 @@ class TestGlossaryOperations:
         mock_response = {'terms': mock_terms}
         
         mock_dataplex_service.projects().locations().glossaries().terms().list().execute.return_value = mock_response
+        mock_dataplex_service.projects().locations().glossaries().terms().list_next.return_value = None
         
         result = api_layer.list_glossary_terms(mock_dataplex_service, glossary_name)
         
@@ -63,8 +64,14 @@ class TestGlossaryOperations:
         mock_response1 = {'terms': [{'name': 'term1'}], 'nextPageToken': 'token1'}
         mock_response2 = {'terms': [{'name': 'term2'}]}
         
-        mock_list = mock_dataplex_service.projects().locations().glossaries().terms().list
-        mock_list().execute.side_effect = [mock_response1, mock_response2]
+        # First request from list(), second from list_next()
+        mock_first_request = MagicMock()
+        mock_first_request.execute.return_value = mock_response1
+        mock_second_request = MagicMock()
+        mock_second_request.execute.return_value = mock_response2
+        
+        mock_dataplex_service.projects().locations().glossaries().terms().list.return_value = mock_first_request
+        mock_dataplex_service.projects().locations().glossaries().terms().list_next.side_effect = [mock_second_request, None]
         
         result = api_layer.list_glossary_terms(mock_dataplex_service, glossary_name)
         
@@ -77,6 +84,7 @@ class TestGlossaryOperations:
         mock_response = {}
         
         mock_dataplex_service.projects().locations().glossaries().terms().list().execute.return_value = mock_response
+        mock_dataplex_service.projects().locations().glossaries().terms().list_next.return_value = None
         
         result = api_layer.list_glossary_terms(mock_dataplex_service, glossary_name)
         

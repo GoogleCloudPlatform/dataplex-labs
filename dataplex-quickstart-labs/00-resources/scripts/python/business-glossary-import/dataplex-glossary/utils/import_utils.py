@@ -63,19 +63,20 @@ def extract_project_id_from_entrylink(entry_link_json: Dict) -> str:
         return None
 
 
-def process_import_file(file_path: str, gcs_bucket: str) -> bool:
+def process_import_file(file_path: str, gcs_bucket: str, processed_dir: str = None) -> bool:
     """
     Processes a single glossary or entrylink file:
     - Builds payload
     - Uploads file to GCS (via prepare_gcs_bucket)
     - Creates & monitors Dataplex job
-    - Moves local file to imported folder on success (or removes empty files)
+    - On success: moves file to processed_dir (if provided)
+    - On failure: keeps file in archive for retry
     """
     filename = os.path.basename(file_path)
 
     if file_utils.is_file_empty(file_path):
         logger.info(f"File {filename} is empty. Skipping the import job.")
-        file_utils.move_file_to_imported_folder(file_path)
+        file_utils.delete_file(file_path)
         return True
 
     logger.debug(f"Processing file: {filename}")
@@ -94,8 +95,8 @@ def process_import_file(file_path: str, gcs_bucket: str) -> bool:
             logger.error(f"Failed to prepare GCS bucket '{gcs_bucket}' for file '{filename}'. Skipping import.")
             return False
         job_success = dataplex_dao.create_and_monitor_job(service, project_id, job_location, payload, job_id)
-        if job_success:
-            file_utils.move_file_to_imported_folder(file_path)
+        if job_success and processed_dir:
+            file_utils.move_file(file_path, processed_dir)
         return job_success
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {e}")
@@ -103,12 +104,12 @@ def process_import_file(file_path: str, gcs_bucket: str) -> bool:
         return False
 
 
-def _process_files_for_bucket(files_for_bucket: List[str], bucket: str) -> List[bool]:
+def _process_files_for_bucket(files_for_bucket: List[str], bucket: str, processed_dir: str = None) -> List[bool]:
     """Worker: processes all files assigned to a bucket sequentially."""
     results = []
     for f in files_for_bucket:
         try:
-            result = import_utils.process_import_file(f, bucket)
+            result = import_utils.process_import_file(f, bucket, processed_dir)
         except Exception as e:
             logger.error(f"Error processing file {f} in bucket {bucket}: {e}")
             logger.debug(f"Error processing file {f} in bucket {bucket}: {e}", exc_info=True)
@@ -117,7 +118,7 @@ def _process_files_for_bucket(files_for_bucket: List[str], bucket: str) -> List[
     return results
 
 
-def run_import_files(files: List[str], buckets: List[str]) -> List[bool]:
+def run_import_files(files: List[str], buckets: List[str], processed_dir: str = None) -> List[bool]:
     """
     Distribute files round-robin to buckets, start one worker per bucket and process sequentially
     to guarantee no two threads operate on the same bucket.
@@ -136,7 +137,7 @@ def run_import_files(files: List[str], buckets: List[str]) -> List[bool]:
     executor = ThreadPoolExecutor(max_workers=len(buckets))
     try:
         future_map = {
-            executor.submit(_process_files_for_bucket, bucket_file_map[bucket], bucket): bucket
+            executor.submit(_process_files_for_bucket, bucket_file_map[bucket], bucket, processed_dir): bucket
             for bucket in buckets
         }
         for future in as_completed(future_map):

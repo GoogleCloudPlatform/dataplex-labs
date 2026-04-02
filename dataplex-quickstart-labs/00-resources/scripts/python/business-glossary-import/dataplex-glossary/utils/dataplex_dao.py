@@ -62,6 +62,15 @@ def log_metadata_job_submission(service, project_id, location, payload, generate
             )
     logger.info(f"Job '{generated_job_id}' submitted successfully.")
 
+def _extract_entry_groups_from_payload(payload: dict) -> str:
+    """Extract entry groups from payload for error messages."""
+    try:
+        entry_groups = payload.get('import_spec', {}).get('scope', {}).get('entry_groups', [])
+        return ', '.join(entry_groups) if entry_groups else 'unknown'
+    except Exception:
+        return 'unknown'
+
+
 def create_metadata_job(service, project_id: str, location: str, payload: dict, job_prefix: str, fake_job: bool = False) -> str:
     """
     Generates a unique job ID and creates a metadata job with exponential backoff retry.
@@ -112,9 +121,7 @@ def create_and_monitor_job(service, project_id: str, location: str, payload: dic
         job_id = create_metadata_job(service, project_id, location, payload, job_prefix)
         if job_id:
             return poll_metadata_job(service, project_id, location, job_id)
-        else:
-            logger.error(f"Failed to create job '{job_prefix}': job_id is empty")
-            return False
+        return False
     except Exception as e:
         logger.error(f"Failed to create or monitor job '{job_prefix}': {e}")
         logger.debug(f"create_and_monitor_job input: service={service}, project_id={project_id}, location={location}, payload={payload}, job_id={job_prefix} | output: {e}")

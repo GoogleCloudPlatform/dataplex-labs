@@ -289,17 +289,15 @@ class TestFetchAllEntryLinks:
         assert len(result) == 2  # One link per term
     
     def test_continues_on_single_term_failure(self, monkeypatch):
-        """Failure for one term shouldn't stop processing others"""
+        """Failure for one term propagates since fetch_all_entry_links doesn't catch per-term exceptions"""
         terms = [{'name': 'term1'}, {'name': 'term2'}]
         mock_fetch = MagicMock(side_effect=[Exception("Error"), [['link2']]])
         
         monkeypatch.setattr(entrylinks_export, 'fetch_entry_links_for_term', mock_fetch)
         
-        # Should not raise, and should still return results from successful term
-        result = entrylinks_export.fetch_all_entry_links(terms, 'test-project')
-        
-        # At least the successful term's links should be returned
-        assert isinstance(result, list)
+        # Exception from first term propagates through the ThreadPoolExecutor
+        with pytest.raises(Exception, match="Error"):
+            entrylinks_export.fetch_all_entry_links(terms, 'test-project')
 
 
 # ============================================================================
@@ -338,11 +336,13 @@ class TestExportEntryLinks:
         mock_auth_sheets = MagicMock()
         mock_init_cache = MagicMock()
         mock_list_terms = MagicMock(return_value=[])
+        mock_clear = MagicMock()
         
         monkeypatch.setattr(entrylinks_export.api_layer, 'authenticate_dataplex', mock_auth_dataplex)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_auth_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', mock_init_cache)
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
+        monkeypatch.setattr(entrylinks_export, '_clear_sheet_with_headers', mock_clear)
         
         result = entrylinks_export.export_entry_links(
             'glossary/path', 'http://sheet', 'project'
@@ -357,12 +357,14 @@ class TestExportEntryLinks:
         mock_init_cache = MagicMock()
         mock_list_terms = MagicMock(return_value=[{'name': 'term1'}])
         mock_fetch_all = MagicMock(return_value=[])
+        mock_clear = MagicMock()
         
         monkeypatch.setattr(entrylinks_export.api_layer, 'authenticate_dataplex', mock_auth_dataplex)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_auth_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', mock_init_cache)
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', mock_fetch_all)
+        monkeypatch.setattr(entrylinks_export, '_clear_sheet_with_headers', mock_clear)
         
         result = entrylinks_export.export_entry_links(
             'glossary/path', 'http://sheet', 'project'
@@ -469,37 +471,19 @@ class TestHandleExportException:
 class TestRunExport:
     """Test _run_export function"""
     
-    def test_returns_1_when_no_project(self, monkeypatch):
-        """Should return 1 when no default project configured"""
-        mock_setup_logging = MagicMock()
-        mock_get_args = MagicMock()
-        mock_get_args.return_value.glossary_url = 'http://glossary'
-        mock_extract_glossary = MagicMock(return_value='glossary/path')
-        mock_get_project = MagicMock(return_value=None)
-        
-        monkeypatch.setattr(entrylinks_export.logging_utils, 'setup_file_logging', mock_setup_logging)
-        monkeypatch.setattr(entrylinks_export.argument_parser, 'get_export_entrylinks_arguments', mock_get_args)
-        monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'extract_glossary_name', mock_extract_glossary)
-        monkeypatch.setattr(entrylinks_export.api_layer, 'get_default_project', mock_get_project)
-        
-        result = entrylinks_export._run_export()
-        
-        assert result == 1
-    
     def test_returns_0_on_success(self, monkeypatch):
         """Should return 0 when export succeeds"""
         mock_setup_logging = MagicMock()
         mock_get_args = MagicMock()
         mock_get_args.return_value.glossary_url = 'http://glossary'
         mock_get_args.return_value.spreadsheet_url = 'http://sheet'
+        mock_get_args.return_value.user_project = 'test-project'
         mock_extract_glossary = MagicMock(return_value='glossary/path')
-        mock_get_project = MagicMock(return_value='test-project')
         mock_export = MagicMock(return_value=True)
         
         monkeypatch.setattr(entrylinks_export.logging_utils, 'setup_file_logging', mock_setup_logging)
         monkeypatch.setattr(entrylinks_export.argument_parser, 'get_export_entrylinks_arguments', mock_get_args)
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'extract_glossary_name', mock_extract_glossary)
-        monkeypatch.setattr(entrylinks_export.api_layer, 'get_default_project', mock_get_project)
         monkeypatch.setattr(entrylinks_export, 'export_entry_links', mock_export)
         
         result = entrylinks_export._run_export()

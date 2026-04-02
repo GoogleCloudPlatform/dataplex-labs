@@ -45,17 +45,39 @@ def is_file_empty(file_path: str) -> bool:
     return os.path.getsize(file_path) == 0
 
 
-def move_file_to_imported_folder(file_path: str):
-    """Delete the processed file."""
+def delete_file(file_path: str) -> bool:
+    """Delete a file. Returns True on success, False on failure."""
     if not os.path.exists(file_path):
-        logger.warning(f"File not found: {file_path}. Skipping move/delete operation.")
-        return
+        return True
     try:
         os.remove(file_path)
-        logger.debug(f"Deleted local file: {file_path}")
+        logger.debug(f"Deleted file: {file_path}")
+        return True
     except Exception as e:
-            logger.error(f"Failed to delete local file {file_path}: {e}")
-            logger.debug(f"Failed to delete local file {file_path}: {e}", exc_info=True)
+        logger.error(f"Failed to delete file {file_path}: {e}")
+        return False
+
+
+def move_file(source_path: str, dest_dir: str) -> bool:
+    """Move a file to destination directory. Returns True on success."""
+    if not os.path.exists(source_path):
+        logger.warning(f"Source file does not exist: {source_path}")
+        return False
+    ensure_dir(dest_dir)
+    filename = os.path.basename(source_path)
+    dest_path = os.path.join(dest_dir, filename)
+    try:
+        os.rename(source_path, dest_path)
+        logger.debug(f"Moved file: {source_path} -> {dest_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to move file {source_path} to {dest_dir}: {e}")
+        return False
+
+
+def move_file_to_imported_folder(file_path: str):
+    """Delete the processed file. (Legacy name, calls delete_file)"""
+    delete_file(file_path)
 
 
 def get_link_type(file_path: str) -> str | None:

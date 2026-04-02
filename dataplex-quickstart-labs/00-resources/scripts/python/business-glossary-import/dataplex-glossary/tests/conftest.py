@@ -313,8 +313,8 @@ def sample_spreadsheet_metadata():
 # ============================================================================
 
 @pytest.fixture
-def default_project():
-    """Default project ID for testing"""
+def user_project():
+    """User project ID for testing (used for billing/quota)"""
     return 'test-project-123'
 
 

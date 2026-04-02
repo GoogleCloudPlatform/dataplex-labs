@@ -71,10 +71,7 @@ def _fetch_links_from_regions_parallel(entry_name: str, regions: list, billing_p
             for region in regions
         }
         for completed_future in as_completed(region_futures):
-            try:
-                collected_links.extend(completed_future.result())
-            except Exception as fetch_error:
-                logger.warning(f"Region {region_futures[completed_future]} exception: {fetch_error}")
+            collected_links.extend(completed_future.result())
     return collected_links
 
 
@@ -100,11 +97,7 @@ def fetch_all_entry_links(glossary_terms: list, billing_project: str) -> list:
             for term in glossary_terms
         }
         for completed_future in as_completed(term_futures):
-            try:
-                all_entry_links.extend(completed_future.result())
-            except Exception as term_error:
-                failed_term_name = term_futures[completed_future].get('name')
-                logger.error(f"Failed for term {failed_term_name}: {term_error}")
+            all_entry_links.extend(completed_future.result())
     return all_entry_links
 
 
@@ -179,9 +172,9 @@ def _handle_export_exception(exception: Exception) -> int:
 def _log_export_arguments(parsed_args) -> None:
     """Log the parsed export arguments."""
     logger.debug("Export Arguments:")
-    logger.debug(f"  glossary_url: {parsed_args.glossary_url}")
-    logger.debug(f"  spreadsheet_url: {parsed_args.spreadsheet_url}")
-    logger.debug(f"  user_project: {parsed_args.user_project}")
+    logger.debug(f"glossary_url: {parsed_args.glossary_url}")
+    logger.debug(f"spreadsheet_url: {parsed_args.spreadsheet_url}")
+    logger.debug(f"user_project: {parsed_args.user_project}")
 
 
 def _run_export() -> int:

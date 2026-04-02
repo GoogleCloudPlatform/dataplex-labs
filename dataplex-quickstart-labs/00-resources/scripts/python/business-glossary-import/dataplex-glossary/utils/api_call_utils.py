@@ -1,21 +1,18 @@
 """Utils for API calls."""
 
 import logging
+import random
 from typing import Any, Callable, Dict
 import time
-import random
 import requests
 from requests.exceptions import RequestException
 from utils import logging_utils
-from utils.constants import (
-    MAX_BACKOFF_SECONDS,
-    INITIAL_BACKOFF_SECONDS,
-    MAX_RETRY_DURATION_SECONDS,
-)
+from utils.constants import INITIAL_BACKOFF_SECONDS, MAX_BACKOFF_SECONDS, MAX_RETRY_DURATION_SECONDS
 import google.auth
 from google.auth.transport.requests import Request
 from google.auth.exceptions import TransportError, RefreshError
 
+from utils.retry_utils import execute_with_retry, format_duration, format_error_message, is_network_error
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging_utils.get_logger()
@@ -29,109 +26,25 @@ last_refresh_time = 0
 REFRESH_INTERVAL_SECONDS = 55 * 60  # 55 minutes
 
 
-def _format_retry_wait_time(seconds: float) -> str:
-    """Format seconds into a human-readable string."""
-    if seconds < 60:
-        return f"{seconds:.0f}s"
-    minutes = seconds / 60
-    return f"{minutes:.1f}m"
+def _is_auth_retryable(error: Exception) -> bool:
+    """Check if an auth error is retryable."""
+    return isinstance(error, (TransportError, RefreshError, OSError)) or is_network_error(error)
 
 
 def _refresh_adc_token():
-    """Refresh ADC credentials and update cache with retry logic for network errors.
-    
-    Retries network errors with exponential backoff for up to 
-    MAX_RETRY_DURATION_SECONDS (10 minutes).
-    
-    Raises:
-        TransportError: If token refresh fails after all retries.
-    """
+    """Refresh ADC credentials and update cache with retry logic for network errors."""
     global cached_creds, cached_token, last_refresh_time
     
-    start_time = time.time()
-    backoff = INITIAL_BACKOFF_SECONDS
-    attempt = 0
+    def _do_refresh():
+        creds, _ = google.auth.default()
+        creds.refresh(Request())
+        return creds
     
-    while True:
-        attempt += 1
-        elapsed = time.time() - start_time
-        remaining = MAX_RETRY_DURATION_SECONDS - elapsed
-        
-        try:
-            creds, _ = google.auth.default()
-            creds.refresh(Request())
-            cached_creds = creds
-            cached_token = creds.token
-            last_refresh_time = time.time()
-            if attempt > 1:
-                logger.info("ADC token refreshed successfully after %d attempts", attempt)
-            else:
-                logger.debug("ADC token refreshed successfully.")
-            return
-            
-        except (TransportError, RefreshError, OSError) as e:
-            if remaining <= 0:
-                logger.error(
-                    "Network connectivity issue persists after retrying for %s. "
-                    "Please check your internet connection.",
-                    _format_retry_wait_time(elapsed)
-                )
-                raise
-            
-            # Log and retry
-            logger.warning(
-                "Network error during authentication (attempt %d): %s. "
-                "Retrying in %s... (will retry for up to %s more)",
-                attempt,
-                _get_friendly_error_message(e),
-                _format_retry_wait_time(backoff),
-                _format_retry_wait_time(remaining)
-            )
-            
-            time.sleep(backoff + random.uniform(0, 0.5))
-            backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-
-
-def _get_friendly_error_message(error: Exception) -> str:
-    """Extract a user-friendly error message from an exception.
-    
-    Args:
-        error: The exception to extract message from.
-    
-    Returns:
-        A concise, user-friendly error message.
-    """
-    error_str = str(error)
-    
-    # Check for common network error patterns and return friendly messages
-    if "Network is unreachable" in error_str:
-        return "Network is unreachable"
-    if "Connection refused" in error_str:
-        return "Connection refused"
-    if "Connection timed out" in error_str or "timed out" in error_str.lower():
-        return "Connection timed out"
-    if "Name or service not known" in error_str or "name resolution" in error_str.lower():
-        return "DNS resolution failed"
-    if "No route to host" in error_str:
-        return "No route to host"
-    if "Connection reset" in error_str:
-        return "Connection reset by server"
-    
-    # For other errors, try to extract the core message
-    # Often the actual message is after the last colon
-    if ": " in error_str:
-        parts = error_str.split(": ")
-        # Return the last meaningful part
-        for part in reversed(parts):
-            part = part.strip()
-            if part and len(part) > 5 and not part.startswith("<"):
-                return part
-    
-    # Truncate very long messages
-    if len(error_str) > 100:
-        return error_str[:100] + "..."
-    
-    return error_str
+    creds = execute_with_retry(_do_refresh, "ADC token refresh", is_retryable=_is_auth_retryable)
+    cached_creds = creds
+    cached_token = creds.token
+    last_refresh_time = time.time()
+    logger.debug("ADC token refreshed successfully.")
 
 
 def _get_header(project_id: str) -> Dict[str, str]:
@@ -304,8 +217,8 @@ def fetch_api_response(
         
         logger.warning(
           f"Server error (HTTP {res.status_code}), attempt {attempt}. "
-          f"Retrying in {_format_retry_wait_time(backoff)}... "
-          f"(will retry for up to {_format_retry_wait_time(remaining)} more)"
+          f"Retrying in {format_duration(backoff)}... "
+          f"(will retry for up to {format_duration(remaining)} more)"
         )
         time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter
         backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
@@ -323,7 +236,7 @@ def fetch_api_response(
         logger.error(
           "Network connectivity issue persists after retrying for %s. "
           "Please check your internet connection.",
-          _format_retry_wait_time(elapsed)
+          format_duration(elapsed)
         )
         error_msg = create_error_message(method_name, url, err)
         return {'json': None, 'error_msg': error_msg}
@@ -333,9 +246,9 @@ def fetch_api_response(
         "Network error (attempt %d): %s. Retrying in %s... "
         "(will retry for up to %s more)",
         attempt,
-        _get_friendly_error_message(err),
-        _format_retry_wait_time(backoff),
-        _format_retry_wait_time(remaining)
+        format_error_message(err),
+        format_duration(backoff),
+        format_duration(remaining)
       )
       
       time.sleep(backoff + random.uniform(0, 0.5))  # Add jitter

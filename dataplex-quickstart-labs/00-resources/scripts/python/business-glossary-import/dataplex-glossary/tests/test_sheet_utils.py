@@ -54,10 +54,10 @@ class TestGetFirstSheetName:
 
 
 class TestGetFirstSheetInfo:
-    """Test _get_first_sheet_info function"""
+    """Test _get_first_sheet_name function"""
     
     def test_extracts_sheet_info(self):
-        """Extract sheet info from metadata"""
+        """Extract sheet name from metadata"""
         mock_service = MagicMock()
         mock_service.spreadsheets().get().execute.return_value = {
             'sheets': [
@@ -65,10 +65,9 @@ class TestGetFirstSheetInfo:
             ]
         }
         
-        name, sheet_id = sheet_utils._get_first_sheet_info(mock_service, 'spreadsheet_id')
+        name = sheet_utils._get_first_sheet_name(mock_service, 'spreadsheet_id')
         
         assert name == 'Sheet1'
-        assert sheet_id == 123
 
 
 # ============================================================================

@@ -11,8 +11,9 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(curr_dir))
 sys.path.append(os.path.dirname(os.path.dirname(curr_dir)))
 
-from utils import api_layer, argument_parser, business_glossary_utils, constants, gcs_dao, import_utils, logging_utils, sheet_utils
+from utils import api_layer, argument_parser, business_glossary_utils, constants, file_utils, gcs_dao, import_utils, logging_utils, sheet_utils
 from utils.constants import (
+    ARCHIVE_DIRECTORY,
     BIGQUERY_SYSTEM_ENTRY_GROUP,
     CATALOG_ENTRY_PATTERN,
     DP_LINK_TYPE_DEFINITION,
@@ -20,6 +21,7 @@ from utils.constants import (
     DP_LINK_TYPE_SYNONYM,
     ENTRY_REFERENCE_TYPE_SOURCE,
     ENTRY_REFERENCE_TYPE_TARGET,
+    PROCESSED_DIRECTORY,
     SOURCE_ENTRY_PATTERN,
 )
 from utils.models import EntryLink, EntryReference, SpreadsheetRow
@@ -377,7 +379,12 @@ def group_entrylinks_by_type_and_entry_group(entrylinks: List[EntryLink]) -> Dic
 
 def _get_archive_directory() -> str:
     """Get the path to the archive directory."""
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "archive")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), ARCHIVE_DIRECTORY)
+
+
+def _get_processed_directory() -> str:
+    """Get the path to the processed directory."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), PROCESSED_DIRECTORY)
 
 
 def _extract_unique_entry_projects(entrylinks: List[EntryLink]) -> set:
@@ -498,14 +505,19 @@ def _execute_import(entrylinks: List[EntryLink], buckets: List[str]) -> int:
     """Group entrylinks, create import files, and run import jobs."""
     grouped_entrylinks = group_entrylinks_by_type_and_entry_group(entrylinks)
     
-    import_files = import_utils.create_import_json_files(grouped_entrylinks, _get_archive_directory())
+    archive_dir = _get_archive_directory()
+    processed_dir = _get_processed_directory()
+    file_utils.ensure_dir(archive_dir)
+    file_utils.ensure_dir(processed_dir)
+    
+    import_files = import_utils.create_import_json_files(grouped_entrylinks, archive_dir)
     if not import_files:
         logger.warning("No files to process")
         return 1
     
     logger.info(f"Created {len(import_files)} import file(s). This will result in {len(import_files)} separate import job(s).")
     
-    import_results = import_utils.run_import_files(import_files, buckets)
+    import_results = import_utils.run_import_files(import_files, buckets, processed_dir)
     return _report_import_results(import_results)
 
 

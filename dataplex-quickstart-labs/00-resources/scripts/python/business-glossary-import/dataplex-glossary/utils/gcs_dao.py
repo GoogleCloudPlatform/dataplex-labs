@@ -1,45 +1,10 @@
 
 
-import random
-import time
 from google.cloud import storage
-from google.api_core import exceptions as gcs_exceptions
 from utils import logging_utils, dataplex_dao
-from utils.constants import INITIAL_BACKOFF_SECONDS, MAX_ATTEMPTS, MAX_BACKOFF_SECONDS
+from utils.retry_utils import execute_with_retry, is_retryable_gcs_error
 
 logger = logging_utils.get_logger()
-
-# GCS transient exceptions that warrant retry
-GCS_TRANSIENT_EXCEPTIONS = (
-    gcs_exceptions.ServiceUnavailable,
-    gcs_exceptions.InternalServerError,
-    gcs_exceptions.TooManyRequests,
-    ConnectionError,
-    TimeoutError,
-)
-
-
-def _is_transient_gcs_error(error: Exception) -> bool:
-    """Check if a GCS error is transient and should be retried."""
-    return isinstance(error, GCS_TRANSIENT_EXCEPTIONS)
-
-
-def _execute_with_retry(operation, operation_name: str):
-    """Execute a GCS operation with exponential backoff retry."""
-    backoff = INITIAL_BACKOFF_SECONDS
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            return operation()
-        except Exception as error:
-            if _is_transient_gcs_error(error) and attempt < MAX_ATTEMPTS:
-                sleep_time = backoff + random.uniform(0, 0.5)
-                logger.info(f"Transient GCS error during {operation_name} (attempt {attempt}/{MAX_ATTEMPTS}): {error}. "
-                           f"Retrying in {sleep_time:.1f}s...")
-                time.sleep(sleep_time)
-                backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-                continue
-            raise
-    return None
 
 
 def prepare_gcs_bucket(gcs_bucket: str, file_path: str, filename: str) -> bool:
@@ -67,7 +32,7 @@ def upload_to_gcs(bucket_name: str, file_path: str, file_name: str) -> bool:
         return True
     
     try:
-        result = _execute_with_retry(_upload, f"upload to gs://{bucket_name}/{file_name}")
+        result = execute_with_retry(_upload, f"upload to gs://{bucket_name}/{file_name}", is_retryable=is_retryable_gcs_error)
         logger.debug(f"[GCS UPLOAD] Response: success, uploaded {file_path} -> gs://{bucket_name}/{file_name}")
         return result
     except Exception as error:
@@ -89,7 +54,7 @@ def clear_bucket(bucket_name: str) -> bool:
         return len(blobs)
     
     try:
-        deleted_count = _execute_with_retry(_clear, f"clear bucket '{bucket_name}'")
+        deleted_count = execute_with_retry(_clear, f"clear bucket '{bucket_name}'", is_retryable=is_retryable_gcs_error)
         if deleted_count == 0:
             logger.debug(f"[GCS CLEAR] Response: bucket already empty")
         else:

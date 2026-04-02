@@ -37,25 +37,37 @@ class TestReadUserInputWithSelect:
     
     def test_valid_input_returns_stripped_value(self, monkeypatch):
         """Valid input should be stripped and returned"""
-        monkeypatch.setattr('builtins.input', lambda _: '  test_input  ')
+        import select as select_mod
+        mock_stdin = MagicMock()
+        mock_stdin.readline.return_value = '  test_input  \n'
+        monkeypatch.setattr('sys.stdin', mock_stdin)
+        monkeypatch.setattr(select_mod, 'select', lambda r, w, x, t: (r, w, x))
         
-        result = entrylinks_import._read_user_input_with_select("Enter value: ")
+        result = entrylinks_import._read_user_input_with_select(10)
         
         assert result == 'test_input'
     
     def test_empty_input_returns_empty(self, monkeypatch):
         """Empty input should return empty string"""
-        monkeypatch.setattr('builtins.input', lambda _: '')
+        import select as select_mod
+        mock_stdin = MagicMock()
+        mock_stdin.readline.return_value = '\n'
+        monkeypatch.setattr('sys.stdin', mock_stdin)
+        monkeypatch.setattr(select_mod, 'select', lambda r, w, x, t: (r, w, x))
         
-        result = entrylinks_import._read_user_input_with_select("Enter value: ")
+        result = entrylinks_import._read_user_input_with_select(10)
         
         assert result == ''
     
     def test_whitespace_only_returns_empty(self, monkeypatch):
         """Whitespace-only input should return empty string"""
-        monkeypatch.setattr('builtins.input', lambda _: '   ')
+        import select as select_mod
+        mock_stdin = MagicMock()
+        mock_stdin.readline.return_value = '   \n'
+        monkeypatch.setattr('sys.stdin', mock_stdin)
+        monkeypatch.setattr(select_mod, 'select', lambda r, w, x, t: (r, w, x))
         
-        result = entrylinks_import._read_user_input_with_select("Enter value: ")
+        result = entrylinks_import._read_user_input_with_select(10)
         
         assert result == ''
 
@@ -65,41 +77,35 @@ class TestReadUserInputWithSelect:
 # ============================================================================
 
 class TestGetExistingArchiveFiles:
-    """Test get_existing_archive_files function"""
+    """Test _get_existing_archive_files function"""
     
-    def test_returns_empty_when_dir_not_exists(self, monkeypatch, tmp_path):
+    def test_returns_empty_when_dir_not_exists(self, tmp_path):
         """Returns empty list when archive dir doesn't exist"""
-        monkeypatch.setattr(entrylinks_import, 'PROCESSED_DIR', 
-                          str(tmp_path / 'nonexistent'))
-        
-        result = entrylinks_import.get_existing_archive_files()
+        result = entrylinks_import._get_existing_archive_files(
+            str(tmp_path / 'nonexistent'))
         
         assert result == []
     
-    def test_returns_csv_files_only(self, monkeypatch, tmp_path):
-        """Returns only .csv files from archive directory"""
+    def test_returns_json_files_only(self, tmp_path):
+        """Returns only .json files from archive directory"""
         archive_dir = tmp_path / 'archive'
         archive_dir.mkdir()
-        (archive_dir / 'file1.csv').touch()
-        (archive_dir / 'file2.csv').touch()
+        (archive_dir / 'file1.json').touch()
+        (archive_dir / 'file2.json').touch()
         (archive_dir / 'file3.txt').touch()
         
-        monkeypatch.setattr(entrylinks_import, 'PROCESSED_DIR', str(archive_dir))
-        
-        result = entrylinks_import.get_existing_archive_files()
+        result = entrylinks_import._get_existing_archive_files(str(archive_dir))
         
         assert len(result) == 2
-        assert all(f.endswith('.csv') for f in result)
+        assert all(f.endswith('.json') for f in result)
     
-    def test_returns_empty_when_no_csv(self, monkeypatch, tmp_path):
-        """Returns empty list when no CSV files"""
+    def test_returns_empty_when_no_json(self, tmp_path):
+        """Returns empty list when no JSON files"""
         archive_dir = tmp_path / 'archive'
         archive_dir.mkdir()
         (archive_dir / 'file.txt').touch()
         
-        monkeypatch.setattr(entrylinks_import, 'PROCESSED_DIR', str(archive_dir))
-        
-        result = entrylinks_import.get_existing_archive_files()
+        result = entrylinks_import._get_existing_archive_files(str(archive_dir))
         
         assert result == []
 
@@ -107,31 +113,27 @@ class TestGetExistingArchiveFiles:
 class TestRemoveArchiveFiles:
     """Test _remove_archive_files function"""
     
-    def test_removes_specified_files(self, monkeypatch, tmp_path):
+    def test_removes_specified_files(self, tmp_path):
         """Should remove listed files"""
         archive_dir = tmp_path / 'archive'
         archive_dir.mkdir()
-        file1 = archive_dir / 'file1.csv'
-        file2 = archive_dir / 'file2.csv'
+        file1 = archive_dir / 'file1.json'
+        file2 = archive_dir / 'file2.json'
         file1.touch()
         file2.touch()
         
-        monkeypatch.setattr(entrylinks_import, 'PROCESSED_DIR', str(archive_dir))
-        
-        entrylinks_import._remove_archive_files(['file1.csv'])
+        entrylinks_import._remove_archive_files(str(archive_dir), ['file1.json'])
         
         assert not file1.exists()
         assert file2.exists()
     
-    def test_handles_nonexistent_files_gracefully(self, monkeypatch, tmp_path):
+    def test_handles_nonexistent_files_gracefully(self, tmp_path):
         """Should not raise for nonexistent files"""
         archive_dir = tmp_path / 'archive'
         archive_dir.mkdir()
         
-        monkeypatch.setattr(entrylinks_import, 'PROCESSED_DIR', str(archive_dir))
-        
         # Should not raise
-        entrylinks_import._remove_archive_files(['nonexistent.csv'])
+        entrylinks_import._remove_archive_files(str(archive_dir), ['nonexistent.json'])
 
 
 # ============================================================================
@@ -145,23 +147,21 @@ class TestParseSourceEntryComponents:
         """Parse BigQuery entry format"""
         entry_name = 'projects/proj/locations/us/entryGroups/bigquery/entries/table1'
         
-        result = entrylinks_import._parse_source_entry_components(entry_name)
+        project_id, location_id, entry_group = entrylinks_import._parse_source_entry_components(entry_name)
         
-        assert result['project'] == 'proj'
-        assert result['location'] == 'us'
-        assert result['entry_group'] == 'bigquery'
-        assert result['entry'] == 'table1'
+        assert project_id == 'proj'
+        assert location_id == 'us'
+        assert entry_group == 'bigquery'
     
     def test_parses_glossary_entry(self):
         """Parse Glossary entry format"""
         entry_name = 'projects/proj/locations/global/entryGroups/@dataplex/entries/glossaries/G/terms/T'
         
-        result = entrylinks_import._parse_source_entry_components(entry_name)
+        project_id, location_id, entry_group = entrylinks_import._parse_source_entry_components(entry_name)
         
-        assert result['project'] == 'proj'
-        assert result['location'] == 'global'
-        assert result['entry_group'] == '@dataplex'
-        assert 'glossaries' in result['entry']
+        assert project_id == 'proj'
+        assert location_id == 'global'
+        assert entry_group == '@dataplex'
     
     def test_raises_on_invalid_format(self):
         """Invalid format should raise ValueError"""
@@ -172,9 +172,10 @@ class TestParseSourceEntryComponents:
         """Handle entries with complex paths"""
         entry_name = 'projects/p/locations/l/entryGroups/eg/entries/datasets/ds/tables/t'
         
-        result = entrylinks_import._parse_source_entry_components(entry_name)
+        project_id, location_id, entry_group = entrylinks_import._parse_source_entry_components(entry_name)
         
-        assert result['entry'] == 'datasets/ds/tables/t'
+        assert project_id == 'p'
+        assert entry_group == 'eg'
 
 
 class TestGenerateEntrylinkName:
@@ -182,39 +183,28 @@ class TestGenerateEntrylinkName:
     
     def test_generates_valid_name_format(self):
         """Generated name should follow expected pattern"""
-        source = 'projects/p/locations/l/entryGroups/eg/entries/e1'
-        target = 'projects/p/locations/l/entryGroups/eg2/entries/e2'
-        link_type = 'definition'
-        
-        result = entrylinks_import._generate_entrylink_name(source, target, link_type)
+        result = entrylinks_import._generate_entrylink_name('proj', 'us', 'eg')
         
         assert 'entryLinks' in result
         assert isinstance(result, str)
     
     def test_different_sources_create_different_names(self):
-        """Different source/target pairs should create unique names"""
-        name1 = entrylinks_import._generate_entrylink_name(
-            'projects/p/locations/l/entryGroups/eg/entries/e1',
-            'projects/p/locations/l/entryGroups/eg/entries/e2',
-            'related'
-        )
-        name2 = entrylinks_import._generate_entrylink_name(
-            'projects/p/locations/l/entryGroups/eg/entries/e3',
-            'projects/p/locations/l/entryGroups/eg/entries/e4',
-            'related'
-        )
+        """Different inputs should create unique names (UUID-based)"""
+        name1 = entrylinks_import._generate_entrylink_name('p1', 'us', 'eg1')
+        name2 = entrylinks_import._generate_entrylink_name('p2', 'eu', 'eg2')
         
         assert name1 != name2
     
     def test_same_inputs_create_same_name(self):
-        """Same inputs should create deterministic name"""
-        source = 'projects/p/locations/l/entryGroups/eg/entries/e1'
-        target = 'projects/p/locations/l/entryGroups/eg/entries/e2'
+        """Function generates unique names using UUID, so same inputs produce different names"""
+        name1 = entrylinks_import._generate_entrylink_name('proj', 'us', 'eg')
+        name2 = entrylinks_import._generate_entrylink_name('proj', 'us', 'eg')
         
-        name1 = entrylinks_import._generate_entrylink_name(source, target, 'related')
-        name2 = entrylinks_import._generate_entrylink_name(source, target, 'related')
-        
-        assert name1 == name2
+        # Names use UUID so they are unique each time
+        assert name1 != name2
+        # But they should share the same base path
+        assert name1.startswith('projects/proj/locations/us/entryGroups/eg/entryLinks/')
+        assert name2.startswith('projects/proj/locations/us/entryGroups/eg/entryLinks/')
 
 
 # ============================================================================
@@ -226,26 +216,20 @@ class TestFormatSourcePathForBigquery:
     
     def test_formats_simple_bigquery_path(self):
         """Format simple BigQuery dataset.table path"""
-        components = {
-            'project': 'my-project',
-            'entry': 'datasets/my_dataset/tables/my_table'
-        }
+        result = entrylinks_import._format_source_path_for_bigquery(
+            'datasets/my_dataset/tables/my_table', '@bigquery'
+        )
         
-        result = entrylinks_import._format_source_path_for_bigquery(components)
-        
-        assert 'my_dataset' in result or 'my_table' in result
+        assert 'Schema.' in result
     
-    def test_handles_missing_components(self):
-        """Should not raise for minimal components"""
-        components = {
-            'project': 'proj',
-            'entry': 'simple_entry'
-        }
-        
-        # Should not raise
-        result = entrylinks_import._format_source_path_for_bigquery(components)
+    def test_handles_non_bigquery_entry_group(self):
+        """Non-bigquery entry group should return path as-is"""
+        result = entrylinks_import._format_source_path_for_bigquery(
+            'some/path', 'custom_group'
+        )
         
         assert isinstance(result, str)
+        assert result == 'some/path'
 
 
 # ============================================================================
@@ -257,37 +241,34 @@ class TestBuildDefinitionReferences:
     
     def test_creates_source_reference(self):
         """Should create a source reference entry"""
-        components = {
-            'project': 'proj',
-            'location': 'us',
-            'entry_group': 'bigquery',
-            'entry': 'tables/t1'
-        }
-        source_path = '/project.dataset.table'
-        
-        result = entrylinks_import._build_definition_references(
-            components, source_path, 'target_entry'
+        from utils.models import SpreadsheetRow
+        row = SpreadsheetRow(
+            entry_link_type='definition',
+            source_entry='projects/proj/locations/us/entryGroups/bigquery/entries/tables/t1',
+            target_entry='projects/proj/locations/us/entryGroups/@dataplex/entries/target',
+            source_path='/project.dataset.table'
         )
         
+        result = entrylinks_import._build_definition_references(row, 'bigquery')
+        
         assert isinstance(result, list)
-        assert len(result) > 0
+        assert len(result) == 2
     
     def test_includes_target_reference(self):
         """Result should reference target entry"""
-        components = {
-            'project': 'proj',
-            'location': 'us',
-            'entry_group': 'bigquery',
-            'entry': 'tables/t1'
-        }
-        
-        result = entrylinks_import._build_definition_references(
-            components, '/path', 'target_entry_name'
+        from utils.models import SpreadsheetRow
+        row = SpreadsheetRow(
+            entry_link_type='definition',
+            source_entry='projects/proj/locations/us/entryGroups/bigquery/entries/tables/t1',
+            target_entry='target_entry_name',
+            source_path='/path'
         )
+        
+        result = entrylinks_import._build_definition_references(row, 'bigquery')
         
         # Find reference that contains target
         has_target = any('target_entry_name' in str(ref) for ref in result)
-        assert has_target or len(result) > 0
+        assert has_target
 
 
 # ============================================================================
@@ -299,44 +280,41 @@ class TestExtractNormalizedLinkType:
     
     def test_extracts_definition_type(self):
         """Should extract 'definition' type"""
-        entry_link = {'entryLinkType': 'DEFINITION'}
+        result = entrylinks_import._extract_normalized_link_type(
+            'projects/dataplex-types/locations/global/entryLinkTypes/definition'
+        )
         
-        result = entrylinks_import._extract_normalized_link_type(entry_link)
-        
-        assert result.lower() == 'definition'
+        assert result == 'definition'
     
     def test_extracts_related_type(self):
-        """Should extract 'related' type"""
-        entry_link = {'entryLinkType': 'RELATED'}
+        """Should normalize 'related' to 'related-synonym'"""
+        result = entrylinks_import._extract_normalized_link_type(
+            'projects/dataplex-types/locations/global/entryLinkTypes/related'
+        )
         
-        result = entrylinks_import._extract_normalized_link_type(entry_link)
-        
-        assert result.lower() == 'related'
+        assert result == 'related-synonym'
     
     def test_extracts_synonym_type(self):
-        """Should extract 'synonym' type"""
-        entry_link = {'entryLinkType': 'SYNONYM'}
+        """Should normalize 'synonym' to 'related-synonym'"""
+        result = entrylinks_import._extract_normalized_link_type(
+            'projects/dataplex-types/locations/global/entryLinkTypes/synonym'
+        )
         
-        result = entrylinks_import._extract_normalized_link_type(entry_link)
-        
-        assert result.lower() == 'synonym'
+        assert result == 'related-synonym'
     
-    def test_handles_missing_type(self):
-        """Should return default for missing type"""
-        entry_link = {}
+    def test_handles_invalid_type(self):
+        """Should return None for invalid type format"""
+        result = entrylinks_import._extract_normalized_link_type('invalid_type_string')
         
-        result = entrylinks_import._extract_normalized_link_type(entry_link)
-        
-        assert result == '' or result is None or 'unknown' in result.lower()
+        assert result is None
     
-    def test_normalizes_case(self):
-        """Should normalize to consistent case"""
-        entry_link = {'entryLinkType': 'DeFiNiTiOn'}
+    def test_handles_numeric_project_id(self):
+        """Should handle numeric project ID (655216118709) in type path"""
+        result = entrylinks_import._extract_normalized_link_type(
+            'projects/655216118709/locations/global/entryLinkTypes/definition'
+        )
         
-        result = entrylinks_import._extract_normalized_link_type(entry_link)
-        
-        # Should be consistently cased
-        assert result == result.lower() or result == result.upper()
+        assert result == 'definition'
 
 
 # ============================================================================
@@ -349,34 +327,36 @@ class TestAddEntrylinkToGroup:
     def test_adds_to_empty_group(self):
         """Should add to empty group container"""
         groups = {}
-        region = 'us-central1'
-        entry_link = {'name': 'link1', 'entryLinkType': 'RELATED'}
+        entrylink_dict = {'name': 'link1'}
         
-        entrylinks_import._add_entrylink_to_group(groups, region, entry_link)
+        entrylinks_import._add_entrylink_to_group(
+            groups, entrylink_dict, 'definition', 'proj', 'us', 'eg'
+        )
         
-        assert region in groups
-        assert len(groups[region]) == 1
+        assert 'definition' in groups
+        assert 'proj_us_eg' in groups['definition']
+        assert len(groups['definition']['proj_us_eg']) == 1
     
     def test_adds_to_existing_group(self):
-        """Should append to existing region group"""
-        groups = {'us-central1': [{'name': 'existing'}]}
+        """Should append to existing group"""
+        groups = {'definition': {'proj_us_eg': [{'name': 'existing'}]}}
         
         entrylinks_import._add_entrylink_to_group(
-            groups, 'us-central1', {'name': 'new'}
+            groups, {'name': 'new'}, 'definition', 'proj', 'us', 'eg'
         )
         
-        assert len(groups['us-central1']) == 2
+        assert len(groups['definition']['proj_us_eg']) == 2
     
-    def test_creates_new_group_for_new_region(self):
-        """Should create new group for new region"""
-        groups = {'us': [{'name': 'link1'}]}
+    def test_creates_new_group_for_different_link_type(self):
+        """Should create new group for different link type"""
+        groups = {'definition': {'p_l_eg': [{'name': 'link1'}]}}
         
         entrylinks_import._add_entrylink_to_group(
-            groups, 'eu', {'name': 'link2'}
+            groups, {'name': 'link2'}, 'related-synonym', 'p', 'l', 'eg'
         )
         
-        assert 'eu' in groups
-        assert 'us' in groups
+        assert 'related-synonym' in groups
+        assert 'definition' in groups
 
 
 # ============================================================================
@@ -463,31 +443,18 @@ class TestImportEntryLinksToDataplex:
 class TestRunImportWorkflow:
     """Test _run_import_workflow function"""
     
-    def test_returns_1_when_no_spreadsheet_url(self, monkeypatch):
-        """Should return 1 when spreadsheet URL not provided"""
-        mock_setup_logging = MagicMock()
-        mock_get_args = MagicMock()
-        mock_get_args.return_value.spreadsheet_url = None
+    def test_returns_1_when_empty_spreadsheet(self, monkeypatch):
+        """Should return 1 when spreadsheet has no entries"""
+        mock_parsed_args = MagicMock()
+        mock_parsed_args.spreadsheet_url = 'https://docs.google.com/spreadsheets/d/abc/edit'
+        mock_parsed_args.user_project = 'my-project'
         
-        monkeypatch.setattr(entrylinks_import.logging_utils, 'setup_file_logging', mock_setup_logging)
-        monkeypatch.setattr(entrylinks_import.argument_parser, 'get_import_entrylinks_arguments', mock_get_args)
+        monkeypatch.setattr(entrylinks_import.sheet_utils, 'get_sheet_name_for_url', lambda url: 'Sheet1')
+        monkeypatch.setattr(entrylinks_import.api_layer, 'authenticate_dataplex', MagicMock)
+        monkeypatch.setattr(entrylinks_import, 'check_and_clean_archive_folder', lambda d: True)
+        monkeypatch.setattr(entrylinks_import, 'convert_spreadsheet_to_entrylinks', lambda url, sheet_name: [])
         
-        result = entrylinks_import._run_import_workflow()
-        
-        assert result == 1
-    
-    def test_returns_1_when_no_project(self, monkeypatch):
-        """Should return 1 when no default project configured"""
-        mock_setup_logging = MagicMock()
-        mock_get_args = MagicMock()
-        mock_get_args.return_value.spreadsheet_url = 'http://sheet'
-        mock_get_project = MagicMock(return_value=None)
-        
-        monkeypatch.setattr(entrylinks_import.logging_utils, 'setup_file_logging', mock_setup_logging)
-        monkeypatch.setattr(entrylinks_import.argument_parser, 'get_import_entrylinks_arguments', mock_get_args)
-        monkeypatch.setattr(entrylinks_import.api_layer, 'get_default_project', mock_get_project)
-        
-        result = entrylinks_import._run_import_workflow()
+        result = entrylinks_import._run_import_workflow(mock_parsed_args)
         
         assert result == 1
 
@@ -500,19 +467,28 @@ class TestMain:
     """Test main function"""
     
     def test_catches_keyboard_interrupt(self, monkeypatch):
-        """Main should catch KeyboardInterrupt"""
-        mock_run = MagicMock(side_effect=KeyboardInterrupt())
+        """Main should catch KeyboardInterrupt and call os._exit(130)"""
+        mock_setup = MagicMock()
+        mock_get_args = MagicMock(side_effect=KeyboardInterrupt())
+        mock_exit = MagicMock()
         
-        monkeypatch.setattr(entrylinks_import, '_run_import_workflow', mock_run)
+        monkeypatch.setattr(entrylinks_import.logging_utils, 'setup_file_logging', mock_setup)
+        monkeypatch.setattr(entrylinks_import.argument_parser, 'get_import_entrylinks_arguments', mock_get_args)
+        monkeypatch.setattr(entrylinks_import.os, '_exit', mock_exit)
         
-        result = entrylinks_import.main()
+        entrylinks_import.main()
         
-        assert result == 1
+        mock_exit.assert_called_once_with(130)
     
     def test_returns_workflow_result(self, monkeypatch):
         """Main should return workflow result"""
+        mock_setup = MagicMock()
+        mock_args = MagicMock()
+        mock_get_args = MagicMock(return_value=mock_args)
         mock_run = MagicMock(return_value=0)
         
+        monkeypatch.setattr(entrylinks_import.logging_utils, 'setup_file_logging', mock_setup)
+        monkeypatch.setattr(entrylinks_import.argument_parser, 'get_import_entrylinks_arguments', mock_get_args)
         monkeypatch.setattr(entrylinks_import, '_run_import_workflow', mock_run)
         
         result = entrylinks_import.main()
@@ -521,8 +497,13 @@ class TestMain:
     
     def test_handles_generic_exception(self, monkeypatch):
         """Main should handle generic exceptions"""
+        mock_setup = MagicMock()
+        mock_args = MagicMock()
+        mock_get_args = MagicMock(return_value=mock_args)
         mock_run = MagicMock(side_effect=Exception("Unexpected error"))
         
+        monkeypatch.setattr(entrylinks_import.logging_utils, 'setup_file_logging', mock_setup)
+        monkeypatch.setattr(entrylinks_import.argument_parser, 'get_import_entrylinks_arguments', mock_get_args)
         monkeypatch.setattr(entrylinks_import, '_run_import_workflow', mock_run)
         
         result = entrylinks_import.main()
@@ -552,10 +533,11 @@ class TestEdgeCases:
         """Should handle special characters"""
         entry_name = 'projects/my-project/locations/us-central1/entryGroups/my_group/entries/my-entry_123'
         
-        result = entrylinks_import._parse_source_entry_components(entry_name)
+        project_id, location_id, entry_group = entrylinks_import._parse_source_entry_components(entry_name)
         
-        assert result['project'] == 'my-project'
-        assert result['entry'] == 'my-entry_123'
+        assert project_id == 'my-project'
+        assert location_id == 'us-central1'
+        assert entry_group == 'my_group'
 
 
 class TestConcurrency:
