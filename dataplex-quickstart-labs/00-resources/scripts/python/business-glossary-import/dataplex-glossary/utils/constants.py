@@ -86,6 +86,11 @@ MAX_DESC_SIZE_BYTES = 120 * 1024
 MAX_WORKERS = 5
 PAGE_SIZE = 1000
 
+# Throttling: 240ms delay between consecutive lookupEntryLinks API calls.
+# With 5 threads, each thread effectively waits 1200ms (240ms * 5),
+# yielding ~250 QPM — safely within the 500 QPM per-project/user/region quota.
+API_CALL_DELAY_SECONDS = 0.24
+
 # Symmetric link types (A,B) and (B,A) are equivalent
 SYMMETRIC_LINK_TYPES = {"synonym", "related"}
 PROJECT_NUMBER = "655216118709"

@@ -2,6 +2,8 @@
 
 import os
 import sys
+import threading
+import time
 from typing import Dict, List, Optional
 
 import requests
@@ -19,6 +21,7 @@ from .constants import (
     CATALOG_ENTRY_PATTERN,
     PAGE_SIZE,
     PROJECT_PATTERN,
+    API_CALL_DELAY_SECONDS,
 )
 from .error import *
 from .retry_utils import execute_with_retry, is_retryable_google_api_error
@@ -26,6 +29,12 @@ from .retry_utils import execute_with_retry, is_retryable_google_api_error
 logger = logging_utils.get_logger()
 
 _locations_cache: Dict[str, List[str]] = {}
+
+# Global throttle lock for lookupEntryLinks API calls.
+# Ensures a minimum delay of API_CALL_DELAY_SECONDS (240ms) between
+# consecutive calls across all threads, keeping within the 500 QPM quota.
+_entry_links_throttle_lock = threading.Lock()
+_last_entry_links_call_time = 0.0
 
 
 def initialize_locations_cache(user_project: str) -> List[str]:
@@ -121,6 +130,21 @@ def _parse_entry_id_components(entry_id: str) -> tuple:
     return entry_id_match.group('project_id'), entry_id_match.group('location_id')
 
 
+def _throttle_entry_links_call():
+    """Enforce minimum delay between consecutive lookupEntryLinks API calls.
+    
+    With API_CALL_DELAY_SECONDS=0.24s and 5 threads, each thread effectively
+    waits ~1.2s, yielding ~250 QPM — safely within the 500 QPM quota.
+    """
+    global _last_entry_links_call_time
+    with _entry_links_throttle_lock:
+        now = time.time()
+        elapsed = now - _last_entry_links_call_time
+        if elapsed < API_CALL_DELAY_SECONDS:
+            time.sleep(API_CALL_DELAY_SECONDS - elapsed)
+        _last_entry_links_call_time = time.time()
+
+
 def _fetch_entry_links_page(
     entry_id: str, 
     project_id: str, 
@@ -128,7 +152,11 @@ def _fetch_entry_links_page(
     billing_project: str, 
     page_token: str = None
 ) -> tuple:
-    """Fetch a single page of entry links. Returns (entry_links, next_page_token, error_msg)."""
+    """Fetch a single page of entry links. Returns (entry_links, next_page_token, error_msg).
+    
+    Applies throttling to stay within the 500 QPM lookupEntryLinks quota.
+    """
+    _throttle_entry_links_call()
     lookup_url = build_entry_lookup_url(entry_id, project_id, location_id, page_token=page_token)
     
     api_response = fetch_api_response(

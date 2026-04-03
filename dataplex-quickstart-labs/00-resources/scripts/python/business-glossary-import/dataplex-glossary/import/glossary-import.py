@@ -1,39 +1,39 @@
-import argparse
-import datetime
-import json
-import os
-import time
-from typing import List
-
-import google.auth
 import gspread
+import json
 from google.auth import default
 from google.cloud import storage
+import os
+import re
+import datetime
+from typing import List
+import argparse
+import time
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import google.auth
 
-# Add paths for local module imports
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from utils.constants import (
-    DATAPLEX_SYSTEM_ENTRY_GROUP,
-    EMAIL_PATTERN,
-    GLOSSARY_URL_PATTERN,
-    ID_PATTERN,
-    LABEL_PATTERN,
-    PARENT_PATTERN,
-)
+# Regex pattern for the glossary URL, allowing any valid URL
+GLOSSARY_URL_PATTERN = re.compile(r".*dp-glossaries/projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+).*")
 
 # Expected format for the glossary URL (for error messages)
 EXPECTED_GLOSSARY_URL_FORMAT = "any_url_containing/dp-glossaries/projects/<project_id>/locations/<location_id>/glossaries/<glossary_id>"
 
-# Type constants
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+
 TERM_TYPE = "TERM"
 CATEGORY_TYPE = "CATEGORY"
 
 # Allowed types
 ALLOWED_TYPES = {TERM_TYPE, CATEGORY_TYPE}
+
+# Regex pattern for the name format (term_id or category_id)
+ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+
+# Regex pattern for the parent format (category_id)
+PARENT_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+
+# Regex pattern for label key and values
+LABEL_PATTERN = re.compile(r"^[a-z0-9_-]+$")
 
 ID_COLUMN = "id"  # A constant for the name column name
 DISPLAY_NAME_COLUMN_NAME = "display_name"  # A constant for the display name column name
@@ -77,6 +77,7 @@ ENTRY_NAME_COLUMN = "ENTRY_NAME_COLUMN"
 PARENT_ENTRY_COLUMN_NAME="PARENT_ENTRY_COLUMN_NAME"
 ANCESTORS = "ANCESTORS"
 
+ENTRY_GROUP_ID = "@dataplex" # Added a constant for the entry group id
 MAX_DEPTH = 4 # Max depth allowed for a node.
 MAX_NUM_CATEGORIES = 200 # Max number of categories allowed in the glossary
 MAX_NUM_TERMS = 5000 # Max number of terms allowed in the glossary
@@ -162,7 +163,7 @@ class SheetProcessor:
         self.location_id = match.group("location_id")
         self.glossary_id = match.group("glossary_id")
         self.project_location_base = f"projects/{self.project_id}/locations/{self.location_id}"
-        self.entry_group_name = f"{self.project_location_base}/entryGroups/{DATAPLEX_SYSTEM_ENTRY_GROUP}"
+        self.entry_group_name = f"{self.project_location_base}/entryGroups/{ENTRY_GROUP_ID}"
         self.base_parent = f"{self.entry_group_name}/entries/{self.project_location_base}/glossaries/{self.glossary_id}"
         
 
