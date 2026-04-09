@@ -97,12 +97,11 @@ class TestFetchEntryLinksForTerm:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate_name)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup_links)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'entry_links_to_rows', mock_to_rows)
         
         # Act
-        result = entrylinks_export.fetch_entry_links_for_term(sample_term, user_project)
+        result = entrylinks_export.fetch_entry_links_for_term(sample_term, ['us'], user_project)
         
         # Assert
         assert result == expected_rows
@@ -126,12 +125,11 @@ class TestFetchEntryLinksForTerm:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate_name)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup_links)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'entry_links_to_rows', mock_to_rows)
         
         # Act
-        result = entrylinks_export.fetch_entry_links_for_term(sample_term, user_project)
+        result = entrylinks_export.fetch_entry_links_for_term(sample_term, ['us'], user_project)
         
         # Assert
         assert result == []
@@ -153,12 +151,11 @@ class TestFetchEntryLinksForTerm:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate_name)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup_links)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'entry_links_to_rows', mock_to_rows)
         
         # Act
-        result = entrylinks_export.fetch_entry_links_for_term(sample_term, user_project)
+        result = entrylinks_export.fetch_entry_links_for_term(sample_term, ['us'], user_project)
         
         # Assert
         assert result == []
@@ -180,11 +177,10 @@ class TestFetchEntryLinksForTerm:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate_name)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup_links)
         
         # Act
-        result = entrylinks_export.fetch_entry_links_for_term(sample_term, user_project)
+        result = entrylinks_export.fetch_entry_links_for_term(sample_term, ['us'], user_project)
         
         # Assert
         assert result == []
@@ -205,11 +201,10 @@ class TestFetchEntryLinksForTerm:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate_name)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup_links)
         
         # Act
-        entrylinks_export.fetch_entry_links_for_term(sample_term, user_project)
+        entrylinks_export.fetch_entry_links_for_term(sample_term, ['us'], user_project)
         
         # Assert - Verify entry name generated correctly
         assert mock_generate_name.call_args[0][0] == sample_term['name']
@@ -285,6 +280,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_authenticate_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', MagicMock())
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', MagicMock(return_value=self.sample_rows))
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_spreadsheet_id', MagicMock(return_value='test123'))
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_sheet_name_for_url', MagicMock(return_value='Sheet1'))
@@ -352,6 +348,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_authenticate_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', MagicMock())
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', mock_fetch_all)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_spreadsheet_id', MagicMock(return_value='test123'))
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_sheet_name_for_url', MagicMock(return_value='Sheet1'))
@@ -393,6 +390,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', MagicMock())
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms',
                           MagicMock(return_value=terms_with_3_items))
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links',
                           MagicMock(return_value=partial_results))
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_spreadsheet_id',
@@ -461,6 +459,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', MagicMock())
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms',
                           MagicMock(return_value=terms))
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', mock_fetch_all)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_spreadsheet_id',
                           MagicMock(return_value='test123'))
@@ -474,7 +473,7 @@ class TestExportEntryLinks:
         
         # Assert  
         assert result is True
-        mock_fetch_all.assert_called_once_with(terms, user_project)
+        mock_fetch_all.assert_called_once_with(terms, ['us'], user_project)
     
     def test_export_entry_links_sheetsHeadersAndDataPresent(self, monkeypatch):
         """BEHAVIOR: Sheet written with headers as first row, data rows following
@@ -502,6 +501,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', MagicMock())
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms',
                           MagicMock(return_value=[term]))
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links',
                           MagicMock(return_value=[data_row]))
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'get_spreadsheet_id',
@@ -636,12 +636,11 @@ class TestEdgeCases:
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils, 'generate_entry_name_from_term_name',
                           mock_generate)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', MagicMock(return_value=['us']))
         monkeypatch.setattr(entrylinks_export.api_layer, 'lookup_entry_links_for_term', mock_lookup)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'entry_links_to_rows', mock_format)
         
         # Act
-        result = entrylinks_export.fetch_entry_links_for_term(term, user_project)
+        result = entrylinks_export.fetch_entry_links_for_term(term, ['us'], user_project)
         
         # Assert
         assert len(result) == 100

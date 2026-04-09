@@ -51,13 +51,13 @@ def fetch_entry_links_for_region(term_entry_name: str, region: str, billing_proj
         return []
 
 
-def _resolve_regions_for_term(term_name: str, billing_project: str) -> list:
-    """Resolve which regions to query for a term's entry links."""
-    term_location = business_glossary_utils.extract_location_from_name(term_name)
+def _resolve_regions_for_glossary(glossary_resource_name: str, billing_project: str) -> list:
+    """Resolve which regions to query for a glossary's entry links. """
+    glossary_location = business_glossary_utils.extract_location_from_name(glossary_resource_name)
     try:
-        return api_layer.resolve_regions_to_query(term_location, billing_project)
+        return api_layer.resolve_regions_to_query(glossary_location, billing_project)
     except Exception as resolve_error:
-        logger.error(f"Failed to resolve regions for '{term_location}' for '{term_name}': {resolve_error}")
+        logger.error(f"Failed to resolve regions for glossary '{glossary_resource_name}': {resolve_error}")
         return []
 
 
@@ -74,11 +74,10 @@ def _fetch_links_from_regions_parallel(term_entry_name: str, regions: list, bill
     return collected_links
 
 
-def fetch_entry_links_for_term(glossary_term: dict, billing_project: str) -> list:
+def fetch_entry_links_for_term(glossary_term: dict, regions_to_query: list, billing_project: str) -> list:
     """Fetch all entry links for a term across relevant regions."""
     term_name = glossary_term["name"]
     term_entry_name = business_glossary_utils.generate_entry_name_from_term_name(term_name)
-    regions_to_query = _resolve_regions_for_term(term_name, billing_project)
     
     if not regions_to_query:
         return []
@@ -87,12 +86,12 @@ def fetch_entry_links_for_term(glossary_term: dict, billing_project: str) -> lis
     return sheet_utils.entry_links_to_rows(collected_links) if collected_links else []
 
 
-def fetch_all_entry_links(glossary_terms: list, billing_project: str) -> list:
+def fetch_all_entry_links(glossary_terms: list, regions_to_query: list, billing_project: str) -> list:
     """Fetch entry links for all terms in parallel."""
     all_entry_links = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         term_futures = {
-            executor.submit(fetch_entry_links_for_term, term, billing_project): term 
+            executor.submit(fetch_entry_links_for_term, term, regions_to_query, billing_project): term 
             for term in glossary_terms
         }
         for completed_future in as_completed(term_futures):
@@ -127,7 +126,13 @@ def export_entry_links(glossary_resource_name: str, spreadsheet_url: str, billin
         _clear_sheet_with_headers(spreadsheet_url, sheets_service)
         return False
 
-    all_entry_links = fetch_all_entry_links(glossary_terms, billing_project)
+    regions_to_query = _resolve_regions_for_glossary(glossary_resource_name, billing_project)
+    if not regions_to_query:
+        logger.error("Unable to find regions for glossary")
+        _clear_sheet_with_headers(spreadsheet_url, sheets_service)
+        return False
+
+    all_entry_links = fetch_all_entry_links(glossary_terms, regions_to_query, billing_project)
     if not all_entry_links:
         logger.info("No entry links found")
         _clear_sheet_with_headers(spreadsheet_url, sheets_service)

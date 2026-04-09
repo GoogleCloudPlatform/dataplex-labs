@@ -135,11 +135,11 @@ class TestDeduplicateEntryLinks:
 # REGION RESOLUTION TESTS
 # ============================================================================
 
-class TestResolveRegionsForTerm:
-    """Test _resolve_regions_for_term function"""
+class TestResolveRegionsForGlossary:
+    """Test _resolve_regions_for_glossary function"""
     
-    def test_regional_term_returns_single_region(self, monkeypatch):
-        """Regional terms should query only their region"""
+    def test_regional_glossary_returns_single_region(self, monkeypatch):
+        """Regional glossaries should query only their region"""
         mock_extract = MagicMock(return_value='us-central1')
         mock_resolve = MagicMock(return_value=['us-central1'])
         
@@ -148,15 +148,15 @@ class TestResolveRegionsForTerm:
         monkeypatch.setattr(entrylinks_export.api_layer, 
                           'resolve_regions_to_query', mock_resolve)
         
-        result = entrylinks_export._resolve_regions_for_term(
-            'projects/p/locations/us-central1/glossaries/g/terms/t',
+        result = entrylinks_export._resolve_regions_for_glossary(
+            'projects/p/locations/us-central1/glossaries/g',
             'test-project'
         )
         
         assert result == ['us-central1']
     
-    def test_global_term_returns_all_regions(self, monkeypatch):
-        """Global terms should query all endpoints"""
+    def test_global_glossary_returns_all_regions(self, monkeypatch):
+        """Global glossaries should query all endpoints"""
         mock_extract = MagicMock(return_value='global')
         mock_resolve = MagicMock(return_value=['global', 'us', 'eu', 'us-central1'])
         
@@ -165,8 +165,8 @@ class TestResolveRegionsForTerm:
         monkeypatch.setattr(entrylinks_export.api_layer, 
                           'resolve_regions_to_query', mock_resolve)
         
-        result = entrylinks_export._resolve_regions_for_term(
-            'projects/p/locations/global/glossaries/g/terms/t',
+        result = entrylinks_export._resolve_regions_for_glossary(
+            'projects/p/locations/global/glossaries/g',
             'test-project'
         )
         
@@ -183,8 +183,8 @@ class TestResolveRegionsForTerm:
         monkeypatch.setattr(entrylinks_export.api_layer, 
                           'resolve_regions_to_query', mock_resolve)
         
-        result = entrylinks_export._resolve_regions_for_term(
-            'projects/p/locations/us-central1/glossaries/g/terms/t',
+        result = entrylinks_export._resolve_regions_for_glossary(
+            'projects/p/locations/us-central1/glossaries/g',
             'test-project'
         )
         
@@ -240,16 +240,14 @@ class TestFetchEntryLinksForTerm:
     """Test fetch_entry_links_for_term function"""
     
     def test_no_regions_returns_empty(self, monkeypatch):
-        """When no regions resolved, return empty list"""
+        """When no regions provided, return empty list"""
         mock_generate = MagicMock(return_value='entry123')
-        mock_resolve = MagicMock(return_value=[])
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils,
                           'generate_entry_name_from_term_name', mock_generate)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', mock_resolve)
         
         result = entrylinks_export.fetch_entry_links_for_term(
-            {'name': 'term1'}, 'test-project'
+            {'name': 'term1'}, [], 'test-project'
         )
         
         assert result == []
@@ -257,18 +255,16 @@ class TestFetchEntryLinksForTerm:
     def test_aggregates_links_from_all_regions(self, monkeypatch):
         """Should aggregate links from all queried regions"""
         mock_generate = MagicMock(return_value='entry123')
-        mock_resolve = MagicMock(return_value=['us', 'eu'])
         mock_fetch_region = MagicMock(return_value=[{'entryLinkType': 'test'}])
         mock_to_rows = MagicMock(return_value=[['row1'], ['row2']])
         
         monkeypatch.setattr(entrylinks_export.business_glossary_utils,
                           'generate_entry_name_from_term_name', mock_generate)
-        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_term', mock_resolve)
         monkeypatch.setattr(entrylinks_export, 'fetch_entry_links_for_region', mock_fetch_region)
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'entry_links_to_rows', mock_to_rows)
         
         result = entrylinks_export.fetch_entry_links_for_term(
-            {'name': 'term1'}, 'test-project'
+            {'name': 'term1'}, ['us', 'eu'], 'test-project'
         )
         
         assert mock_to_rows.called
@@ -284,7 +280,7 @@ class TestFetchAllEntryLinks:
         
         monkeypatch.setattr(entrylinks_export, 'fetch_entry_links_for_term', mock_fetch)
         
-        result = entrylinks_export.fetch_all_entry_links(terms, 'test-project')
+        result = entrylinks_export.fetch_all_entry_links(terms, ['us'], 'test-project')
         
         assert len(result) == 2  # One link per term
     
@@ -297,7 +293,7 @@ class TestFetchAllEntryLinks:
         
         # Exception from first term propagates through the ThreadPoolExecutor
         with pytest.raises(Exception, match="Error"):
-            entrylinks_export.fetch_all_entry_links(terms, 'test-project')
+            entrylinks_export.fetch_all_entry_links(terms, ['us'], 'test-project')
 
 
 # ============================================================================
@@ -356,6 +352,7 @@ class TestExportEntryLinks:
         mock_auth_sheets = MagicMock()
         mock_init_cache = MagicMock()
         mock_list_terms = MagicMock(return_value=[{'name': 'term1'}])
+        mock_resolve = MagicMock(return_value=['us'])
         mock_fetch_all = MagicMock(return_value=[])
         mock_clear = MagicMock()
         
@@ -363,6 +360,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_auth_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', mock_init_cache)
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', mock_resolve)
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', mock_fetch_all)
         monkeypatch.setattr(entrylinks_export, '_clear_sheet_with_headers', mock_clear)
         
@@ -378,6 +376,7 @@ class TestExportEntryLinks:
         mock_auth_sheets = MagicMock()
         mock_init_cache = MagicMock()
         mock_list_terms = MagicMock(return_value=[{'name': 'term1'}])
+        mock_resolve = MagicMock(return_value=['us'])
         mock_fetch_all = MagicMock(return_value=[['link1']])
         mock_dedup = MagicMock(return_value=[['link1']])
         mock_write = MagicMock(return_value='Sheet1')
@@ -386,6 +385,7 @@ class TestExportEntryLinks:
         monkeypatch.setattr(entrylinks_export.sheet_utils, 'authenticate_sheets', mock_auth_sheets)
         monkeypatch.setattr(entrylinks_export.api_layer, 'initialize_locations_cache', mock_init_cache)
         monkeypatch.setattr(entrylinks_export.api_layer, 'list_glossary_terms', mock_list_terms)
+        monkeypatch.setattr(entrylinks_export, '_resolve_regions_for_glossary', mock_resolve)
         monkeypatch.setattr(entrylinks_export, 'fetch_all_entry_links', mock_fetch_all)
         monkeypatch.setattr(entrylinks_export, 'deduplicate_entry_links', mock_dedup)
         monkeypatch.setattr(entrylinks_export, '_write_entry_links_to_sheet', mock_write)

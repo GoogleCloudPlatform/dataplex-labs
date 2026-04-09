@@ -246,6 +246,17 @@ class TestResolveRegionsToQuery:
         
         assert result == all_locations
     
+    def test_global_excludes_excluded_locations(self, monkeypatch):
+        """Global location should filter out EXCLUDED_LOCATIONS"""
+        all_locations = ['global', 'us', 'eu', 'asia-southeast3', 'us-central1']
+        
+        monkeypatch.setattr(api_layer, 'list_supported_locations', lambda p: all_locations)
+        
+        result = api_layer.resolve_regions_to_query('global', 'my-project')
+        
+        assert 'asia-southeast3' not in result
+        assert result == ['global', 'us', 'eu', 'us-central1']
+    
     def test_regional_returns_single_region(self, monkeypatch):
         """Regional location should return only that region"""
         result = api_layer.resolve_regions_to_query('us-central1', 'my-project')

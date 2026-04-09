@@ -19,6 +19,7 @@ from .constants import (
     CLOUD_RESOURCE_MANAGER_BASE_URL,
     DATAPLEX_BASE_URL,
     ENTRY_NAME_PATTERN,
+    EXCLUDED_LOCATIONS,
     PAGE_SIZE,
     PROJECT_PATTERN,
     API_CALL_DELAY_SECONDS,
@@ -64,35 +65,6 @@ def authenticate_dataplex() -> build:
         raise DataplexAPIError(f"Dataplex auth error: {e}")
 
 
-def list_glossary_categories(dataplex_service: build, glossary_name: str) -> List[Dict]:
-    """Lists categories from a Dataplex glossary with retry support."""
-    all_categories = []
-    logger.debug(f"Request: glossaries.categories.list(parent={glossary_name})")
-    category_request = dataplex_service.projects().locations().glossaries().categories().list(
-        parent=glossary_name, pageSize=1000)
-
-    while category_request:
-        try:
-            page_response = execute_with_retry(
-                category_request.execute,
-                f"List glossary categories for {glossary_name}"
-            )
-        except Exception as category_error:
-            raise DataplexAPIError(f"Error while listing glossary categories: {category_error}")
-        
-        page_categories = page_response.get('categories', [])
-        all_categories.extend(page_categories)
-        
-        category_request = dataplex_service.projects().locations().glossaries().categories().list_next(
-            category_request, page_response
-        )
-    
-    logger.debug(f"Response: {len(all_categories)} categories for {glossary_name}")
-    if not all_categories:
-        raise NoCategoriesFoundError(f"No categories found for {glossary_name}")
-    return all_categories
-
-
 def list_glossary_terms(dataplex_service: build, glossary_name: str) -> List[Dict]:
     """Lists terms from a Dataplex glossary with pagination support."""
     all_terms = []
@@ -117,8 +89,6 @@ def list_glossary_terms(dataplex_service: build, glossary_name: str) -> List[Dic
         )
     
     logger.debug(f"Response: {len(all_terms)} terms for {glossary_name}")
-    if not all_terms:
-        logger.warning(f"No terms found for {glossary_name}")
     return all_terms
 
 def parse_entry_name(entry_name: str) -> tuple:
@@ -310,5 +280,5 @@ def resolve_regions_to_query(location: str, user_project: str) -> List[str]:
     For specific locations, returns just that location.
     """
     if location.lower() == "global":
-        return list_supported_locations(user_project)
+        return [location for location in list_supported_locations(user_project) if location not in EXCLUDED_LOCATIONS]
     return [location]

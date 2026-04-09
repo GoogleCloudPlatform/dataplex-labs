@@ -95,6 +95,9 @@ API_CALL_DELAY_SECONDS = 0.24
 SYMMETRIC_LINK_TYPES = {"synonym", "related"}
 PROJECT_NUMBER = "655216118709"
 
+# Unlaunched prod locations
+EXCLUDED_LOCATIONS = ["asia-southeast3"]
+
 # -- BACKOFF Constants ---
 MAX_ATTEMPTS = 10
 INITIAL_BACKOFF_SECONDS = 1.0

@@ -226,7 +226,8 @@ def convert_spreadsheet_to_entrylinks(spreadsheet_url: str, sheet_name: str = No
     type_idx, source_idx, target_idx, path_idx = sheet_utils.extract_column_indices(spreadsheet_data)
     row_dicts = sheet_utils.rows_to_entry_link_dicts(spreadsheet_data, type_idx, source_idx, target_idx, path_idx)
     
-    return [build_entry_link(SpreadsheetRow.from_dict(row_dict)) for row_dict in row_dicts]
+    entrylinks = [build_entry_link(SpreadsheetRow.from_dict(row_dict)) for row_dict in row_dicts]
+    return [entrylink for entrylink in entrylinks if entrylink is not None]
 
 
 def _parse_source_entry_components(source_entry: str) -> tuple:
@@ -250,10 +251,15 @@ def _generate_entrylink_name(project_id: str, location: str, entry_group: str) -
     return f"{entrylink_base}/entryLinks/{entrylink_id}"
 
 
-def build_entry_link(spreadsheet_row: SpreadsheetRow) -> EntryLink:
-    """Build EntryLink model from spreadsheet row data."""
+def build_entry_link(spreadsheet_row: SpreadsheetRow) -> EntryLink | None:
+    """Build EntryLink model from spreadsheet row data. Returns None if link type is invalid."""
     project_id, location, entry_group = _parse_source_entry_components(spreadsheet_row.source_entry)
     link_type = spreadsheet_row.entry_link_type.lower()
+    
+    if link_type not in constants.LINK_TYPES:
+        logger.warning(f"Invalid entry_link_type '{spreadsheet_row.entry_link_type}'. "
+                      f"Expected one of: {list(constants.LINK_TYPES.keys())}. Row skipped.")
+        return None
     
     entry_refs = build_entry_references(spreadsheet_row, entry_group, link_type)
     entrylink_name = _generate_entrylink_name(project_id, location, entry_group)
