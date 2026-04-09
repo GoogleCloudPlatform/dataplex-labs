@@ -32,9 +32,9 @@ def create_import_json_files(grouped_entrylinks: Dict[str, Dict[str, List[Dict]]
         for group_key, group_entrylinks in entry_groups.items():
             # group_key is already in project_id_location_entryGroup format
             filename = f"entrylinks_{link_type}_{group_key}.json"
-            json_file = file_utils.write_entrylinks_to_file(group_entrylinks, archive_dir, filename)
-            import_files.append(json_file)
-            logger.debug(f"Created import file: {json_file} with {len(group_entrylinks)} entrylinks")
+            json_file_path = file_utils.write_entrylinks_to_file(group_entrylinks, archive_dir, filename)
+            import_files.append(json_file_path)
+            logger.debug(f"Created import file: {json_file_path} with {len(group_entrylinks)} entrylinks")
     
     return import_files
 
@@ -81,7 +81,7 @@ def process_import_file(file_path: str, gcs_bucket: str, processed_dir: str = No
 
     logger.debug(f"Processing file: {filename}")
 
-    service = dataplex_dao.get_dataplex_service()
+    dataplex_service = dataplex_dao.get_dataplex_service()
     first_entry = file_utils.read_first_json_line(file_path)
     project_id = import_utils.extract_project_id_from_entrylink(first_entry)
     job_id, payload, job_location = payloads.build_payload(file_path, project_id, gcs_bucket)
@@ -94,7 +94,7 @@ def process_import_file(file_path: str, gcs_bucket: str, processed_dir: str = No
         if not upload_status:
             logger.error(f"Failed to prepare GCS bucket '{gcs_bucket}' for file '{filename}'. Skipping import.")
             return False
-        job_success = dataplex_dao.create_and_monitor_job(service, project_id, job_location, payload, job_id)
+        job_success = dataplex_dao.create_and_monitor_job(dataplex_service, project_id, job_location, payload, job_id)
         if job_success and processed_dir:
             file_utils.move_file(file_path, processed_dir)
         return job_success

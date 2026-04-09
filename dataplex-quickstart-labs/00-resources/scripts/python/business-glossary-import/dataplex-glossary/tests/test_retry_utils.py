@@ -89,9 +89,9 @@ class TestIsRetryableGoogleApiError:
         error = socket.timeout("Connection timed out")
         assert is_retryable_google_api_error(error) is True
     
-    def test_timeout_message_is_retryable(self):
-        """Error with 'timed out' message should be retryable"""
-        error = Exception("Request timed out")
+    def test_timeout_error_is_retryable(self):
+        """TimeoutError should be retryable"""
+        error = TimeoutError("Request timed out")
         assert is_retryable_google_api_error(error) is True
 
 
@@ -99,14 +99,19 @@ class TestIsNetworkError:
     """Test is_network_error function"""
     
     def test_connection_refused(self):
-        """Connection refused should be detected as network error"""
-        error = Exception("Connection refused")
+        """ConnectionRefusedError (an OSError) should be detected as network error"""
+        error = ConnectionRefusedError("Connection refused")
         assert is_network_error(error) is True
     
     def test_dns_resolution_failure(self):
-        """DNS resolution failure should be detected as network error"""
-        error = Exception("name resolution failed")
+        """OSError should be detected as network error"""
+        error = OSError("name resolution failed")
         assert is_network_error(error) is True
+    
+    def test_plain_exception_with_network_message_not_detected(self):
+        """Plain Exception with network-like message should NOT be detected (type-based check)"""
+        error = Exception("Connection refused")
+        assert is_network_error(error) is False
     
     def test_timeout_error(self):
         """TimeoutError should be detected as network error"""

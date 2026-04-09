@@ -78,7 +78,7 @@ def build_dummy_payload(bucket_name):
         }
     }
     
-def check_metadata_job_creation_for_bucket(service, project_id: str, bucket_name: str) -> bool:
+def check_metadata_job_creation_for_bucket(dataplex_service, project_id: str, bucket_name: str) -> bool:
     """
     Tries to create a dummy metadata job using the specific GCS bucket to check if the Dataplex service account has permissions.
     Returns True if the permission check passes, False if permission is denied for that bucket.
@@ -87,7 +87,7 @@ def check_metadata_job_creation_for_bucket(service, project_id: str, bucket_name
     dummy_payload = build_dummy_payload(bucket_name)
     job_prefix = "permission-check"
     location = "global"
-    result = dataplex_dao.create_metadata_job(service, project_id, location, dummy_payload, job_prefix, fake_job=True)
+    result = dataplex_dao.create_metadata_job(dataplex_service, project_id, location, dummy_payload, job_prefix, fake_job=True)
 
     if "does not have sufficient permission" in result:
         logger.debug(f"[GCS PERMISSION CHECK] Response: permission denied - {result}")
@@ -98,9 +98,9 @@ def check_metadata_job_creation_for_bucket(service, project_id: str, bucket_name
 
 def check_all_buckets_permissions(buckets: list[str], project_number: str) -> list[str]:
     """Checks bucket permissions and returns list of failed buckets (empty if all pass)."""
-    service = dataplex_dao.get_dataplex_service()
+    dataplex_service = dataplex_dao.get_dataplex_service()
     failed_buckets = []
     for bucket in buckets:
-        if not check_metadata_job_creation_for_bucket(service, project_number, bucket):
+        if not check_metadata_job_creation_for_bucket(dataplex_service, project_number, bucket):
             failed_buckets.append(bucket)
     return failed_buckets

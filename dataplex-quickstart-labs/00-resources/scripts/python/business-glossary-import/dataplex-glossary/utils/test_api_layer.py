@@ -126,7 +126,7 @@ class TestEntryLookup:
         project_id = 'test-proj'
         location_id = 'us-central1'
         
-        result = api_layer.build_entry_lookup_url(entry_id, project_id, location_id)
+        result = api_layer.build_entry_link_lookup_url(entry_id, project_id, location_id)
         
         assert project_id in result
         assert location_id in result

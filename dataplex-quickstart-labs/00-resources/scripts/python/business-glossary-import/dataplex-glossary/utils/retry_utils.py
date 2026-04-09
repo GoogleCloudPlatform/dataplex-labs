@@ -5,7 +5,6 @@ all API calls (Dataplex, Sheets, GCS, etc.) with customizable retry predicates.
 """
 
 import random
-import socket
 import time
 from typing import Callable, Optional, Set, Type, TypeVar
 
@@ -24,72 +23,53 @@ logger = logging_utils.get_logger()
 
 T = TypeVar('T')
 
-# -----------------------------------------------------------------------------
-# Network/Transient Error Indicators
-# -----------------------------------------------------------------------------
+# HTTP status codes indicating transient/retryable errors
+RETRYABLE_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
-NETWORK_ERROR_INDICATORS = frozenset([
-    "unable to find the server",
-    "network is unreachable",
-    "connection refused",
-    "connection reset",
-    "timed out",
-    "name resolution",
-    "no route to host",
-    "temporary failure",
-    "service unavailable",
-    "internal server error",
-])
-
+# OSError covers the full network exception hierarchy:
+# TimeoutError, ConnectionError, BrokenPipeError
 NETWORK_EXCEPTION_TYPES: tuple = (
-    socket.timeout,
-    socket.error,
-    TimeoutError,
     OSError,
-    ConnectionError,
-    BrokenPipeError,
     httplib2.ServerNotFoundError,
     httplib2.RelativeURIError,
 )
 
-GCS_TRANSIENT_EXCEPTIONS: tuple = (
-    gcs_exceptions.ServiceUnavailable,
-    gcs_exceptions.InternalServerError,
-    gcs_exceptions.TooManyRequests,
-    ConnectionError,
-    TimeoutError,
-)
-
-
-# -----------------------------------------------------------------------------
-# Retry Predicates
-# -----------------------------------------------------------------------------
-
 def is_network_error(error: Exception) -> bool:
-    """Check if error is a network/connectivity issue."""
-    if isinstance(error, NETWORK_EXCEPTION_TYPES):
-        return True
-    
-    error_str = str(error).lower()
-    return any(indicator in error_str for indicator in NETWORK_ERROR_INDICATORS)
+    """Check if error is a network/connectivity issue based on exception type."""
+    return isinstance(error, NETWORK_EXCEPTION_TYPES)
 
 
 def is_retryable_http_error(error: Exception) -> bool:
-    """Check if an HTTP error is retryable (5xx or 429)."""
+    """Check if an HTTP error has a retryable status code (5xx or 429)."""
     if isinstance(error, HttpError):
         status = getattr(error.resp, 'status', 0) if hasattr(error, 'resp') else 0
-        return status >= 500 or status == 429
+        return status in RETRYABLE_HTTP_STATUS_CODES
     return False
 
 
+def _get_error_status_code(error: Exception) -> int:
+    """Extract HTTP status code from various Google API exception types."""
+    # google.api_core exceptions (GCS, etc.)
+    if isinstance(error, gcs_exceptions.GoogleAPICallError):
+        return error.code
+    # googleapiclient HttpError
+    if isinstance(error, HttpError):
+        return getattr(error.resp, 'status', 0) if hasattr(error, 'resp') else 0
+    return 0
+
+
 def is_retryable_google_api_error(error: Exception) -> bool:
-    """Check if a Google API error is retryable (network errors or 5xx/429)."""
-    return is_network_error(error) or is_retryable_http_error(error)
+    """Check if a Google API error is retryable (network errors or retryable status codes)."""
+    if is_network_error(error):
+        return True
+    return _get_error_status_code(error) in RETRYABLE_HTTP_STATUS_CODES
 
 
 def is_retryable_gcs_error(error: Exception) -> bool:
     """Check if a GCS error is transient and should be retried."""
-    return isinstance(error, GCS_TRANSIENT_EXCEPTIONS)
+    if is_network_error(error):
+        return True
+    return _get_error_status_code(error) in RETRYABLE_HTTP_STATUS_CODES
 
 
 # -----------------------------------------------------------------------------
@@ -148,13 +128,6 @@ def execute_with_retry(
     
     Raises:
         Exception: The last exception if all retries are exhausted or error is not retryable.
-    
-    Example:
-        >>> result = execute_with_retry(
-        ...     lambda: api_client.list_items(),
-        ...     "list items",
-        ...     is_retryable=is_retryable_google_api_error
-        ... )
     """
     start_time = time.time()
     backoff = initial_backoff

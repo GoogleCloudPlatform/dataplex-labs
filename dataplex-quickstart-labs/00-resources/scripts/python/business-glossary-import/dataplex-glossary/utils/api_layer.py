@@ -18,7 +18,7 @@ from .api_call_utils import fetch_api_response
 from .constants import (
     CLOUD_RESOURCE_MANAGER_BASE_URL,
     DATAPLEX_BASE_URL,
-    CATALOG_ENTRY_PATTERN,
+    ENTRY_NAME_PATTERN,
     PAGE_SIZE,
     PROJECT_PATTERN,
     API_CALL_DELAY_SECONDS,
@@ -121,13 +121,18 @@ def list_glossary_terms(dataplex_service: build, glossary_name: str) -> List[Dic
         logger.warning(f"No terms found for {glossary_name}")
     return all_terms
 
-def _parse_entry_id_components(entry_id: str) -> tuple:
-    """Parse entry ID to extract project and location."""
-    entry_id_match = CATALOG_ENTRY_PATTERN.match(entry_id)
-    if not entry_id_match:
-        logger.error(f"Invalid entry ID format: {entry_id}")
-        raise InvalidEntryIdFormatError(f"Invalid entry ID format: {entry_id}")
-    return entry_id_match.group('project_id'), entry_id_match.group('location_id')
+def parse_entry_name(entry_name: str) -> tuple:
+    """Parse a full entry resource name to extract project, location, entry group, and entry ID."""
+    match = ENTRY_NAME_PATTERN.match(entry_name)
+    if not match:
+        logger.error(f"Invalid entry name format: {entry_name}")
+        raise InvalidEntryIdFormatError(f"Invalid entry name format: {entry_name}")
+    return (
+        match.group('project_id'),
+        match.group('location_id'),
+        match.group('entry_group'),
+        match.group('entry_id'),
+    )
 
 
 def _throttle_entry_links_call():
@@ -146,7 +151,7 @@ def _throttle_entry_links_call():
 
 
 def _fetch_entry_links_page(
-    entry_id: str, 
+    term_entry_name: str, 
     project_id: str, 
     location_id: str, 
     billing_project: str, 
@@ -157,7 +162,7 @@ def _fetch_entry_links_page(
     Applies throttling to stay within the 500 QPM lookupEntryLinks quota.
     """
     _throttle_entry_links_call()
-    lookup_url = build_entry_lookup_url(entry_id, project_id, location_id, page_token=page_token)
+    lookup_url = build_entry_link_lookup_url(term_entry_name, project_id, location_id, page_token=page_token)
     
     api_response = fetch_api_response(
         method=requests.get,
@@ -176,58 +181,60 @@ def _fetch_entry_links_page(
 
 
 def lookup_entry_links_for_term(
-    entry_id: str, 
+    term_entry_name: str, 
     billing_project: str,
     location: Optional[str] = None
 ) -> Optional[List[Dict]]:
     """Looks up EntryLinks for a glossary term with pagination."""
     try:
-        project_id, entry_location = _parse_entry_id_components(entry_id)
+        project_id, entry_location, _, _ = parse_entry_name(term_entry_name)
         target_location = location if location else entry_location        
         all_entry_links = []
         current_page_token = None
         
         while True:
             page_links, next_token, error_message = _fetch_entry_links_page(
-                entry_id, project_id, target_location, billing_project, current_page_token
+                term_entry_name, project_id, target_location, billing_project, current_page_token
             )            
             if error_message:
-                logger.error(f"Error looking up entry links at {target_location}: {error_message}")
+                logger.error(f"Error looking up entry links at {target_location} for {term_entry_name}: {error_message}")
                 break            
             if page_links:
                 all_entry_links.extend(page_links)            
             current_page_token = next_token
             if not current_page_token:
                 break
-            
+        
+        logger.debug(f"Entry links found for {term_entry_name} in {target_location}: {all_entry_links}")
         return all_entry_links if all_entry_links else None
         
     except Exception as lookup_error:
-        logger.error(f"Error while looking up entry links: {lookup_error}")
+        loc = target_location if 'target_location' in dir() else location or 'unknown'
+        logger.error(f"Error while looking up entry links for {term_entry_name} in {loc}: {lookup_error}")
         return None
 
 
-def build_entry_lookup_url(
-    entry_id: str, 
+def build_entry_link_lookup_url(
+    term_entry_name: str, 
     project_id: str, 
     location_id: str, 
     page_size: int = PAGE_SIZE,
     page_token: Optional[str] = None
 ) -> str:
     """Builds the lookupEntryLinks API URL with pagination parameters."""
-    url = f"{DATAPLEX_BASE_URL}/projects/{project_id}/locations/{location_id}:lookupEntryLinks?entry={entry_id}&pageSize={page_size}"
+    url = f"{DATAPLEX_BASE_URL}/projects/{project_id}/locations/{location_id}:lookupEntryLinks?entry={term_entry_name}&pageSize={page_size}"
     if page_token:
         url += f"&pageToken={page_token}"
     return url
 
-def lookup_entry(dataplex_service: build, entry_id: str, project_location_name: str) -> Optional[Dict]:
+def lookup_entry(dataplex_service: build, entry_name: str, project_location_name: str) -> Optional[Dict]:
     """Looks up an entry using the Dataplex API."""
-    logger.debug(f"Request: lookupEntry(entry={entry_id}, location={project_location_name})")
+    logger.debug(f"Request: lookupEntry(entry={entry_name}, location={project_location_name})")
     try:
         request = dataplex_service.projects().locations().lookupEntry(
-            name=project_location_name, entry=entry_id, view="ALL"
+            name=project_location_name, entry=entry_name, view="ALL"
         )
-        response = execute_with_retry(request.execute, f"Lookup entry {entry_id}")
+        response = execute_with_retry(request.execute, f"Lookup entry {entry_name}")
         logger.debug(f"Response: found entry {response.get('name', 'N/A')}")
         return response
     except HttpError as e:
@@ -235,7 +242,7 @@ def lookup_entry(dataplex_service: build, entry_id: str, project_location_name: 
         if status_code == 404:
             return None
         if status_code in (401, 403):
-            logger.warning(f"Permission denied for entry {entry_id}")
+            logger.warning(f"Permission denied for entry {entry_name}")
             return None
         raise
 
@@ -250,8 +257,7 @@ def _fetch_project_info(project_id: str, user_project: str) -> dict:
     url = _get_project_url(project_id)
     response = api_call_utils.fetch_api_response(requests.get, url, user_project)
     if response["error_msg"]:
-        logger.error(f"Failed to fetch project info for '{project_id}': {response['error_msg']}")
-        sys.exit(1)
+        raise DataplexAPIError(f"Failed to fetch project info for '{project_id}': {response['error_msg']}")
     return response.get("json", {})
 
 
@@ -261,8 +267,7 @@ def _extract_project_number_from_info(project_info: dict) -> str:
     match = PROJECT_PATTERN.search(name)
     if match:
         return match.group('project_number')
-    logger.error("Project number not found in project info.")
-    sys.exit(1)
+    raise DataplexAPIError(f"Project number not found in project info: {project_info}")
 
 
 def get_project_number(project_id: str, user_project: str) -> str:

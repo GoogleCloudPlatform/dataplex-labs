@@ -101,7 +101,7 @@ def normalize_id(name: str) -> str:
     return normalized
 
 
-def get_entry_link_id() -> str:
+def generate_entry_link_id() -> str:
     """
     Generate a unique entry link ID that starts with a lowercase letter 
     and contains only lowercase letters and numbers.

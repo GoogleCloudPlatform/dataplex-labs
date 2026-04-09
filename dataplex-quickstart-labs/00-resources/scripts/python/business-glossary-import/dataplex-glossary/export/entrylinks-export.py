@@ -9,7 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils import api_layer, argument_parser, business_glossary_utils, logging_utils, sheet_utils, error
-from utils.constants import MAX_WORKERS, SYMMETRIC_LINK_TYPES
+from utils.constants import MAX_WORKERS
+from utils.retry_utils import is_network_error
 
 logger = logging_utils.get_logger()
 
@@ -23,9 +24,7 @@ def _build_deduplication_key(entry_link_row: list) -> tuple:
     target_entry = entry_link_row[2]
     source_path = entry_link_row[3] if len(entry_link_row) > 3 else ''
     
-    if link_type in SYMMETRIC_LINK_TYPES:
-        return (link_type, tuple(sorted([source_entry, target_entry])))
-    return (link_type, source_entry, target_entry, source_path)
+    return (link_type, tuple(sorted([source_entry, target_entry])), source_path)
 
 
 def deduplicate_entry_links(entry_links: list) -> list:
@@ -42,13 +41,13 @@ def deduplicate_entry_links(entry_links: list) -> list:
     return unique_entry_links
 
 
-def fetch_entry_links_for_region(entry_name: str, region: str, billing_project: str) -> list:
+def fetch_entry_links_for_region(term_entry_name: str, region: str, billing_project: str) -> list:
     """Fetch entry links from a single region."""
     try:
-        region_links = api_layer.lookup_entry_links_for_term(entry_name, billing_project, location=region)
+        region_links = api_layer.lookup_entry_links_for_term(term_entry_name, billing_project, location=region)
         return region_links or []
     except Exception as region_error:
-        logger.warning(f"Region {region} failed: {region_error}")
+        logger.warning(f"Region {region} failed for '{term_entry_name}': {region_error}")
         return []
 
 
@@ -58,16 +57,16 @@ def _resolve_regions_for_term(term_name: str, billing_project: str) -> list:
     try:
         return api_layer.resolve_regions_to_query(term_location, billing_project)
     except Exception as resolve_error:
-        logger.error(f"Failed to resolve regions for '{term_location}': {resolve_error}")
+        logger.error(f"Failed to resolve regions for '{term_location}' for '{term_name}': {resolve_error}")
         return []
 
 
-def _fetch_links_from_regions_parallel(entry_name: str, regions: list, billing_project: str) -> list:
+def _fetch_links_from_regions_parallel(term_entry_name: str, regions: list, billing_project: str) -> list:
     """Fetch entry links from multiple regions in parallel."""
     collected_links = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         region_futures = {
-            executor.submit(fetch_entry_links_for_region, entry_name, region, billing_project): region 
+            executor.submit(fetch_entry_links_for_region, term_entry_name, region, billing_project): region 
             for region in regions
         }
         for completed_future in as_completed(region_futures):
@@ -78,13 +77,13 @@ def _fetch_links_from_regions_parallel(entry_name: str, regions: list, billing_p
 def fetch_entry_links_for_term(glossary_term: dict, billing_project: str) -> list:
     """Fetch all entry links for a term across relevant regions."""
     term_name = glossary_term["name"]
-    entry_name = business_glossary_utils.generate_entry_name_from_term_name(term_name)
+    term_entry_name = business_glossary_utils.generate_entry_name_from_term_name(term_name)
     regions_to_query = _resolve_regions_for_term(term_name, billing_project)
     
     if not regions_to_query:
         return []
     
-    collected_links = _fetch_links_from_regions_parallel(entry_name, regions_to_query, billing_project)
+    collected_links = _fetch_links_from_regions_parallel(term_entry_name, regions_to_query, billing_project)
     return sheet_utils.entry_links_to_rows(collected_links) if collected_links else []
 
 
@@ -116,13 +115,13 @@ def _clear_sheet_with_headers(spreadsheet_url: str, sheets_service) -> str:
     return sheet_utils.write_to_sheet(sheets_service, spreadsheet_id, [SHEET_HEADERS], sheet_name=target_sheet_name)
 
 
-def export_entry_links(glossary_resource: str, spreadsheet_url: str, billing_project: str) -> bool:
+def export_entry_links(glossary_resource_name: str, spreadsheet_url: str, billing_project: str) -> bool:
     """Export all EntryLinks from a glossary to Google Sheets."""
     dataplex_service = api_layer.authenticate_dataplex()
     sheets_service = sheet_utils.authenticate_sheets()
     api_layer.initialize_locations_cache(billing_project)
 
-    glossary_terms = api_layer.list_glossary_terms(dataplex_service, glossary_resource)
+    glossary_terms = api_layer.list_glossary_terms(dataplex_service, glossary_resource_name)
     if not glossary_terms:
         logger.warning("No terms found in the glossary")
         _clear_sheet_with_headers(spreadsheet_url, sheets_service)
@@ -142,13 +141,6 @@ def export_entry_links(glossary_resource: str, spreadsheet_url: str, billing_pro
     return True
 
 
-def _is_network_error(exception: Exception) -> bool:
-    """Check if exception is a network-related error."""
-    network_error_indicators = ["network", "connection", "unreachable", "timed out", "name resolution"]
-    error_message = str(exception).lower()
-    return any(indicator in error_message for indicator in network_error_indicators)
-
-
 def _handle_export_exception(exception: Exception) -> int:
     """Handle exceptions during export and return exit code."""
     if isinstance(exception, KeyboardInterrupt):
@@ -160,7 +152,7 @@ def _handle_export_exception(exception: Exception) -> int:
     if isinstance(exception, (error.InvalidSpreadsheetURLError, error.InvalidGlossaryNameError)):
         logger.error(f"Invalid input: {exception}")
         return 1
-    if _is_network_error(exception):
+    if is_network_error(exception):
         logger.error("Network error. Check your connection and try again.")
         return 1
     
@@ -183,10 +175,10 @@ def _run_export() -> int:
     parsed_args = argument_parser.get_export_entrylinks_arguments()
     _log_export_arguments(parsed_args)
     
-    glossary_resource = business_glossary_utils.extract_glossary_name(parsed_args.glossary_url)
-    logger.info(f"Starting EntryLink Export for: {glossary_resource}")
+    glossary_resource_name = business_glossary_utils.extract_glossary_name(parsed_args.glossary_url)
+    logger.info(f"Starting EntryLink Export for: {glossary_resource_name}")
     
-    export_successful = export_entry_links(glossary_resource, parsed_args.spreadsheet_url, parsed_args.user_project)
+    export_successful = export_entry_links(glossary_resource_name, parsed_args.spreadsheet_url, parsed_args.user_project)
     logger.info("Export completed successfully" if export_successful else "No EntryLinks found to export")
     return 0
 

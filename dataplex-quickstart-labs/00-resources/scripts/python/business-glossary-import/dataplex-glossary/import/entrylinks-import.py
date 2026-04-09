@@ -11,11 +11,10 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(curr_dir))
 sys.path.append(os.path.dirname(os.path.dirname(curr_dir)))
 
-from utils import api_layer, argument_parser, business_glossary_utils, constants, file_utils, gcs_dao, import_utils, logging_utils, sheet_utils
+from utils import api_layer, argument_parser, business_glossary_utils, constants, file_utils, gcs_dao, import_utils, logging_utils, retry_utils, sheet_utils
 from utils.constants import (
     ARCHIVE_DIRECTORY,
     BIGQUERY_SYSTEM_ENTRY_GROUP,
-    CATALOG_ENTRY_PATTERN,
     DP_LINK_TYPE_DEFINITION,
     DP_LINK_TYPE_RELATED,
     DP_LINK_TYPE_SYNONYM,
@@ -156,20 +155,20 @@ def _collect_unique_entry_references(entrylinks: List[EntryLink]) -> List:
     return unique_references
 
 
-def _lookup_and_check_entry(entry_ref, missing_entries: List, failed_entries: List, lock) -> None:
+def _lookup_and_check_entry(entry_ref, missing_entries: set, failed_entries: set) -> None:
     """Lookup a single entry and track if missing or failed.
     
     Creates its own dataplex_service to ensure thread safety (httplib2 is not thread-safe).
+    Uses sets for thread-safe accumulation (set.add is GIL-atomic in CPython).
     """
     entry_name = entry_ref.name
-    entry_name_match = CATALOG_ENTRY_PATTERN.match(entry_name)
     
-    if not entry_name_match:
+    try:
+        project_id, location, _, _ = api_layer.parse_entry_name(entry_name)
+    except Exception:
         logger.warning(f"Invalid entry name format: {entry_name}")
         return
     
-    project_id = entry_name_match.group('project_id')
-    location = entry_name_match.group('location_id')
     project_location = f"projects/{project_id}/locations/{location}"
     
     # Create thread-local service instance (httplib2 is not thread-safe)
@@ -179,17 +178,15 @@ def _lookup_and_check_entry(entry_ref, missing_entries: List, failed_entries: Li
         result = api_layer.lookup_entry(dataplex_service, entry_name, project_location)
         if result is None:
             # Entry genuinely not found (404)
-            with lock:
-                missing_entries.append(entry_name)
+            missing_entries.add(entry_name)
             logger.debug(f"Entry not found (404): {entry_name}")
     except Exception as e:
         # Network/SSL error - entry lookup failed, not necessarily missing
-        with lock:
-            failed_entries.append(entry_name)
+        failed_entries.add(entry_name)
         logger.error(f"Failed to lookup entry (network error): {entry_name}: {e}")
 
 
-def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> tuple:
+def check_entry_existence(entrylinks: List[EntryLink]) -> tuple:
     """Check if entries exist using parallel lookups.
     
     Returns:
@@ -198,18 +195,16 @@ def check_entry_existence(entrylinks: List[EntryLink], dataplex_service) -> tupl
             - failed_entry_names: Entries that failed due to network errors
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    import threading
     
     unique_entry_refs = _collect_unique_entry_references(entrylinks)
     logger.info(f"Validating {len(unique_entry_refs)} unique entries...")
     
-    missing_entry_names = []
-    failed_entry_names = []
-    lock = threading.Lock()
+    missing_entry_names = set()
+    failed_entry_names = set()
     
     with ThreadPoolExecutor(max_workers=10) as executor:
         lookup_futures = [
-            executor.submit(_lookup_and_check_entry, ref, missing_entry_names, failed_entry_names, lock)
+            executor.submit(_lookup_and_check_entry, ref, missing_entry_names, failed_entry_names)
             for ref in unique_entry_refs
         ]
         for completed_future in as_completed(lookup_futures):
@@ -251,7 +246,7 @@ def _parse_source_entry_components(source_entry: str) -> tuple:
 def _generate_entrylink_name(project_id: str, location: str, entry_group: str) -> str:
     """Generate a unique entrylink name."""
     entrylink_base = f"projects/{project_id}/locations/{location}/entryGroups/{entry_group}"
-    entrylink_id = business_glossary_utils.get_entry_link_id()
+    entrylink_id = business_glossary_utils.generate_entry_link_id()
     return f"{entrylink_base}/entryLinks/{entrylink_id}"
 
 
@@ -440,20 +435,13 @@ def _handle_entry_validation_failures(failed_entries: List[str]) -> bool:
     return True
 
 
-def _is_network_error(exception: Exception) -> bool:
-    """Check if exception is network-related."""
-    network_indicators = ["network", "connection", "unreachable", "timed out", "name resolution", "no route"]
-    error_message = str(exception).lower()
-    return any(indicator in error_message for indicator in network_indicators)
-
-
 def _handle_import_exception(exception: Exception) -> int:
     """Handle exceptions during import and return exit code."""
     if isinstance(exception, KeyboardInterrupt):
         logger.info("Import cancelled by user")
         return 130
     
-    if _is_network_error(exception):
+    if retry_utils.is_network_error(exception):
         logger.error("Network connectivity issue. Please check your internet connection and try again.")
     else:
         logger.error(f"Unexpected error during import: {exception}")
@@ -492,7 +480,7 @@ def _run_import_workflow(parsed_args) -> int:
     if not _validate_bucket_permissions_for_projects(unique_projects, parsed_args.buckets, user_project):
         return 1
     
-    missing_entries, failed_entries = check_entry_existence(entrylinks, dataplex_service)
+    missing_entries, failed_entries = check_entry_existence(entrylinks)
     if _handle_entry_validation_failures(failed_entries):
         return 1
     

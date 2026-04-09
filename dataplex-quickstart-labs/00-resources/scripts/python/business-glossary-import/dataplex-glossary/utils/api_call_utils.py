@@ -44,7 +44,7 @@ def _refresh_adc_token():
     cached_creds = creds
     cached_token = creds.token
     last_refresh_time = time.time()
-    logger.debug("ADC token refreshed successfully.")
+    logger.debug(f"ADC token refreshed successfully at {last_refresh_time}.")
 
 
 def _get_header(project_id: str) -> Dict[str, str]:
@@ -79,7 +79,8 @@ def extract_error_details(
   try:
     data = response_err.response.json()
     return data.get('error', dict()).get('details', [])
-  except requests.exceptions.JSONDecodeError:
+  except requests.exceptions.JSONDecodeError as e:
+    logger.debug(f"Failed to parse error response as JSON: {e}")
     return []
 
 

@@ -30,44 +30,50 @@ class TestParseEntryIdComponents:
     """Test _parse_entry_id_components function"""
     
     def test_parses_standard_entry_id(self):
-        """Parse standard entry ID format - returns tuple (project, location)"""
+        """Parse standard entry ID format - returns tuple (project, location, entry_group, entry_id)"""
         entry_id = 'projects/my-project/locations/us-central1/entryGroups/my-group/entries/my-entry'
         
-        project, location = api_layer._parse_entry_id_components(entry_id)
+        project, location, entry_group, entry_id_parsed = api_layer.parse_entry_name(entry_id)
         
         assert project == 'my-project'
         assert location == 'us-central1'
+        assert entry_group == 'my-group'
+        assert entry_id_parsed == 'my-entry'
     
     def test_parses_global_location(self):
         """Parse entry with global location"""
         entry_id = 'projects/proj/locations/global/entryGroups/eg/entries/e'
         
-        project, location = api_layer._parse_entry_id_components(entry_id)
+        project, location, entry_group, entry_id_parsed = api_layer.parse_entry_name(entry_id)
         
         assert location == 'global'
+        assert entry_group == 'eg'
+        assert entry_id_parsed == 'e'
     
     def test_handles_special_characters(self):
         """Parse entry with special characters in names"""
         entry_id = 'projects/my-project-123/locations/us-west1/entryGroups/group_1/entries/entry_a-b'
         
-        project, location = api_layer._parse_entry_id_components(entry_id)
+        project, location, entry_group, entry_id_parsed = api_layer.parse_entry_name(entry_id)
         
         assert project == 'my-project-123'
         assert location == 'us-west1'
+        assert entry_group == 'group_1'
+        assert entry_id_parsed == 'entry_a-b'
     
     def test_raises_on_invalid_format(self):
         """Invalid format should raise InvalidEntryIdFormatError"""
         from utils.error import InvalidEntryIdFormatError
         
         with pytest.raises(InvalidEntryIdFormatError):
-            api_layer._parse_entry_id_components('invalid-format')
+            api_layer.parse_entry_name('invalid-format')
     
     def test_raises_on_empty_string(self):
         """Empty string should raise InvalidEntryIdFormatError"""
         from utils.error import InvalidEntryIdFormatError
         
         with pytest.raises(InvalidEntryIdFormatError):
-            api_layer._parse_entry_id_components('')
+            api_layer.parse_entry_name('')
 
 
 # ============================================================================

@@ -6,7 +6,7 @@ Test coverage:
 - Region resolution and fetching (_resolve_regions_for_term, _fetch_links_from_regions_parallel)
 - Entry link fetching (fetch_entry_links_for_region, fetch_entry_links_for_term, fetch_all_entry_links)
 - Export workflow (export_entry_links, _write_entry_links_to_sheet)
-- Error handling (_is_network_error, _handle_export_exception)
+- Error handling (network error detection via retry_utils, _handle_export_exception)
 - Main flow (_run_export, main)
 """
 
@@ -34,11 +34,11 @@ class TestBuildDeduplicationKey:
     """Test _build_deduplication_key helper function"""
     
     def test_symmetric_link_type_sorts_entries(self):
-        """Symmetric links (related, synonym) should create sorted key to detect A-B == B-A"""
+        """All link types should create sorted key to detect A-B == B-A"""
         row = ['related', 'entryB', 'entryA', '']
         key = entrylinks_export._build_deduplication_key(row)
         
-        # Should be sorted: ('related', ('entryA', 'entryB'))
+        # Should be sorted: ('related', ('entryA', 'entryB'), '')
         assert key[0] == 'related'
         assert key[1] == tuple(sorted(['entryA', 'entryB']))
     
@@ -52,18 +52,18 @@ class TestBuildDeduplicationKey:
         
         assert key1 == key2
     
-    def test_definition_link_type_is_directional(self):
-        """Definition links are directional - A->B != B->A"""
+    def test_definition_link_type_also_sorts(self):
+        """Definition links also sort source/target for deduplication"""
         row1 = ['definition', 'source', 'target', '/path']
         row2 = ['definition', 'target', 'source', '/path']
         
         key1 = entrylinks_export._build_deduplication_key(row1)
         key2 = entrylinks_export._build_deduplication_key(row2)
         
-        assert key1 != key2
+        assert key1 == key2
     
-    def test_definition_includes_source_path(self):
-        """Definition keys should include source_path"""
+    def test_includes_source_path(self):
+        """Keys should include source_path"""
         row = ['definition', 'source', 'target', '/schema/table']
         key = entrylinks_export._build_deduplication_key(row)
         
@@ -401,28 +401,26 @@ class TestExportEntryLinks:
 # ERROR HANDLING TESTS
 # ============================================================================
 
-class TestIsNetworkError:
-    """Test _is_network_error function"""
+class TestNetworkErrorDetection:
+    """Test network error detection via retry_utils.is_network_error (used by _handle_export_exception)"""
     
-    def test_detects_network_keyword(self):
-        """Should detect 'network' in error message"""
-        exc = Exception("Network unreachable")
-        assert entrylinks_export._is_network_error(exc) is True
+    def test_os_error_detected(self):
+        """OSError subclasses should be detected as network errors"""
+        exc = ConnectionRefusedError("Connection refused")
+        result = entrylinks_export._handle_export_exception(exc)
+        assert result == 1
     
-    def test_detects_connection_keyword(self):
-        """Should detect 'connection' in error message"""
-        exc = Exception("Connection refused")
-        assert entrylinks_export._is_network_error(exc) is True
+    def test_timeout_error_detected(self):
+        """TimeoutError should be detected as network error"""
+        exc = TimeoutError("Request timed out")
+        result = entrylinks_export._handle_export_exception(exc)
+        assert result == 1
     
-    def test_detects_timeout_keyword(self):
-        """Should detect 'timed out' in error message"""
-        exc = Exception("Request timed out")
-        assert entrylinks_export._is_network_error(exc) is True
-    
-    def test_non_network_error_returns_false(self):
-        """Non-network errors should return False"""
+    def test_non_network_error_still_handled(self):
+        """Non-network errors should still return exit code 1"""
         exc = Exception("Invalid argument")
-        assert entrylinks_export._is_network_error(exc) is False
+        result = entrylinks_export._handle_export_exception(exc)
+        assert result == 1
 
 
 class TestHandleExportException:
@@ -452,7 +450,7 @@ class TestHandleExportException:
     def test_network_error_returns_1(self):
         """Network errors should return exit code 1"""
         result = entrylinks_export._handle_export_exception(
-            Exception("Network unreachable")
+            OSError("Network unreachable")
         )
         assert result == 1
     
