@@ -41,6 +41,8 @@ def extract_scopes_from_entry_references(data: dict) -> set:
         if match:
             logger.debug(f"Extracted project scope: {match.group(1)}")
             scopes.add(match.group(1))
+        else:
+            logger.debug(f"Invalid entry reference, no project found: {name}")
     logger.debug(f"Extracted scopes: {scopes}")
     return scopes
 

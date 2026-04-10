@@ -85,6 +85,7 @@ def get_link_type(file_path: str) -> str | None:
     data = read_first_json_line(file_path)
     if data:
         return data.get("entryLink", {}).get("entryLinkType", "")
+    logger.debug(f"Failed to read link type from file: {file_path}")
     return None
 
 
