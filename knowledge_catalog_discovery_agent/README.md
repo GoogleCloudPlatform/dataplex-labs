@@ -6,7 +6,7 @@ The Knowledge Catalog Discovery Agent is an AI-powered search assistant for disc
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
+### Prerequisites
 
 You need a Google Cloud project with the following APIs enabled:
 * Knowledge Catalog (`dataplex.googleapis.com`)
@@ -18,7 +18,7 @@ Ensure you have the following permissions via IAM Roles:
 * `aiplatform.endpoints.predict` - can be obtained via roles like `roles/aiplatform.user`.
 * `serviceusage.services.use` - needed to use the current project as the quota project. Can be obtained via roles like `roles/serviceusage.serviceUsageConsumer`.
 
-### 2. Installation
+### Setup
 
 Clone the Github Repository:  
 ```shell  
@@ -32,7 +32,7 @@ source /tmp/kcsearch/bin/activate
 pip3 install -r requirements.txt  
 ```
 
-### 3. Configuration
+### Configuration
 
 Set the required environment variables:  
 ```shell
@@ -43,15 +43,10 @@ export GOOGLE_GENAI_USE_VERTEXAI=True
 
 ```
 
-### 4. Run the Agent
+### Run the Agent
+There are 2 ways to run the Knowledge Catalog Discovery agent:  
 
-Run the agent using the ADK CLI:  
-```shell
-adk run path/to/agent/parent/folder
-```
-Replace `path/to/agent/parent/folder` with the relative or absolute path to the **parent** directory of the one containing the agent's source code.
-
-## Suggested Directory Structure
+1. *As the root agent* - in this case, rename the `discovery_agent` variable in `agent.py` to `root_agent` and run it using ADK CLI (steps below). The recommended parent folder structure in this case is:
 
 ```
 my_custom_agent/
@@ -62,7 +57,16 @@ my_custom_agent/
     ├── tools.py
     └── utils.py
 ```
-Replace `my_custom_agent` with the name of the parent agent that is leveraging the Knowledge Catalog Search Agent as a sub-agent.
+
+2. *As a sub-agent* - in this case, import the Discovery Agent and leverage it as an `AgentTool`. You can find examples of this in the official [ADK docs](https://adk.dev/agents/multi-agents/#c-explicit-invocation-agenttool).
+
+Irrespective of the path you choose, the agent can be run using the ADK CLI commands below:  
+
+```shell
+adk run path/to/agent/parent/folder
+```
+Replace `path/to/agent/parent/folder` with the relative or absolute path to the **parent** directory of the one containing the agent's source code.
+
 
 ## References
 
