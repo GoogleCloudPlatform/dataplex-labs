@@ -1,6 +1,6 @@
 # Knowledge Catalog Discovery Agent
 
-## About
+## ℹ️ About
 
 The Knowledge Catalog Discovery Agent is an AI-powered search assistant for discovering data assets in Google Cloud. While standard semantic search only matches semantically similar text, this agent goes further by performing semantic decomposition of complex questions, generating multiple relevant search queries, and reranking the final results to provide a comprehensive answer.
 
@@ -31,8 +31,6 @@ python3 -m venv /tmp/kcsearch
 source /tmp/kcsearch/bin/activate  
 pip3 install -r requirements.txt  
 ```
-
-### Configuration
 
 Set the required environment variables:  
 ```shell
@@ -68,9 +66,8 @@ adk run path/to/agent/parent/folder
 Replace `path/to/agent/parent/folder` with the relative or absolute path to the **parent** directory of the one containing the agent's source code.
 
 
-## References
+## 📚 References
 
 * [Knowledge Catalog Search API](http://docs.cloud.google.com/dataplex/docs/reference/rest/v1/projects.locations/searchEntries)
 * [ADK Documentation](https://adk.dev/get-started/python/#run-your-agent)
 * [Predefined IAM Roles](https://docs.cloud.google.com/iam/docs/roles-permissions)
-
