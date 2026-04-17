@@ -44,7 +44,9 @@ export GOOGLE_GENAI_USE_VERTEXAI=True
 ### Run the Agent
 There are 2 ways to run the Knowledge Catalog Discovery agent:  
 
-1. *As the root agent* - in this case, rename the `discovery_agent` variable in `agent.py` to `root_agent` and run it using ADK CLI (steps below). The recommended parent folder structure in this case is:
+1. *As the root agent* - in this case, rename the `discovery_agent` variable in `agent.py` to `root_agent` and run it using ADK CLI (steps below).
+
+2. *As a sub-agent* - in this case, import the Discovery Agent and leverage it as an `AgentTool`. You can find examples of this in the official [ADK docs](https://adk.dev/agents/multi-agents/#c-explicit-invocation-agenttool). The recommended parent folder structure in this case is:
 
 ```
 my_custom_agent/
@@ -55,8 +57,6 @@ my_custom_agent/
     ├── tools.py
     └── utils.py
 ```
-
-2. *As a sub-agent* - in this case, import the Discovery Agent and leverage it as an `AgentTool`. You can find examples of this in the official [ADK docs](https://adk.dev/agents/multi-agents/#c-explicit-invocation-agenttool).
 
 Irrespective of the path you choose, the agent can be run using the ADK CLI commands below:  
 
