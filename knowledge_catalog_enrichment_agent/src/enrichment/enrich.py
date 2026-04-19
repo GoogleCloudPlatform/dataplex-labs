@@ -18,6 +18,11 @@ async def main():
     help='Directory containing the metadata entries',
   )
   parser.add_argument(
+    '--output-dir',
+    required=False,
+    help='Optional output directory to write updated metadata entries',
+  )
+  parser.add_argument(
     '--config-dir',
     required=True,
     help='Directory containing instructions.md, mcp.json, skills/',
@@ -26,12 +31,18 @@ async def main():
 
   metadata_dir = pathlib.Path(args.dir).resolve()
   if not metadata_dir.exists() or not metadata_dir.is_dir():
-    print(f'Error: {metadata_dir} does not exist or is not a directory.')
+    print(f'Error: {args.dir} does not exist or is not a directory.')
     sys.exit(1)
+
+  if args.output_dir:
+    output_dir = pathlib.Path(args.output_dir).resolve()
+    output_dir.mkdir(exist_ok=True, parents=False)
+  else:
+    output_dir = metadata_dir
 
   config_dir = pathlib.Path(args.config_dir).resolve()
   if not config_dir.exists() or not config_dir.is_dir():
-    print(f'Error: {config_dir} does not exist or is not a directory.')
+    print(f'Error: {args.config_dir} does not exist or is not a directory.')
     sys.exit(1)
 
 
@@ -46,7 +57,7 @@ async def main():
       A success message or an error message.
     '''
     try:
-      catalog.update_entry(metadata_dir, table_name, content)
+      catalog.update_entry(metadata_dir, output_dir, table_name, content)
       return f'Successfully updated {table_name}'
     except Exception as e:
       return f'Failed to update {table_name}: {e}'

@@ -32,8 +32,11 @@ cd dataplex-labs/knowledge_catalog_enrichment_agent
 Ensure you have the GCloud CLI installed and configured.
 
 ```bash
+export CLOUD_PROJECT=<cloud-project-id>
+
 gcloud auth application-default login
-gcloud config set core/project <your-cloud-project-id>
+gcloud config set core/project $CLOUD_PROJECT
+gcloud auth application-default set-quota-project $CLOUD_PROJECT
 ```
 
 Setup a python environment
@@ -59,7 +62,7 @@ You are now ready to run the enrichment workflow.
 
 ```bash
 python3 -m enrichment.download \
-  --dir ../sample/metadata \
+  --dir ../sample/metadata.initial \
   --dataset ${KC_ENRICH_SAMPLE_PROJECT}.kc_enrich_sample_data
 ```
 
@@ -67,13 +70,21 @@ python3 -m enrichment.download \
 
 ```bash
 python3 -m enrichment.enrich \
-  --dir ../sample/metadata \
+  --dir ../sample/metadata.initial \
+  --output-dir ../sample/metadata.new \
   --config-dir ../sample/config
+```
+
+**Review the metadata updates**
+
+```bash
+git diff --no-index \
+  ../sample/metadata.initial ../sample/metadata.new
 ```
 
 **Publish the updated metadata**
 
 ```bash
 python3 -m enrichment.publish \
-  --dir ../sample/metadata
+  --dir ../sample/metadata.new
 ```

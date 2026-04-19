@@ -129,14 +129,15 @@ def publish_entries(dir: pathlib.Path):
 def list_entries(dir: pathlib.Path):
   return [table_path.stem for table_path in dir.glob('*.md')]
 
-def update_entry(dir: pathlib.Path, table_name: str, content: str):
+def update_entry(dir: pathlib.Path, out_dir: pathlib.Path, table_name: str, content: str):
   table_path = dir / f'{table_name}.md'
+  out_table_path = out_dir / f'{table_name}.md'
 
   entry_data = _md_to_entry(table_path.read_text())
   entry_data['aspects'][OVERVIEW_ASPECT_KEY]['data']['content'] = content
 
   _, markdown = _entry_to_md(entry_data)
-  table_path.write_text(markdown)
+  out_table_path.write_text(markdown)
 
 def show_entry(dir: pathlib.Path, table_name: str):
   table_path = dir / f'{table_name}.md'

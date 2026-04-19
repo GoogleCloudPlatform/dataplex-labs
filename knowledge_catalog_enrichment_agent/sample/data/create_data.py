@@ -16,7 +16,7 @@ def create_dataset(bq: bigquery.Client, project_id: str):
 
 def create_table(bq: bigquery.Client, project_id: str):
   sql_script = f'''
-    CREATE TABLE `{project_id}.{SAMPLE_DATASET_ID}.{SAMPLE_TABLE_NAME}`
+    CREATE TABLE IF NOT EXISTS `{project_id}.{SAMPLE_DATASET_ID}.{SAMPLE_TABLE_NAME}`
     PARTITION BY event_date_dt
     AS
     SELECT

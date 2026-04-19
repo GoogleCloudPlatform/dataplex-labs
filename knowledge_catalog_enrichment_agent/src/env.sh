@@ -5,7 +5,7 @@ fi
 source .venv/bin/activate
 
 if [ "$1" == "--install" ]; then
-  pip install -r requirements.txt --break-system-packages
+  pip install -r requirements.txt
 fi
 
 export PYTHONDONTWRITEBYTECODE=1
