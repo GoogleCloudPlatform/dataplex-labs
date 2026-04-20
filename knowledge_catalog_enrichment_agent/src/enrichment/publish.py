@@ -5,7 +5,7 @@ import argparse
 import pathlib
 import sys
 
-from enrichment import catalog
+import enrichment.metadata.snapshot as snapshot
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     print(f'Directory {dir} does not exist.')
     sys.exit(1)
 
-  catalog.publish_entries(dir)
+  snapshot.publish_entries(dir)
 
 
 if __name__ == '__main__':

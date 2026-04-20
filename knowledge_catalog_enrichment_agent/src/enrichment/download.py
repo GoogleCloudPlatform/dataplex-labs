@@ -4,7 +4,7 @@
 import argparse
 import pathlib
 
-from enrichment import catalog
+import enrichment.metadata.snapshot as snapshot
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
   dir = pathlib.Path(args.dir)
   dir.mkdir(parents=True, exist_ok=True)
 
-  catalog.download_entries(dir, args.dataset)
+  snapshot.download_entries(dir, args.dataset)
 
 
 if __name__ == '__main__':

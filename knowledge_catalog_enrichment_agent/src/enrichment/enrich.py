@@ -5,9 +5,29 @@ import argparse
 import asyncio
 import pathlib
 import sys
+import typing as t
 
-import enrichment.agent as agent
-from enrichment import catalog
+import enrichment.documentation.agent as agent
+import enrichment.metadata.catalog as catalog
+import enrichment.metadata.snapshot as snapshot
+
+
+def _create_enrichment_task(table_name: str) -> str:
+  info, has_documentation = catalog.lookup_table_info(table_name)
+
+  prompt = [
+    f'Table: {table_name}',
+    info,
+    '',
+  ]
+
+  if has_documentation:
+    prompt.append('Improve the document using the provided sources.')
+  else:
+    prompt.append('Generate documnentation using the provided sources.')
+
+  print(prompt)
+  return '\n'.join(prompt)
 
 
 async def main():
@@ -57,19 +77,18 @@ async def main():
       A success message or an error message.
     '''
     try:
-      catalog.update_entry(metadata_dir, output_dir, table_name, content)
+      snapshot.update_entry(metadata_dir, output_dir, table_name, content)
       return f'Successfully updated {table_name}'
     except Exception as e:
       return f'Failed to update {table_name}: {e}'
 
 
-  runner = agent.create_agent([update_table], config_dir)
+  runner = agent.create_runner('agent', [update_table], config_dir)
 
-  tables = catalog.list_entries(metadata_dir)
+  tables = snapshot.list_entries(metadata_dir)
   for table in tables:
-    prompt = f'Enrich the metadata for table {table}'
-
-    await agent.run_agent(runner, prompt)
+    task = _create_enrichment_task(table)
+    await agent.run_task(runner, task)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-# Catalog metadata management
+# Catalog metadata snapshot
 #
 
 import pathlib
@@ -9,6 +9,8 @@ import google.cloud.dataplex_v1 as dataplex
 import google.protobuf.field_mask_pb2 as field_mask_pb2
 import google.protobuf.json_format as jsonpb
 
+import enrichment.util.markdown as markdown
+
 
 OVERVIEW_ASPECT_RESOURCE = 'projects/dataplex-types/locations/global/aspectTypes/overview'
 OVERVIEW_ASPECT_KEY = '655216118709.global.overview'
@@ -16,7 +18,10 @@ OVERVIEW_ASPECT_KEY = '655216118709.global.overview'
 
 def _entry_to_md(entry: t.Dict[str, t.Any]) -> t.Tuple[str, str]:
   table_name_parts = entry['entrySource']['resource'].split('/')
-  table_name = f'{table_name_parts[-5]}.{table_name_parts[-3]}.{table_name_parts[-1]}'
+  table_name = f'{table_name_parts[1]}.{table_name_parts[3]}.{table_name_parts[5]}'
+
+  aspects = entry.get('aspects', {})
+  overview = aspects.get(OVERVIEW_ASPECT_KEY, {}).get('data', {})
 
   md = [
     f'---',
@@ -25,21 +30,14 @@ def _entry_to_md(entry: t.Dict[str, t.Any]) -> t.Tuple[str, str]:
     f'---',
     f'# {table_name}',
     f'## Overview\n',
-    entry.get('aspects', {}).get(OVERVIEW_ASPECT_KEY, {}).get('data', {}).get('content', '')
+    overview.get('content', '')
   ]
 
   return table_name, '\n'.join(md)
 
 
 def _md_to_entry(md: str) -> t.Dict[str, t.Any]:
-  frontmatter = {}
-  body = md
-
-  if md.startswith('---\n'):
-    parts = md.split('---\n', 2)
-    if len(parts) >= 3:
-      frontmatter = yaml.safe_load(parts[1]) or {}
-      body = parts[2]
+  frontmatter, body = markdown.parse(md)
 
   overview = ''
   if '## Overview' in body:
@@ -97,7 +95,9 @@ def download_entries(dir: pathlib.Path, dataset: str):
       request=dataplex.GetEntryRequest(
         name=entry.name,
         view='CUSTOM',
-        aspect_types=[OVERVIEW_ASPECT_RESOURCE],
+        aspect_types=[
+          OVERVIEW_ASPECT_RESOURCE,
+        ],
       )
     )
 
@@ -126,6 +126,7 @@ def publish_entries(dir: pathlib.Path):
 
     print(f'Published {table_path.stem}')
 
+
 def list_entries(dir: pathlib.Path):
   return [table_path.stem for table_path in dir.glob('*.md')]
 
@@ -138,6 +139,7 @@ def update_entry(dir: pathlib.Path, out_dir: pathlib.Path, table_name: str, cont
 
   _, markdown = _entry_to_md(entry_data)
   out_table_path.write_text(markdown)
+
 
 def show_entry(dir: pathlib.Path, table_name: str):
   table_path = dir / f'{table_name}.md'
