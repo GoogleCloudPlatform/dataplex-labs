@@ -1,39 +1,93 @@
-# Overview
+# Import Utilities
 
-`glossary_import` is a utility that performs bulk import and export of categories and terms into a Dataplex business glossary using google sheets. To achieve the import functionality, the google sheet is provided as input. The sheet is parsed and validated and then the data from the sheet is converted into an import file compatible with CreateMetadataJob API of dataplex. The converted file is uploaded into a GCS bucket provided by the user. Once the upload to GCS bucket is successful, the script calls CreateMetadataJob API of dataplex to start the import job. At the end the result from the api is printed on the terminal.
+This directory contains import utilities for Dataplex business glossary data.
 
-## Usage
+## Prerequisites
 
-### Prerequisites
-```
-pip3 install -r bg_import/csv_import/requirements.txt
+Before running the scripts, ensure your local environment and Google Cloud project are correctly configured.
+
+### 1. Install Dependencies
+
+```bash
+pip3 install -r requirements.txt
 ```
 
-### Import
-```
-python3 bg_import/csv_import/glossary_import.py 
-```
-  
-### Access token
+### 2. Required APIs
 
-The below command is required to access the sheet, upload file to GCS and call CreateMetadataJob() API
+Ensure the following APIs are enabled in the Google Cloud project you will use:
+
+- Dataplex API
+- Cloud Resource Manager API
+- Cloud Storage API
+- Google Sheets API
+
+You can enable them by visiting the APIs & Services dashboard in the Google Cloud Console, or run:
+
+```bash
+gcloud services enable dataplex.googleapis.com
+gcloud services enable cloudresourcemanager.googleapis.com
+gcloud services enable storage.googleapis.com
+gcloud services enable sheets.googleapis.com
 ```
+
+### 3. GCS Buckets
+
+For the import operation, create one or more empty Google Cloud Storage buckets. The script uses these buckets as a staging area for the import files.
+
+> **Note:** The number of buckets you provide determines the level of parallelism for the import.
+
+Grant the following roles to the Dataplex service account (`service-PROJECT_NUMBER@gcp-sa-dataplex.iam.gserviceaccount.com`) on each GCS bucket:
+
+| Role | Description |
+|---|---|
+| Storage Object Creator (`roles/storage.objectCreator`) | Allows creating objects. |
+| Storage Object Admin (`roles/storage.objectAdmin`) | Full control over objects. |
+
+### 4. Google Sheets Setup
+
+Prepare a Google Sheet that will be used for the import:
+
+*   **Glossary Import**: The sheet should contain the following header row:
+    `id, parent, display_name, description, overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
+*   **EntryLinks Import**: The sheet should contain the following columns in the header row:
+    *   `entry_link_type` - Type of link: `definition`, `related`, or `synonym`
+    *   `source_entry` - Full entry name of the source (e.g., `projects/PROJECT/locations/LOCATION/entryGroups/ENTRY_GROUP/entries/ENTRY_ID`)
+    *   `target_entry` - Full entry name of the target
+    *   `source_path` - (Optional) Column/field path for definition links (e.g., `Schema.column_name`)
+
+### Authentication
+
+The below command is required to access the sheet, upload files to GCS, and call Dataplex APIs:
+```bash
 gcloud auth application-default login --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets.readonly"
 ```
 
-## Sheets file schema
-The first line of the sheet should contain the following header
+---
 
-`id, parent, display_name, description	overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
+## 1. Glossary Import
+
+Performs bulk import of categories and terms into a Dataplex business glossary from Google Sheets. The sheet is parsed and validated, then converted into an import file compatible with the Dataplex CreateMetadataJob API. The converted file is uploaded to a GCS bucket provided by the user. Once the upload is successful, the script calls CreateMetadataJob to start the import job and prints the result on the terminal.
+
+### Usage
+
+```bash
+python3 glossary-import.py
+```
+
+### Sheets file schema (Glossary)
+
+The first line of the sheet should contain the following header:
+
+`id, parent, display_name, description, overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
 
 Where:
 
 *   `id` (required): Unique id for the term/category in the glossary.
-*   `parent` (optional): The id parent for this term/category. If the paren is not provided then this will become direct child of the Glossary. the id provided should be present in this sheet and it should be an id of a category.
+*   `parent` (optional): The id of the parent for this term/category. If not provided, it becomes a direct child of the glossary. The id should be present in this sheet and should be an id of a category.
 *   `display_name` (required): The display name of the term/category.
 *   `description` (optional): A brief description of the term/category.
-*   `overview` (optional): A rich text description of the term/category. It can contain html tags.
-*   `type` (required): Describes whether this row represents a TERM or a CATEGORY. Only valid values for this is TERM or CATEGORY
+*   `overview` (optional): A rich text description of the term/category. It can contain HTML tags.
+*   `type` (required): Whether this row represents a TERM or a CATEGORY. Only valid values are TERM or CATEGORY.
 *   `contact1_email` (optional): Email id of the data steward for this term/category.
 *   `contact1_name` (optional): Name of the data steward for this term/category.
 *   `contact2_email` (optional): Email id of another data steward for this term/category.
@@ -42,4 +96,65 @@ Where:
 *   `label1_value` (optional): Label1's value.
 *   `label2_key` (optional): Label2's key.
 *   `label2_value` (optional): Label2's value.
- 
+
+---
+
+## 2. EntryLinks Import
+
+Imports EntryLinks into Dataplex from Google Sheets. The script reads entry link definitions from the spreadsheet, validates that referenced entries exist in Dataplex, groups them by entry group and link type, creates import JSON files, uploads them to GCS buckets, and triggers Dataplex CreateMetadataJob import jobs.
+
+### Usage
+
+```bash
+python3 entrylinks-import.py \
+  --spreadsheet-url <SPREADSHEET_URL> \
+  --buckets <BUCKET_LIST> \
+  --user-project <PROJECT_ID>
+```
+
+### Arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `--spreadsheet-url` | Yes | Google Sheets URL containing EntryLinks to import |
+| `--buckets` | Yes | Comma-separated list of GCS bucket IDs for staging import files (e.g. `bucket-1,bucket-2`) |
+| `--user-project` | Yes | Project ID to use for billing and API quota (e.g. `my-project-id`) |
+
+### Example
+
+```bash
+python3 entrylinks-import.py \
+  --spreadsheet-url "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0" \
+  --buckets "my-staging-bucket-1,my-staging-bucket-2" \
+  --user-project "my-billing-project"
+```
+
+### Sheets file schema (EntryLinks)
+
+The first row of the sheet should contain the following header:
+
+`entry_link_type, source_entry, target_entry, source_path`
+
+Where:
+
+*   `entry_link_type` (required): Type of EntryLink. Valid values: `definition`, `synonym`, `related`.
+*   `source_entry` (required): Full Dataplex entry resource path for the source (e.g. `projects/my-project/locations/us/entryGroups/@bigquery/entries/my-entry`).
+*   `target_entry` (required): Full Dataplex entry resource path for the target.
+*   `source_path` (optional): Path within the source entry (e.g. a BigQuery column path like `Schema.Field1`). Used for definition entrylinks.
+
+### Import workflow
+
+1.  **Archive check**: If an `archive/` folder exists from a previous incomplete import, the script prompts to clear it, continue with existing files, or abort.
+2.  **Spreadsheet reading**: Reads and parses entry link rows from the specified sheet.
+3.  **Entry validation**: Validates that all referenced entries exist in Dataplex (parallel, 10 threads). If missing entries are found, prompts the user to continue (skipping those) or abort.
+4.  **Grouping**: Groups entry links by link type (`definition` vs `related-synonym`) and entry group.
+5.  **File creation**: Creates import JSON files in the `archive/` directory, one per entry group.
+6.  **GCS upload & import**: Uploads files to the appropriate GCS bucket and triggers a Dataplex CreateMetadataJob for each.
+7.  **Job polling**: Polls import jobs until completion (up to 12 hours). Completed files are moved to `processed/`.
+
+### Behavior
+
+*   **Multiple buckets**: Provide one bucket per project that owns the entries. Each project's import files are uploaded to its corresponding bucket.
+*   **Invalid link types**: Rows with unrecognized `entry_link_type` values (e.g. `deffinition`) are skipped with a warning.
+*   **Missing entries**: EntryLinks referencing entries not found in Dataplex are skipped after user confirmation.
+*   **Logging**: Logs are written to `dataplex-glossary/logs/` with a timestamp. Use DEBUG level for detailed API request/response output.
