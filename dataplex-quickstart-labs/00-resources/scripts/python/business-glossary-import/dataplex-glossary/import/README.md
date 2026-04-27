@@ -6,7 +6,7 @@
 
 ### Prerequisites
 ```
-pip3 install -r bg_import/csv_import/requirements.txt
+pip3 install -r ./requirements.txt
 ```
 
 ### Import
