@@ -34,8 +34,6 @@ gcloud services enable sheets.googleapis.com
 
 For the import operation, create one or more empty Google Cloud Storage buckets. The script uses these buckets as a staging area for the import files.
 
-> **Note:** The number of buckets you provide determines the level of parallelism for the import.
-
 Grant the following roles to the Dataplex service account (`service-PROJECT_NUMBER@gcp-sa-dataplex.iam.gserviceaccount.com`) on each GCS bucket:
 
 | Role | Description |
@@ -141,20 +139,3 @@ Where:
 *   `source_entry` (required): Full Dataplex entry resource path for the source (e.g. `projects/my-project/locations/us/entryGroups/@bigquery/entries/my-entry`).
 *   `target_entry` (required): Full Dataplex entry resource path for the target.
 *   `source_path` (optional): Path within the source entry (e.g. a BigQuery column path like `Schema.Field1`). Used for definition entrylinks.
-
-### Import workflow
-
-1.  **Archive check**: If an `archive/` folder exists from a previous incomplete import, the script prompts to clear it, continue with existing files, or abort.
-2.  **Spreadsheet reading**: Reads and parses entry link rows from the specified sheet.
-3.  **Entry validation**: Validates that all referenced entries exist in Dataplex (parallel, 10 threads). If missing entries are found, prompts the user to continue (skipping those) or abort.
-4.  **Grouping**: Groups entry links by link type (`definition` vs `related-synonym`) and entry group.
-5.  **File creation**: Creates import JSON files in the `archive/` directory, one per entry group.
-6.  **GCS upload & import**: Uploads files to the appropriate GCS bucket and triggers a Dataplex CreateMetadataJob for each.
-7.  **Job polling**: Polls import jobs until completion (up to 12 hours). Completed files are moved to `processed/`.
-
-### Behavior
-
-*   **Multiple buckets**: Provide one bucket per project that owns the entries. Each project's import files are uploaded to its corresponding bucket.
-*   **Invalid link types**: Rows with unrecognized `entry_link_type` values (e.g. `deffinition`) are skipped with a warning.
-*   **Missing entries**: EntryLinks referencing entries not found in Dataplex are skipped after user confirmation.
-*   **Logging**: Logs are written to `dataplex-glossary/logs/` with a timestamp. Use DEBUG level for detailed API request/response output.
