@@ -82,7 +82,7 @@ gcloud auth login
 SA_EMAIL="<service-account-emailid>"
 gcloud auth application-default login \
   --impersonate-service-account="${SA_EMAIL}" \
-  --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets"
+  --scopes="https://www.googleapis.com/auth/spreadsheets"
 ```
 
 ---
