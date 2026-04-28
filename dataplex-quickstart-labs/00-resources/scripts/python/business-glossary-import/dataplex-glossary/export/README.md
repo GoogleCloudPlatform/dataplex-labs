@@ -63,14 +63,26 @@ gcloud services enable sheets.googleapis.com
 
 Create a Google Sheet that will be used for the export:
 
+Share the Google Sheet with the service account (`SA_EMAIL`) as an **Editor** so it can write values to the sheet.
+
 *   **Glossary Export**: Create an empty Google Sheet (or use an existing one). The script will write to the first sheet.
 *   **EntryLinks Export**: Create an empty Google Sheet (or use an existing one). The script will write to the first sheet.
 
 ### Authentication
 
-The below command is required to access Google Sheets and call Dataplex APIs:
+Use the following commands to authenticate yourself first, then create Application Default Credentials (ADC) by impersonating the service account used by the scripts.
+
+The service account must have the required IAM roles, and your user account must have `roles/iam.serviceAccountTokenCreator` on that service account.
+
 ```bash
-gcloud auth application-default login --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets"
+# Authenticate your user account
+gcloud auth login
+
+# Then impersonate the service account for ADC
+SA_EMAIL="<service-account-emailid>"
+gcloud auth application-default login \
+  --impersonate-service-account="${SA_EMAIL}" \
+  --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets"
 ```
 
 ---

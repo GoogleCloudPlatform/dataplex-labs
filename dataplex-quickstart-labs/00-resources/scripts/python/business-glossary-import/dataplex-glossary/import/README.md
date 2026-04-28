@@ -45,6 +45,8 @@ Grant the following roles to the Dataplex service account (`service-PROJECT_NUMB
 
 Prepare a Google Sheet that will be used for the import:
 
+Share the Google Sheet with the service account (`SA_EMAIL`) as a **Viewer** so it has read access.
+
 *   **Glossary Import**: The sheet should contain the following header row:
     `id, parent, display_name, description, overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
 *   **EntryLinks Import**: The sheet should contain the following columns in the header row:
@@ -55,9 +57,19 @@ Prepare a Google Sheet that will be used for the import:
 
 ### Authentication
 
-The below command is required to access the sheet, upload files to GCS, and call Dataplex APIs:
+Use the following commands to authenticate yourself first, then create Application Default Credentials (ADC) by impersonating the service account used by the scripts.
+
+The service account must have the required IAM roles, and your user account must have `roles/iam.serviceAccountTokenCreator` on that service account.
+
 ```bash
-gcloud auth application-default login --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets.readonly"
+# Authenticate your user account
+gcloud auth login
+
+# Then impersonate the service account for ADC
+SA_EMAIL="<service-account-emailid>"
+gcloud auth application-default login \
+  --impersonate-service-account="${SA_EMAIL}" \
+  --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets.readonly"
 ```
 
 ---
