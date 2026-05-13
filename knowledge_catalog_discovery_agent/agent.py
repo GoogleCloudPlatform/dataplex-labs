@@ -30,6 +30,6 @@ discovery_agent = llm_agent.Agent(
     ),
     instruction=load_instruction(),  # Load instruction from file
     tools=[
-        tools.knowledge_catalog_search,
+        tools.knowledge_catalog_multi_search,
     ],
 )
