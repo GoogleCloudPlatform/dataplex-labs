@@ -4,6 +4,7 @@ import concurrent.futures
 import logging
 import os
 
+import google.auth
 from google.api_core import retry
 from google.api_core.exceptions import PermissionDenied
 from google.cloud import dataplex_v1
@@ -11,6 +12,20 @@ from google.cloud import dataplex_v1
 from .utils import get_consumer_project
 
 MAX_WORKERS = 5
+
+
+def _get_catalog_client() -> dataplex_v1.CatalogServiceClient:
+  """Creates an authenticated CatalogServiceClient."""
+  credentials, _ = google.auth.default(
+      scopes=["https://www.googleapis.com/auth/cloud-platform"],
+  )
+  return dataplex_v1.CatalogServiceClient(
+      credentials=credentials,
+      client_options={
+          "api_endpoint": "dataplex.googleapis.com",
+      },
+  )
+
 
 TRANSIENT_RETRY = retry.Retry(
     predicate=retry.if_transient_error,
@@ -29,9 +44,7 @@ def _lookup_context(region: str, batch_entries: list[str]) -> str:
     return f"Error obtaining consumer project: {e}"
 
   try:
-    client = dataplex_v1.CatalogServiceClient(
-        client_options={"api_endpoint": "dataplex.googleapis.com"}
-    )
+    client = _get_catalog_client()
     parent_name = f"projects/{consumer_project_id}/locations/{region}"
     request = dataplex_v1.LookupContextRequest(
         name=parent_name,
@@ -74,11 +87,7 @@ def _knowledge_catalog_search(
     return {"Error obtaining consumer project": str(e)}
 
   try:
-    endpoint = "dataplex.googleapis.com"
-
-    client = dataplex_v1.CatalogServiceClient(
-        client_options={"api_endpoint": endpoint}
-    )
+    client = _get_catalog_client()
 
     parent_name = f"projects/{consumer_project_id}/locations/global"
     response = client.search_entries(
@@ -103,19 +112,24 @@ def _knowledge_catalog_search(
 
     return {"results": entries}
 
-  except PermissionDenied:
-    logging.warning("Knowledge Catalog search failed due to permission error")
-    return {
-        "error": (
-            "Permission denied: The user does not have permission to call"
-            " Knowledge Catalog Search."
-        )
-    }
-  except Exception as e:  # pylint: disable=broad-except
+  except PermissionDenied as exc:
     logging.exception(
-        "An unexpected error occurred during Knowledge Catalog search"
+        "Knowledge Catalog search failed due to permission error when querying"
+        " %s: %s",
+        parent_name,
+        exc,
     )
-    return {"error": f"An unexpected error occurred: {e}"}
+    return {
+        "error": f"Permission denied when querying {parent_name}: {exc}"
+    }
+  except Exception as exc:  # pylint: disable=broad-except
+    logging.exception(
+        "An unexpected error occurred during Knowledge Catalog search when"
+        " querying %s: %s",
+        parent_name,
+        exc,
+    )
+    return {"error": f"An unexpected error occurred when querying {parent_name}: {exc}"}
 
 
 def knowledge_catalog_multi_search(
