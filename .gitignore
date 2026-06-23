@@ -355,3 +355,13 @@ MigrationBackup/
 # ADK
 session.db
 .venv/
+
+#governance_metadata_propagation
+__pycache__/
+.env
+.DS_Store
+credentials.json
+dq_history.json
+scratch/
+.agents/
+.rag_cache/
