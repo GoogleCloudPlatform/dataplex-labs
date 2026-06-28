@@ -13,7 +13,7 @@ dependencies = [
     "gradio[oauth]>=4.0.0",
     "requests>=2.31.0",
     "google-cloud-dataplex>=2.14.0",
-    "google-adk[eval]==1.21.0",
+    "google-adk[eval]>=1.28.1",
     "google-cloud-bigquery>=3.18.0",
     "google-cloud-storage>=2.15.0",
     "pandas>=2.2.0",
@@ -89,3 +89,8 @@ packages = ["metadata_propagation"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+override-dependencies = [
+    "litellm>=1.84.0",
+]

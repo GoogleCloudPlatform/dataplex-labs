@@ -180,6 +180,11 @@ class PolicyTagPlugin(BasePlugin):
 
         recommendations = []
 
+        # Pre-embed column queries in batch for RAG mode to avoid N sequential size 1 embedding calls
+        if doc_plugin and (doc_path or datastore_id):
+            cols = [(f.name, f.field_type) for f in table.schema]
+            doc_plugin.pre_embed_column_queries(target_table, cols)
+
         # Parallel processing of columns using ThreadPoolExecutor
         from concurrent.futures import ThreadPoolExecutor
 

@@ -214,6 +214,7 @@ class LineagePlugin(BasePlugin):
         context_mode: str = "rag",
         datastore_id: str | None = None,
         force: bool = False,
+        fallback_to_llm: bool = True,
     ) -> pd.DataFrame:
         """
         Simulates description propagation for a specific table with multi-hop support and SQL parsing (parallelized).
@@ -226,11 +227,11 @@ class LineagePlugin(BasePlugin):
 
         candidates = []
 
-        # 1. Load document or datastore if provided (One-time setup)
+        # 1. Load document or datastore if provided or fallback is enabled (One-time setup)
         doc_plugin = None
-        if document_path or datastore_id:
+        if document_path or datastore_id or fallback_to_llm:
             logger.info(
-                f"Initializing DocDescriptionPlugin in mode: {context_mode}"
+                f"Initializing DocDescriptionPlugin for document context / fallback in mode: {context_mode}"
             )
             doc_plugin = DocDescriptionPlugin(self.project_id, self.location)
             doc_plugin.load_document(
@@ -253,6 +254,11 @@ class LineagePlugin(BasePlugin):
         if not fields_to_process:
             return pd.DataFrame()
 
+        # Pre-embed column queries in batch for RAG mode to avoid N sequential size 1 embedding calls
+        if doc_plugin and (document_path or datastore_id):
+            cols = [(f.name, f.field_type) for f in fields_to_process]
+            doc_plugin.pre_embed_column_queries(target_table, cols)
+
         # Parallel processing of columns using ThreadPoolExecutor
         from concurrent.futures import ThreadPoolExecutor
 
@@ -260,53 +266,61 @@ class LineagePlugin(BasePlugin):
 
         def process_column(field):
             set_oauth_token(main_token)
-            # A. Lineage Search
+
+            # 1. Prioritize Document context (explicit info only)
+            doc_rec = None
+            if doc_plugin and (document_path or datastore_id):
+                doc_rec = doc_plugin.recommend_description_for_column(
+                    target_table, field.name, field.field_type, fallback=False
+                )
+            if doc_rec:
+                return field.name, "document", doc_rec
+
+            # 2. Fall back to Lineage
             logger.info(
                 f"Searching source for column '{field.name}' via lineage..."
             )
             match = self._find_description_recursive(target_fqn, field.name)
-
-            # B. Document RAG Search
-            doc_rec = None
-            if doc_plugin:
-                doc_rec = doc_plugin.recommend_description_for_column(
-                    target_table, field.name, field.field_type
+            if match:
+                logger.info(
+                    f"  [FOUND Lineage] Source: {match['source_entity']}.{match['source_column']}"
                 )
+                enriched_desc = TransformationEnricher.enrich_description(
+                    field.name,
+                    match["source_column"],
+                    match["description"],
+                    sql_hints=match.get("accumulated_logic", []),
+                )
+                lineage_rec = {
+                    "Target Column": field.name,
+                    "Source": match["source_entity"],
+                    "Source Column": match["source_column"],
+                    "Confidence": match["confidence"],
+                    "Proposed Description": enriched_desc,
+                    "Type": f"Lineage (Hop {match['hop_depth']})"
+                    if match["hop_depth"] > 0
+                    else "Lineage",
+                }
+                return field.name, "lineage", lineage_rec
 
-            return field.name, match, doc_rec
+            # 3. Fall back to ungrounded LLM generation
+            if fallback_to_llm and doc_plugin:
+                fallback_rec = doc_plugin.recommend_description_for_column(
+                    target_table, field.name, field.field_type, fallback=True
+                )
+                if fallback_rec:
+                    return field.name, "fallback", fallback_rec
+
+            return field.name, None, None
 
         with ThreadPoolExecutor(
             max_workers=min(len(fields_to_process), 10)
         ) as executor:
             results = list(executor.map(process_column, fields_to_process))
 
-        for col_name, match, doc_rec in results:
-            if match:
-                logger.info(
-                    f"  [FOUND Lineage] Source: {match['source_entity']}.{match['source_column']}"
-                )
-                enriched_desc = TransformationEnricher.enrich_description(
-                    col_name,
-                    match["source_column"],
-                    match["description"],
-                    sql_hints=match.get("accumulated_logic", []),
-                )
-
-                candidates.append(
-                    {
-                        "Target Column": col_name,
-                        "Source": match["source_entity"],
-                        "Source Column": match["source_column"],
-                        "Confidence": match["confidence"],
-                        "Proposed Description": enriched_desc,
-                        "Type": f"Lineage (Hop {match['hop_depth']})"
-                        if match["hop_depth"] > 0
-                        else "Lineage",
-                    }
-                )
-
-            if doc_rec:
-                candidates.append(doc_rec)
+        for col_name, source_type, rec in results:
+            if rec:
+                candidates.append(rec)
 
         if not candidates:
             logger.warning(

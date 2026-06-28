@@ -57,7 +57,9 @@ class TestDQPropagation(unittest.TestCase):
         result = self.engine.aggregate_scores(scores, method="conservative_min")
         self.assertEqual(result, 0.7)
 
-    @patch("metadata_propagation.dataplex_integration.dq_propagation.SQLFetcher.get_transformation_sql")
+    @patch(
+        "metadata_propagation.dataplex_integration.dq_propagation.SQLFetcher.get_transformation_sql"
+    )
     def test_detect_remediation_distinct(self, mock_sql):
         # Mock SQL with DISTINCT
         mock_sql.return_value = (

@@ -59,7 +59,7 @@ class VertexAIEmbedder:
 
         all_embeddings = []
         # Batching to avoid token limit errors (e.g., 20k tokens limit)
-        batch_size = 50
+        batch_size = 250
 
         try:
             for i in range(0, len(texts), batch_size):

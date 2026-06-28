@@ -193,6 +193,11 @@ def main():
         action="store_true",
         help="Force propagation analysis even for columns that already have descriptions",
     )
+    apply_parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="Disable general LLM fallback description generation if data dictionary and lineage matches are missing",
+    )
 
     # Glossary recommend command
     glossary_parser = subparsers.add_parser(
@@ -412,6 +417,7 @@ def main():
             context_mode=args.context_mode,
             datastore_id=args.datastore_id,
             force=args.force,
+            fallback_to_llm=not args.no_fallback,
         )
 
         if df.empty:
@@ -725,10 +731,8 @@ def main():
             # If no table specified, extract target tables from the insights we just generated
             tables_to_sync = list(
                 {
-                    
-                        rel.get("target_table")
-                        for rel in insights.get("relationships", [])
-                    
+                    rel.get("target_table")
+                    for rel in insights.get("relationships", [])
                 }
             )
 

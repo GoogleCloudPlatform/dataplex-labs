@@ -62,6 +62,7 @@ class DocDescriptionPlugin(BasePlugin):
             return
 
         import os
+
         for path in doc_path:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Document file not found: '{path}'")
@@ -80,11 +81,19 @@ class DocDescriptionPlugin(BasePlugin):
                         content = f.read()
                         if content.strip():
                             self.full_text += content + "\n"
-                elif ext == ".pdf":
+
+                elif ext in [".pdf", ".xlsx", ".png", ".jpg", ".jpeg"]:
                     # Use RAGEngine to extract text via Gemini
                     extracted = self._rag_engine._extract_text_via_gemini(path)
                     if extracted.strip():
                         self.full_text += extracted + "\n"
+                elif ext == ".docx":
+                    raise ValueError(
+                        "DOCX files are not supported directly by Gemini in this setup. Please convert to PDF or TXT first."
+                    )
+                else:
+                    raise ValueError(f"Unsupported file extension: {ext}")
+
         elif self.mode == "datastore" and datastore_id:
             # Fail Fast: Verify DataStore exists
             logger.info(f"Verifying DataStore '{datastore_id}'...")
@@ -93,8 +102,28 @@ class DocDescriptionPlugin(BasePlugin):
                     f"DataStore '{datastore_id}' not found or not accessible."
                 )
 
+    def pre_embed_column_queries(
+        self, table_id: str, columns: list[tuple[str, str]]
+    ) -> None:
+        """Pre-embeds and caches queries for all columns in batch if RAG mode is used."""
+        self._ensure_initialized()
+        if self.mode == "rag" and self._rag_engine:
+            queries = []
+            for col_name, col_type in columns:
+                # Add strict query
+                queries.append(
+                    f"Table: {table_id}, Column: {col_name} ({col_type})"
+                )
+                # Add fallback query
+                queries.append(f"Table: {table_id}")
+            self._rag_engine.pre_embed_queries(queries)
+
     def recommend_description_for_column(
-        self, table_id: str, col_name: str, col_type: str
+        self,
+        table_id: str,
+        col_name: str,
+        col_type: str,
+        fallback: bool = False,
     ) -> dict[str, Any] | None:
         """Recommends a description for a single column based on selected mode."""
         self._ensure_initialized()
@@ -108,7 +137,12 @@ class DocDescriptionPlugin(BasePlugin):
         top_score = 0.8  # Default fallback
 
         if self.mode == "rag":
-            chunks = self._rag_engine.retrieve(query, top_k=5)
+            if fallback:
+                # Retrieve broader table-level context for fallback inference
+                table_query = f"Table: {table_id}"
+                chunks = self._rag_engine.retrieve(table_query, top_k=8)
+            else:
+                chunks = self._rag_engine.retrieve(query, top_k=5)
             if chunks:
                 context = "\n---\n".join([c["text"] for c in chunks])
                 top_score = chunks[0]["score"]  # Use top similarity score
@@ -119,16 +153,18 @@ class DocDescriptionPlugin(BasePlugin):
 
         elif self.mode == "datastore":
             if self.datastore_id:
-                # Call Vertex AI Search API
-                context = self._query_datastore(query)
+                if fallback:
+                    table_query = f"Table: {table_id}"
+                    context = self._query_datastore(table_query)
+                else:
+                    context = self._query_datastore(query)
 
-        if not context or not context.strip():
-            return None
-
-        # Generate description via Gemini
-        desc = self._generate_description_with_context(
-            table_id, col_name, col_type, context
-        )
+        desc = ""
+        if not fallback and context and context.strip():
+            # Generate description via Gemini
+            desc = self._generate_description_with_context(
+                table_id, col_name, col_type, context
+            )
 
         if desc:
             return {
@@ -138,6 +174,25 @@ class DocDescriptionPlugin(BasePlugin):
                 "Source": f"Document ({self.mode})",
                 "Rationale": f"Generated using {self.mode} document processing",
             }
+
+        if fallback:
+            # Generate fallback description (uses document context for inference if available)
+            fallback_desc = self._generate_fallback_description(
+                table_id, col_name, col_type, context
+            )
+            if fallback_desc:
+                return {
+                    "Target Column": col_name,
+                    "Proposed Description": fallback_desc,
+                    "Confidence": 0.7 if (context and context.strip()) else 0.5,
+                    "Source": f"Fallback ({self.mode})"
+                    if (context and context.strip())
+                    else "Fallback (LLM)",
+                    "Rationale": "Generated description using table context from document as fallback"
+                    if (context and context.strip())
+                    else "Generated description based on column name and type as fallback",
+                }
+
         return None
 
     def recommend_policy_tag_for_column(
@@ -388,11 +443,12 @@ Column Type: {col_type}
 Reference Documentation:
 {context}
 
-Instructions:
-1. Generate a concise description (1-2 sentences) for the column based on the provided documentation.
-2. The documentation might contain information about OTHER tables. You MUST ignore information that does not pertain to the table '{table_id}'.
-3. If the documentation does not contain EXPLICIT information for this specific column in the context of table '{table_id}', you MUST reply with "NO_INFO". Do not infer, extrapolate, or assume meanings even if they seem logical.
-4. Focus on the business meaning of the column.
+CRITICAL RULES:
+1. Scan the Reference Documentation specifically for table '{table_id}' and find where column '{col_name}' is listed/defined.
+2. If '{col_name}' is NOT explicitly defined or listed under '{table_id}' in the documentation, you MUST reply with exactly "NO_INFO" and absolutely nothing else.
+3. DO NOT infer, extrapolate, guess, or assume the description based on surrounding columns, other tables, or general knowledge. If it is not explicitly documented, output "NO_INFO".
+4. If it IS explicitly documented, generate a concise description (1-2 sentences) of the column based ONLY on the provided text.
+5. Your output must be either the column description OR exactly "NO_INFO". Do not include any preambles, explanations, or extra commentary.
 """
         logger.debug(f"Gemini Description Prompt:\n{prompt}")
         try:
@@ -409,6 +465,63 @@ Instructions:
             return text
         except Exception as e:
             logger.error(f"Failed to generate description for {col_name}: {e}")
+            return ""
+
+    def _generate_fallback_description(
+        self,
+        table_id: str,
+        col_name: str,
+        col_type: str,
+        context: str | None = None,
+    ) -> str:
+        """Calls Gemini to generate a fallback description based on schema, with optional loose grounding on context."""
+        if context and context.strip():
+            prompt = f"""
+You are a Data Steward. Your task is to generate a short, professional description for a database column.
+We have some reference documentation for the table, but it might not contain an explicit definition for this specific column. 
+You must generate the best possible description using the provided documentation as context. If the column is not explicitly defined, you should infer its meaning/purpose based on the table's overall purpose, the surrounding columns, or other context in the document.
+
+Table Name: {table_id}
+Column Name: {col_name}
+Column Type: {col_type}
+
+Reference Documentation:
+{context}
+
+Instructions:
+1. Generate a concise, professional description (1-2 sentences) for the column.
+2. Focus on the business meaning and purpose of the column in the context of this table.
+3. Keep the description clear, factual, and helpful. Do not mention that it was inferred or that documentation was missing.
+"""
+        else:
+            prompt = f"""
+You are a Data Steward. Your task is to generate a short, professional description for a database column.
+Since no reference documentation is available for this column, you must generate a description based on the column name, type, and table name.
+
+Table Name: {table_id}
+Column Name: {col_name}
+Column Type: {col_type}
+
+Instructions:
+1. Generate a concise, professional description (1-2 sentences) for the column.
+2. Focus on the typical business meaning and purpose of such a column in this context.
+3. Keep the description clear, factual, and helpful. Do not mention that it is a fallback or that documentation was missing.
+"""
+        logger.debug(f"Gemini Fallback Description Prompt:\n{prompt}")
+        try:
+            with self._lock:
+                response = self._client.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(temperature=0.0),
+                )
+            text = response.text.strip()
+            logger.debug(f"Gemini Fallback Description Response:\n{text}")
+            return text
+        except Exception as e:
+            logger.error(
+                f"Failed to generate fallback description for {col_name}: {e}"
+            )
             return ""
 
     def _generate_policy_tag_with_context(

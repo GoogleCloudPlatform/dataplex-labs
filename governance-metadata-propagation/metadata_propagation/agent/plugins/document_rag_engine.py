@@ -10,6 +10,19 @@ from .vertex_embedder import VertexAIEmbedder
 
 logger = logging.getLogger(__name__)
 
+EXTRACTION_PROMPT = (
+    "Analyze this document (which may be a raw file representation, image, PDF, or text representation of a spreadsheet) "
+    "and extract ONLY the information relevant to data governance, table definitions, column descriptions, "
+    "business glossary terms, and data classification/policy tags. "
+    "Ignore all other unrelated information (such as infrastructure setup, deployment steps, project background, cafeteria menus, administrative instructions, etc.). "
+    "Format the extracted information as clean Markdown using the following rules:\n"
+    "1. Use `# Table: [Name]` as the header for a table section.\n"
+    "2. Use `# Business Glossary for Table: [Name]` for glossary terms belonging to that table.\n"
+    "3. Use `# Policy Tags for Table: [Name]` for classification rules belonging to that table.\n"
+    "Use bold text for sub-sections (e.g., **Column Definitions**). "
+    "Do not summarize the content, just extract the relevant parts accurately."
+)
+
 
 class DocumentRAGEngine:
     def __init__(
@@ -27,6 +40,7 @@ class DocumentRAGEngine:
         self.chunks = []
         self.embeddings = []
         self._client = None
+        self._query_embeddings_cache = {}
 
     def _get_client(self):
         if self._client is None:
@@ -50,7 +64,7 @@ class DocumentRAGEngine:
         text = ""
         ext = os.path.splitext(file_path)[1].lower()
 
-        if ext in [".txt", ".pdf", ".md"]:
+        if ext in [".txt", ".pdf", ".md", ".xlsx", ".png", ".jpg", ".jpeg"]:
             text = self._extract_text_via_gemini(file_path)
         elif ext == ".docx":
             raise ValueError(
@@ -120,33 +134,40 @@ class DocumentRAGEngine:
             return ""
 
         try:
-            # Determine mime type
             ext = os.path.splitext(file_path)[1].lower()
-            if ext == ".pdf":
-                mime_type = "application/pdf"
-            elif ext in [".txt", ".md"]:
-                mime_type = "text/plain"
+
+            # Special case for .xlsx: Parse locally to text and send as text/plain
+            if ext == ".xlsx":
+                xlsx_text = self._convert_xlsx_to_text(file_path)
+                if not xlsx_text:
+                    return ""
+
+                content_parts = [xlsx_text, EXTRACTION_PROMPT]
             else:
-                mime_type = "application/octet-stream"
+                # Standard binary/multimodal or plain text files
+                if ext == ".pdf":
+                    mime_type = "application/pdf"
+                elif ext in [".txt", ".md"]:
+                    mime_type = "text/plain"
+                elif ext == ".png":
+                    mime_type = "image/png"
+                elif ext in [".jpg", ".jpeg"]:
+                    mime_type = "image/jpeg"
+                else:
+                    mime_type = "application/octet-stream"
+
+                content_parts = [
+                    types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                    EXTRACTION_PROMPT,
+                ]
 
             import time
 
             start_time = time.time()
 
             response = client.models.generate_content(
-                model="gemini-2.5-pro",  # Use pro for better extraction
-                contents=[
-                    types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-                    "Analyze this document and extract ONLY the information relevant to data governance, "
-                    "table definitions, column descriptions, business glossary terms, and data classification/policy tags. "
-                    "Ignore all other information such as infrastructure setup, deployment steps, project background, etc. "
-                    "Format the extracted information as clean Markdown using the following rules:\n"
-                    "1. Use `# Table: [Name]` as the header for a table section.\n"
-                    "2. Use `# Business Glossary for Table: [Name]` for glossary terms belonging to that table.\n"
-                    "3. Use `# Policy Tags for Table: [Name]` for classification rules belonging to that table.\n"
-                    "Use bold text for sub-sections (e.g., **Column Definitions**). "
-                    "Do not summarize the content, just extract the relevant parts accurately.",
-                ],
+                model="gemini-2.5-pro",
+                contents=content_parts,
                 config=types.GenerateContentConfig(temperature=0.0),
             )
 
@@ -237,15 +258,35 @@ class DocumentRAGEngine:
 
         return final_chunks
 
+    def pre_embed_queries(self, queries: list[str]) -> None:
+        """Pre-computes and caches embeddings for a list of queries in batch."""
+        if not queries:
+            return
+
+        # Deduplicate to avoid redundant embedding generation
+        unique_queries = list(set(queries))
+        logger.info(
+            f"Pre-embedding {len(unique_queries)} unique queries in batch..."
+        )
+
+        embs = self.embedder.get_embeddings(
+            unique_queries, task_type="RETRIEVAL_QUERY"
+        )
+        for q, emb in zip(unique_queries, embs):
+            self._query_embeddings_cache[q] = emb
+
     def retrieve(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         """Retrieves top_k most relevant chunks for a query."""
         if not self.chunks or not self.embeddings:
             logger.warning("No document loaded or embeddings missing.")
             return []
 
-        query_emb = self.embedder.get_embedding(
-            query, task_type="RETRIEVAL_QUERY"
-        )
+        # Check pre-computed cache first
+        query_emb = self._query_embeddings_cache.get(query)
+        if not query_emb:
+            query_emb = self.embedder.get_embedding(
+                query, task_type="RETRIEVAL_QUERY"
+            )
         if not query_emb:
             return []
 
@@ -270,3 +311,25 @@ class DocumentRAGEngine:
             logger.debug("-" * 20)
 
         return results
+
+    def _convert_xlsx_to_text(self, file_path: str) -> str:
+        """Reads all sheets of an Excel file and converts them locally to a CSV text representation for Gemini."""
+        import pandas as pd
+
+        try:
+            logger.info(
+                f"Converting Excel file locally to CSV representation: {file_path}"
+            )
+            xls = pd.ExcelFile(file_path)
+            csv_parts = []
+
+            for sheet_name in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet_name)
+                df = df.fillna("")  # Replace NaN with empty string
+                csv_data = df.to_csv(index=False)
+                csv_parts.append(f"--- Sheet: {sheet_name} ---\n{csv_data}")
+
+            return "\n\n".join(csv_parts)
+        except Exception as e:
+            logger.error(f"Failed to convert Excel file locally to CSV: {e}")
+            return ""

@@ -21,9 +21,7 @@ class TestNativeGlossaryLinks(unittest.TestCase):
     @patch(
         "metadata_propagation.agent.plugins.glossary_plugin.dataplex_v1.CatalogServiceClient"
     )
-    @patch(
-        "metadata_propagation.agent.plugins.glossary_plugin.get_credentials"
-    )
+    @patch("metadata_propagation.agent.plugins.glossary_plugin.get_credentials")
     def test_apply_terms_creates_links(self, mock_creds, mock_client_cls):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
@@ -61,16 +59,16 @@ class TestNativeGlossaryLinks(unittest.TestCase):
     @patch(
         "metadata_propagation.agent.plugins.glossary_plugin.dataplex_v1.CatalogServiceClient"
     )
-    @patch(
-        "metadata_propagation.agent.plugins.glossary_plugin.get_credentials"
-    )
+    @patch("metadata_propagation.agent.plugins.glossary_plugin.get_credentials")
     def test_resolve_term_entry_name_fallback(
         self, mock_creds, mock_client_cls
     ):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         self.plugin.project_id = "governance-agent"
-        self.plugin._resolve_project_number = MagicMock(return_value="1095607222622")
+        self.plugin._resolve_project_number = MagicMock(
+            return_value="1095607222622"
+        )
 
         term_resource = (
             "projects/governance-agent/locations/l/glossaries/g/terms/term1"

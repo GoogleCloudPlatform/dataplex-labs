@@ -547,6 +547,11 @@ class GlossaryPlugin(BasePlugin):
             lineage_fqn, col_list
         )
 
+        # Pre-embed column queries in batch for RAG mode to avoid N sequential size 1 embedding calls
+        if doc_plugin and (doc_path or datastore_id):
+            cols = [(f.name, f.field_type) for f in table.schema]
+            doc_plugin.pre_embed_column_queries(table_id, cols)
+
         # 4. Get Recommendations (parallelized using ThreadPoolExecutor)
         recommendations = []
         from concurrent.futures import ThreadPoolExecutor
@@ -915,7 +920,6 @@ class GlossaryPlugin(BasePlugin):
         dataplex_v1.CatalogServiceClient(
             credentials=get_credentials(self.project_id)
         )
-
 
         dataset_ref = self._bq_client.dataset(dataset_id)
         tables = list(self._bq_client.list_tables(dataset_ref))
