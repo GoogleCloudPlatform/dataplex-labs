@@ -178,37 +178,69 @@ GCP_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 
+/* --- Theme CSS Variables --- */
+:root {
+    --gcp-bg: #f8f9fa;
+    --gcp-card-bg: #ffffff;
+    --gcp-border: #dadce0;
+    --gcp-text: #202124;
+    --gcp-header-bg: #f1f3f4;
+    --gcp-primary: #1a73e8;
+    --gcp-primary-hover: #1765cc;
+    --gcp-secondary-bg: #f1f3f4;
+    --gcp-secondary-hover: #e8eaed;
+    --gcp-code-bg: rgba(0,0,0,0.05);
+    --gcp-metric-value-color: #1a73e8;
+    --gcp-metric-label-color: #5f6368;
+}
+
+.dark {
+    --gcp-bg: #202124;
+    --gcp-card-bg: #2d2e30;
+    --gcp-border: #3c4043;
+    --gcp-text: #e8eaed;
+    --gcp-header-bg: #303134;
+    --gcp-primary: #8ab4f8;
+    --gcp-primary-hover: #aecbfa;
+    --gcp-secondary-bg: #3c4043;
+    --gcp-secondary-hover: #4e5256;
+    --gcp-code-bg: rgba(255,255,255,0.1);
+    --gcp-metric-value-color: #8ab4f8;
+    --gcp-metric-label-color: #9aa0a6;
+}
+
 /* --- Global Overrides --- */
 * {
     font-family: 'Roboto', sans-serif !important;
 }
 
-body, .gradio-container, .dark, .dark .gradio-container {
-    background-color: #f8f9fa !important;
-    background: #f8f9fa !important;
+body, .gradio-container {
+    background-color: var(--gcp-bg) !important;
+    background: var(--gcp-bg) !important;
+    color: var(--gcp-text) !important;
 }
 
 /* --- Remove ALL Gradio Orange/Black/Low-Contrast --- */
 :root, .gradio-container, body, .dark, .dark :root {
-    --primary-50: #e8f0fe !important;
-    --primary-500: #1a73e8 !important;
-    --secondary-500: #1a73e8 !important;
-    --accent-500: #1a73e8 !important;
-    --body-background-fill: #f8f9fa !important;
-    --block-background-fill: #ffffff !important;
-    --block-border-color: #dadce0 !important;
-    --body-text-color: #202124 !important;
-    --block-label-text-color: #202124 !important;
-    --input-text-color: #202124 !important;
+    --primary-50: var(--gcp-bg) !important;
+    --primary-500: var(--gcp-primary) !important;
+    --secondary-500: var(--gcp-primary) !important;
+    --accent-500: var(--gcp-primary) !important;
+    --body-background-fill: var(--gcp-bg) !important;
+    --block-background-fill: var(--gcp-card-bg) !important;
+    --block-border-color: var(--gcp-border) !important;
+    --body-text-color: var(--gcp-text) !important;
+    --block-label-text-color: var(--gcp-text) !important;
+    --input-text-color: var(--gcp-text) !important;
     --button-primary-text-color: #ffffff !important;
-    --button-secondary-text-color: #202124 !important;
-    --background-fill-primary: #ffffff !important;
-    --background-fill-secondary: #f8f9fa !important;
+    --button-secondary-text-color: var(--gcp-text) !important;
+    --background-fill-primary: var(--gcp-card-bg) !important;
+    --background-fill-secondary: var(--gcp-bg) !important;
 }
 
 /* Ensure text readability on main containers */
-body, .gradio-container, p {
-    color: #202124 !important;
+body, .gradio-container, p, span, div, h1, h2, h3, h4, h5, h6 {
+    color: var(--gcp-text) !important;
 }
 
 /* Specific enforcement for Primary Buttons - White Text on Blue */
@@ -217,7 +249,7 @@ button[variant="primary"], .gr-button-primary *, button.primary *,
 .gradio-container button.primary, .gradio-container .primary {
     color: #ffffff !important;
     fill: #ffffff !important;
-    background-color: #1a73e8 !important;
+    background-color: var(--gcp-primary) !important;
 }
 
 .primary span, .gr-button-primary span, button.primary span,
@@ -226,114 +258,164 @@ button[variant="primary"], .gr-button-primary *, button.primary *,
 }
 
 .primary:hover, .gr-button-primary:hover, button.primary:hover {
-    background-color: #1765cc !important;
+    background-color: var(--gcp-primary-hover) !important;
     color: #ffffff !important;
 }
 
 .gr-button-secondary, .gr-button-secondary *, button.secondary, button.secondary * {
-    color: #202124 !important;
-    background-color: #f1f3f4 !important;
-    border: 1px solid #dadce0 !important;
+    color: var(--gcp-text) !important;
+    background-color: var(--gcp-secondary-bg) !important;
+    border: 1px solid var(--gcp-border) !important;
+}
+
+.gr-button-secondary:hover, button.secondary:hover {
+    background-color: var(--gcp-secondary-hover) !important;
 }
 
 input, textarea, select, .gr-input, .gr-box, .gr-textbox input, .gr-textbox textarea {
-    background-color: white !important;
-    color: #202124 !important;
-    border: 1px solid #dadce0 !important;
+    background-color: var(--gcp-card-bg) !important;
+    color: var(--gcp-text) !important;
+    border: 1px solid var(--gcp-border) !important;
+}
+
+/* Clean Gradio Dropdown & Select styling - single border, no nested padding/border */
+.gradio-container .dropdown-container,
+.gradio-container .dropdown-container .wrap,
+.gradio-container .dropdown-container select,
+.gradio-container .dropdown-container .wrap-inner,
+.gradio-container .dropdown-container input {
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+.gradio-container .dropdown-container {
+    border: 1px solid var(--gcp-border) !important;
+    border-radius: 4px !important;
+    background-color: var(--gcp-card-bg) !important;
+}
+
+.gradio-container .dropdown-container .options {
+    background-color: var(--gcp-card-bg) !important;
+    border: 1px solid var(--gcp-border) !important;
+    color: var(--gcp-text) !important;
+}
+
+.gradio-container .dropdown-container .item {
+    color: var(--gcp-text) !important;
+}
+
+.gradio-container .dropdown-container .item:hover {
+    background-color: var(--gcp-secondary-hover) !important;
 }
 
 .gr-label, .block label, span[data-testid="block-info"], .gr-form label, .desc-markdown p {
-    color: #202124 !important;
+    color: var(--gcp-text) !important;
     font-weight: 500 !important;
     font-size: 13px !important;
 }
 
 .gr-table, .gr-table-container, table, .dataframe, thead, tbody, tr, th, td {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    color: #202124 !important;
-    border-color: #e0e0e0 !important;
+    background-color: var(--gcp-card-bg) !important;
+    background: var(--gcp-card-bg) !important;
+    color: var(--gcp-text) !important;
+    border-color: var(--gcp-border) !important;
 }
 
 th, thead th, .gr-table thead th, .dataframe thead th, 
 .gr-table th, .dataframe th, [class*="thead"] th {
-    background-color: #f1f3f4 !important;
-    background: #f1f3f4 !important;
-    color: #202124 !important;
+    background-color: var(--gcp-header-bg) !important;
+    background: var(--gcp-header-bg) !important;
+    color: var(--gcp-text) !important;
     font-weight: 500 !important;
     text-transform: uppercase !important;
     font-size: 11px !important;
-    border-bottom: 2px solid #dadce0 !important;
+    border-bottom: 2px solid var(--gcp-border) !important;
     padding: 12px 8px !important;
 }
 
 /* Force dark text in all header children specifically */
 th span, th div, .gr-table th span, .gr-table th div,
 .dataframe th span, .dataframe th div {
-    color: #202124 !important;
+    color: var(--gcp-text) !important;
 }
 
 tbody td, .dark tbody td, tbody td span, tbody td div {
-    color: #202124 !important;
+    color: var(--gcp-text) !important;
 }
 
 input[type="checkbox"] {
     cursor: pointer !important;
     appearance: checkbox !important;
-    accent-color: #1a73e8 !important;
+    accent-color: var(--gcp-primary) !important;
     opacity: 1 !important;
     visibility: visible !important;
 }
 
 tr, .gr-table tr, .dataframe tr {
-    background-color: #ffffff !important;
+    background-color: var(--gcp-card-bg) !important;
 }
 
 .markdown code, .prose code, .markdown span, .prose span {
-    background-color: rgba(0,0,0,0.05) !important;
-    color: #202124 !important;
+    background-color: var(--gcp-code-bg) !important;
+    color: var(--gcp-text) !important;
     padding: 2px 4px !important;
     border-radius: 4px !important;
 }
 
 [style*="background-color: black"], [style*="background: black"], .bg-black {
-    background-color: #f1f3f4 !important;
-    color: #202124 !important;
+    background-color: var(--gcp-bg) !important;
+    color: var(--gcp-text) !important;
 }
 
 .tabs .tabitem.selected, .tabs button.selected {
-    border-bottom: 3px solid #1a73e8 !important;
-    color: #1a73e8 !important;
+    border-bottom: 3px solid var(--gcp-primary) !important;
+    color: var(--gcp-primary) !important;
     background: transparent !important;
 }
 
 .tabs button {
-    color: #5f6368 !important;
+    color: var(--gcp-metric-label-color) !important;
     border-bottom: 1px solid transparent !important;
 }
 
 .gcp-card {
-    background: white !important;
-    border: 1px solid #dadce0 !important;
+    background: var(--gcp-card-bg) !important;
+    border: 1px solid var(--gcp-border) !important;
     box-shadow: none !important;
+    padding: 12px 16px !important;
+}
+
+.gcp-card .prose, .gcp-card .markdown {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.gcp-card h3 {
+    margin: 0 0 8px 0 !important;
+}
+
+.gcp-card .block, .gcp-card .form, .gcp-card .dataframe {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .gcp-metric-card {
-    background: white !important;
-    border: 1px solid #dadce0 !important;
+    background: var(--gcp-card-bg) !important;
+    border: 1px solid var(--gcp-border) !important;
     border-radius: 8px !important;
     padding: 24px 16px !important;
     text-align: center !important;
 }
 
 .gcp-metric-value {
-    color: #1a73e8 !important;
+    color: var(--gcp-metric-value-color) !important;
     font-size: 36px !important;
     font-weight: 500 !important;
 }
 
 .gcp-metric-label {
-    color: #5f6368 !important;
+    color: var(--gcp-metric-label-color) !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     text-transform: uppercase !important;
@@ -736,11 +818,24 @@ with gr.Blocks(title="Governance on Auto-pilot") as demo:
 
         with gr.Accordion("Global Environment Settings", open=True):
             with gr.Row():
-                config_project = gr.Textbox(
-                    label="Project ID", value=DEFAULT_PROJECT_ID
+                config_project = gr.Dropdown(
+                    label="Project ID",
+                    choices=[DEFAULT_PROJECT_ID],
+                    value=DEFAULT_PROJECT_ID,
+                    allow_custom_value=True,
                 )
-                config_location = gr.Textbox(
-                    label="Location", value=DEFAULT_LOCATION
+                config_location = gr.Dropdown(
+                    label="Location",
+                    choices=[
+                        "us-central1",
+                        "europe-west1",
+                        "us-east1",
+                        "us-west1",
+                        "europe-west2",
+                        "asia-east1",
+                    ],
+                    value=DEFAULT_LOCATION,
+                    allow_custom_value=True,
                 )
             with gr.Row():
                 config_cache_dataset = gr.Textbox(
@@ -806,6 +901,9 @@ with gr.Blocks(title="Governance on Auto-pilot") as demo:
                 with gr.Row():
                     with gr.Column(elem_classes=["gcp-card"]):
                         gr.Markdown("### 🔍 Technical Description Gaps")
+                        gr.Markdown(
+                            "<small>Tables and columns lacking a documented description.</small>"
+                        )
                         desc_output = gr.Dataframe(
                             headers=["Table", "Missing Descriptions"],
                             interactive=False,
@@ -813,6 +911,9 @@ with gr.Blocks(title="Governance on Auto-pilot") as demo:
                         )
                     with gr.Column(elem_classes=["gcp-card"]):
                         gr.Markdown("### 📖 Business Glossary Gaps")
+                        gr.Markdown(
+                            "<small>Columns missing direct mapping to business glossary terms.</small>"
+                        )
                         glossary_gap_output = gr.Dataframe(
                             headers=["Table", "Missing Glossary Mappings"],
                             interactive=False,
