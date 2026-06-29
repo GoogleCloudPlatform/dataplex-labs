@@ -60,7 +60,7 @@ uv run python -m metadata_propagation.ui.gradio_app
 - **Trust Center (DQ)**: Analyze derived trust scores for a view or table, showing upstream quality sources and remediation bonuses.
 - **Settings**: Toggle OAuth/ADC modes for specific user actions.
 
-### 3. 🐳 Deployment (Docker & Cloud Run)
+### 2. 🐳 Deployment (Docker & Cloud Run)
 For production or headless environments, the app is container-ready.
 
 **Local Docker**:
@@ -83,7 +83,7 @@ chmod +x deploy.sh
 ```
 *Note: Ensure your Service URL is added to the Authorized Redirect URIs in your GCP OAuth Client credentials.*
 
-### 4. Steward CLI (Headless)
+### 3. Steward CLI (Headless)
 The CLI is designed for automation and quick scans.
 ```bash
 # Scan a dataset for missing descriptions
