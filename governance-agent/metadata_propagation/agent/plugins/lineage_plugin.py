@@ -215,6 +215,7 @@ class LineagePlugin(BasePlugin):
         datastore_id: str | None = None,
         force: bool = False,
         fallback_to_llm: bool = True,
+        force_refresh: bool = False,
     ) -> pd.DataFrame:
         """
         Simulates description propagation for a specific table with multi-hop support and SQL parsing (parallelized).
@@ -235,7 +236,7 @@ class LineagePlugin(BasePlugin):
             )
             doc_plugin = DocDescriptionPlugin(self.project_id, self.location)
             doc_plugin.load_document(
-                document_path, mode=context_mode, datastore_id=datastore_id
+                document_path, mode=context_mode, datastore_id=datastore_id, force_refresh=force_refresh
             )
 
         logger.info(

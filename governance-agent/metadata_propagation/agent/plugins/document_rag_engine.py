@@ -1,5 +1,7 @@
 import logging
 import os
+import tempfile
+import time
 from typing import Any
 
 from google import genai
@@ -56,7 +58,7 @@ class DocumentRAGEngine:
         return self._client
 
     def load_document(
-        self, file_path: str, chunk_size: int = 1000, chunk_overlap: int = 200
+        self, file_path: str, chunk_size: int = 1000, chunk_overlap: int = 200, force_refresh: bool = False
     ):
         """Loads a document (PDF or TXT), extracts text, chunks it, and generates embeddings."""
         logger.info(f"Loading document from {file_path}")
@@ -65,7 +67,7 @@ class DocumentRAGEngine:
         ext = os.path.splitext(file_path)[1].lower()
 
         if ext in [".txt", ".pdf", ".md", ".xlsx", ".png", ".jpg", ".jpeg"]:
-            text = self._extract_text_via_gemini(file_path)
+            text = self._extract_text_via_gemini(file_path, force_refresh=force_refresh)
         elif ext == ".docx":
             raise ValueError(
                 "DOCX files are not supported directly by Gemini in this setup. Please convert to PDF or TXT first."
@@ -98,7 +100,7 @@ class DocumentRAGEngine:
             self.embeddings.extend(new_embeddings)
             logger.info("Embeddings generated successfully.")
 
-    def _extract_text_via_gemini(self, file_path: str) -> str:
+    def _extract_text_via_gemini(self, file_path: str, force_refresh: bool = False) -> str:
         """Uses Gemini to extract text and format as Markdown, with hash-based caching."""
         import hashlib
 
@@ -112,16 +114,27 @@ class DocumentRAGEngine:
         # Calculate hash
         file_hash = hashlib.md5(file_bytes).hexdigest()
 
-        # Cache directory in project root (.rag_cache)
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(current_dir, "../.."))
-        cache_dir = os.path.join(project_root, ".rag_cache")
+        # Cache directory in system temp directory (/tmp/governance_agent_rag_cache)
+        cache_dir = os.path.join(tempfile.gettempdir(), "governance_agent_rag_cache")
         os.makedirs(cache_dir, exist_ok=True)
+
+        # Automated TTL purge: remove cached files older than 30 days
+        now_ts = time.time()
+        ttl_sec = 30 * 86400
+        for c_file in os.listdir(cache_dir):
+            c_path = os.path.join(cache_dir, c_file)
+            if os.path.isfile(c_path):
+                try:
+                    if now_ts - os.path.getmtime(c_path) > ttl_sec:
+                        os.remove(c_path)
+                        logger.debug(f"Purged expired RAG cache file (> 30 days old): {c_path}")
+                except Exception:
+                    pass
 
         base_name = os.path.basename(file_path)
         cached_path = os.path.join(cache_dir, f"{base_name}.{file_hash}.md")
 
-        if os.path.exists(cached_path):
+        if not force_refresh and os.path.exists(cached_path):
             logger.info(f"Found cached Markdown file: {cached_path}")
             with open(cached_path, encoding="utf-8") as f:
                 return f.read()
@@ -160,8 +173,6 @@ class DocumentRAGEngine:
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                     EXTRACTION_PROMPT,
                 ]
-
-            import time
 
             start_time = time.time()
 

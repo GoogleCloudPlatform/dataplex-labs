@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 
 # Force gRPC to use native IPv4 resolver to bypass macOS IPv6 lookup hangs/timeouts
 os.environ["GRPC_DNS_RESOLVER"] = "native"
@@ -198,6 +200,11 @@ def main():
         action="store_true",
         help="Disable general LLM fallback description generation if data dictionary and lineage matches are missing",
     )
+    apply_parser.add_argument(
+        "--force-cache",
+        action="store_true",
+        help="Force recreate document extraction even if already cached",
+    )
 
     # Glossary recommend command
     glossary_parser = subparsers.add_parser(
@@ -336,7 +343,24 @@ def main():
         "--apply", action="store_true", help="Apply updates to BigQuery"
     )
 
+    # Clear RAG Cache command
+    subparsers.add_parser(
+        "clear-cache",
+        help="Clear local and system RAG cache files",
+    )
+
     args = parser.parse_args()
+
+    if args.command == "clear-cache":
+        cache_dir = os.path.join(
+            tempfile.gettempdir(), "governance_agent_rag_cache"
+        )
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir)
+            print(f"✅ Cleared RAG cache directory: {cache_dir}")
+        else:
+            print("ℹ️ RAG cache directory does not exist or is already empty.")
+        return
 
     # Configure logging based on debug flag
     log_file_path = None
@@ -418,6 +442,7 @@ def main():
             datastore_id=args.datastore_id,
             force=args.force,
             fallback_to_llm=not args.no_fallback,
+            force_refresh=args.force_cache,
         )
 
         if df.empty:

@@ -52,6 +52,7 @@ class DocDescriptionPlugin(BasePlugin):
         doc_path: list[str] | None,
         mode: str = "rag",
         datastore_id: str | None = None,
+        force_refresh: bool = False,
     ):
         """Loads the document(s) or sets up the DataStore."""
         self._ensure_initialized()
@@ -69,7 +70,7 @@ class DocDescriptionPlugin(BasePlugin):
 
         if self.mode == "rag":
             for path in doc_path:
-                self._rag_engine.load_document(path)
+                self._rag_engine.load_document(path, force_refresh=force_refresh)
         elif self.mode == "direct":
             self.full_text = ""
             import os
