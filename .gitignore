@@ -356,7 +356,7 @@ MigrationBackup/
 session.db
 .venv/
 
-#governance_metadata_propagation
+#governance-agent
 __pycache__/
 .env
 .DS_Store
