@@ -33,7 +33,7 @@ This project demonstrates an agentic data governance solution using Google Cloud
 1.  **Clone & Navigate**:
     ```bash
     git clone <repo-url>
-    cd governance-metadata-propagation
+    cd governance-agent
     ```
 2.  **Environment Setup**:
     ```bash

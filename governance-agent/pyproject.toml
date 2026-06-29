@@ -1,5 +1,5 @@
 [project]
-name = "governance-metadata-propagation"
+name = "governance-agent"
 version = "0.0.1"
 description = "Agentic Data Governance with Knowledge Catalog: automatic metadata propagation using Column Level Lineage."
 authors = [
@@ -33,6 +33,7 @@ dependencies = [
     "google-cloud-recommender>=2.14.0",
     "pyOpenSSL>=24.0.0",
     "reportlab>=4.1.0",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

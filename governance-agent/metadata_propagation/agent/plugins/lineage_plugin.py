@@ -227,9 +227,9 @@ class LineagePlugin(BasePlugin):
 
         candidates = []
 
-        # 1. Load document or datastore if provided or fallback is enabled (One-time setup)
+        # 1. Load document or datastore if provided (One-time setup)
         doc_plugin = None
-        if document_path or datastore_id or fallback_to_llm:
+        if document_path or datastore_id:
             logger.info(
                 f"Initializing DocDescriptionPlugin for document context / fallback in mode: {context_mode}"
             )
