@@ -65,11 +65,14 @@ The service account must have the required IAM roles, and your user account must
 # Authenticate your user account
 gcloud auth login
 
-# Then impersonate the service account for ADC
+# Impersonate the service account for ADC with required scopes
 SA_EMAIL="<service-account-emailid>"
 gcloud auth application-default login \
   --impersonate-service-account="${SA_EMAIL}" \
-  --scopes="https://www.googleapis.com/auth/spreadsheets.readonly"
+  --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets"
+
+# (Optional) Export environment variable for additional safety
+export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT="${SA_EMAIL}"
 ```
 
 ---

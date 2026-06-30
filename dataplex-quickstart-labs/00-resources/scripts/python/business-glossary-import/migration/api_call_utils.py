@@ -15,12 +15,15 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging_utils.get_logger()
 
 
+import threading
+
 # Cache
 cached_creds = None
 cached_token = None
 last_refresh_time = 0
 
 REFRESH_INTERVAL_SECONDS = 55 * 60  # 55 minutes
+_adc_token_lock = threading.Lock()
 
 def _refresh_adc_token():
     """Refresh ADC credentials and update cache."""
@@ -37,16 +40,17 @@ def _get_header(project_id: str) -> Dict[str, str]:
     """Return headers using ADC, refreshing token every 30 minutes."""
     global last_refresh_time, cached_token
 
-    is_token_expired = (time.time() - last_refresh_time) > REFRESH_INTERVAL_SECONDS
-    if not cached_token or is_token_expired:
-        logger.debug("Refreshing ADC token (interval reached)...")
-        _refresh_adc_token()
+    with _adc_token_lock:
+        is_token_expired = (time.time() - last_refresh_time) > REFRESH_INTERVAL_SECONDS
+        if not cached_token or is_token_expired:
+            logger.debug("Refreshing ADC token (interval reached)...")
+            _refresh_adc_token()
 
-    return {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {cached_token}",
-        "X-Goog-User-Project": project_id,
-    }
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cached_token}",
+            "X-Goog-User-Project": project_id,
+        }
 
 def extract_error_details(
   response_err: requests.exceptions.RequestException,
