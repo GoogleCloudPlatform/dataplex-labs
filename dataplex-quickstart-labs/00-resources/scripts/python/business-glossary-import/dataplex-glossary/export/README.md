@@ -70,7 +70,7 @@ Share the Google Sheet with the service account (`SA_EMAIL`) as an **Editor** so
 
 ### Authentication
 
-Use the following commands to authenticate yourself first, then create Application Default Credentials (ADC) by impersonating the service account used by the scripts.
+Use the following commands to authenticate yourself first, then configure Application Default Credentials (ADC) for service account impersonation.
 
 The service account must have the required IAM roles, and your user account must have `roles/iam.serviceAccountTokenCreator` on that service account.
 
@@ -78,11 +78,15 @@ The service account must have the required IAM roles, and your user account must
 # Authenticate your user account
 gcloud auth login
 
-# Then impersonate the service account for ADC
+# Option A: Authenticate ADC with impersonation & required scopes directly
 SA_EMAIL="<service-account-emailid>"
 gcloud auth application-default login \
   --impersonate-service-account="${SA_EMAIL}" \
-  --scopes="https://www.googleapis.com/auth/spreadsheets"
+  --scopes="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets"
+
+# Option B: Or authenticate standard ADC and export the environment variable
+gcloud auth application-default login
+export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT="<service-account-emailid>"
 ```
 
 ---
