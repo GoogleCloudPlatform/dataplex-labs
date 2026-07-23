@@ -20,7 +20,10 @@ logger = logging_utils.get_logger()
 def get_dataplex_service() -> Resource:
     """Returns an authenticated Dataplex service client."""
     logger.debug("Initializing Dataplex service client.")
-    credentials, _ = google.auth.default()
+    credentials, _ = google.auth.default(scopes=[
+        'https://www.googleapis.com/auth/cloud-platform',
+        'https://www.googleapis.com/auth/spreadsheets'
+    ])
     http_client = httplib2.Http(timeout=300)
     authorized_http = google_auth_httplib2.AuthorizedHttp(credentials, http=http_client)
     return build('dataplex', 'v1', http=authorized_http, cache_discovery=False)
