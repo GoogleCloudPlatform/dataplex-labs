@@ -365,3 +365,5 @@ dq_history.json
 scratch/
 .agents/
 .rag_cache/
+
+uv.lock
