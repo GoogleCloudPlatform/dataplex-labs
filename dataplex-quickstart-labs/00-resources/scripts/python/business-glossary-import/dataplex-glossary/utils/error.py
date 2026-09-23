@@ -75,3 +75,11 @@ class GlossaryNotFoundError(Exception):
 class EntryFQNNotFoundError(Exception):
     """Raised when a data asset entry cannot be found (or read) by its FQN."""
     pass
+
+class InvalidAspectIdentifierError(Exception):
+    """Raised when an 'Aspect name' cell cannot be parsed."""
+    pass
+
+class AspectValidationError(Exception):
+    """Raised when an aspect row fails validation."""
+    pass
