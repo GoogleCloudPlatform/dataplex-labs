@@ -144,8 +144,14 @@ Where:
     *   Full resource path —
         `projects/{project}/locations/{location}/aspectTypes/{aspectType}/{field}`
 
-    Project and location default to the **target glossary's** when omitted.
-    Dotted field names address record sub-fields (`custom-gov.owner.email`).
+    Project and location default to the **target glossary's** when omitted,
+    so use the qualified or resource-path form for aspect types that live in a
+    different project or location (for example a `global` aspect type used on
+    a regional glossary). Dotted field names address record sub-fields
+    (`custom-gov.owner.email`). The resource-path form is never ambiguous; use
+    it when the project id contains `.` or `:`, or when a short-form field
+    starts with a segment that looks like a location (`custom-gov.us.tax.rate`
+    would be read as project `custom-gov`, location `us`).
 *   `Aspect value` (required): The scalar or serialized value.
 
 #### Worked example
@@ -209,35 +215,63 @@ warning is logged and the heuristics above are used instead.
 
 Aspect rows are validated with row-numbered messages, like the glossary sheet:
 
+*   A non-empty aspects sheet whose first row does not contain the
+    `id`, `Aspect name` and `Aspect value` headers.
 *   Missing `id` or missing `Aspect name`.
 *   `id` that does not exist in Sheet 1.
 *   Malformed `Aspect name` (no field component, empty dotted segments, bad
     resource path).
-*   Duplicate `(id, Aspect name)` pairs.
-*   System aspects (`overview`, `contacts`, `glossary-term-aspect`,
-    `glossary-category-aspect`) — these are owned by Sheet 1's `overview` and
-    `contact*` columns and are rejected if set from Sheet 2.
+*   Duplicate `(id, aspect type, field)` combinations. Names are compared after
+    parsing, so `custom-gov.tier` and
+    `my-project.us-central1.custom-gov.tier` count as the same field. Field
+    names are case-sensitive, like the AspectType's `MetadataTemplate`.
+*   Overlapping fields for the same `(id, aspect type)`, such as
+    `custom-gov.owner` and `custom-gov.owner.email`: set either the whole value
+    or its sub-fields, not both.
+*   Reserved aspect type ids (`overview`, `contacts`, `glossary-term-aspect`,
+    `glossary-category-aspect`, `glossary-aspect`), in **any** project or
+    location. Dataplex Business Glossary treats these ids as its built-in
+    aspects: `overview` and `contacts` come from Sheet 1's `overview` and
+    `contact*` columns, and the `glossary-*` aspects are structural.
 
-Any aspect validation error fails the run before anything is uploaded.
+Any aspect validation error fails the run before anything is uploaded. So does
+any failure to read the aspects sheet (the spreadsheet or worksheet cannot be
+opened, or its values cannot be read), so that a transient Sheets API error can
+never turn into an import that drops custom aspects.
 
 #### Aspect sync semantics (IMPORTANT)
 
 The metadata job is created with `"entry_sync_mode": "FULL"` and
-`"aspect_sync_mode": "INCREMENTAL"`. INCREMENTAL is the correct mode for
-adding and updating aspects: aspects present in the import file are created or
-overwritten, and aspects **not** mentioned are left untouched.
+`"aspect_sync_mode": "INCREMENTAL"`, scoped to the glossary. For glossary
+imports, Dataplex **recreates** every term and category that already exists in
+the glossary from the import file: the existing entry is replaced, and only the
+aspects present in the file are kept. Unmentioned aspects are **not** preserved,
+whatever `aspect_sync_mode` says.
 
-> **Deleting a row from Sheet 2 does NOT remove the aspect from the entry.**
-> Under INCREMENTAL the importer has no way to express "remove this aspect".
-> To remove a custom aspect you must delete it out of band (for example with
-> `gcloud dataplex entries update --aspect-keys ...` or the Entries API).
+In practice, the spreadsheet is the complete description of each term's and
+category's aspects:
+
+*   Adding or changing a row in Sheet 2 adds or updates that aspect field.
+*   Deleting a row from Sheet 2 **removes** that field (and the aspect, once all
+    of its rows are gone) on the next import.
+*   Importing with Sheet 2 missing or empty **removes all custom aspects** from
+    the imported terms and categories.
+
+> [!WARNING]
+> **Always export first.** Before importing into a glossary whose terms or
+> categories already carry custom aspects, run the export into the spreadsheet
+> you are going to import, so that Sheet 2 holds the current aspects. Then edit
+> and import that spreadsheet. The importer prints a warning whenever it is
+> about to import without custom aspects.
 
 #### Backward compatibility
 
-If the second sheet is absent, empty, or header-only, the import behaves
-**exactly** as it did before — a single informational line is printed and no
-custom aspects are attached. Existing single-sheet spreadsheets continue to
-import unchanged.
+If the second sheet is absent, empty, or header-only, the import proceeds with
+no custom aspects and prints a warning, so existing single-sheet spreadsheets
+still import. As described above, any custom aspects already attached to the
+imported terms and categories are removed in that case. This is not new: the
+import never carried custom aspects before Sheet 2 existed, so it always
+removed them. Sheet 2 is what lets them survive a round trip.
 
 #### Overriding the sheet name
 

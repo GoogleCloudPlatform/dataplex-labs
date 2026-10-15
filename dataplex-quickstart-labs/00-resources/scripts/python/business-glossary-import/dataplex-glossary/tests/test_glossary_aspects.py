@@ -6,13 +6,17 @@ Test coverage:
 - coerce_aspect_value (string, int, float, bool spellings, RFC3339 datetime,
   JSON array, JSON object, comma-list)
 - serialize_aspect_value round-trips
-- is_system_aspect for BOTH key prefix styles (numeric project number and
-  friendly project id)
-- flatten_aspect_data / set_nested_aspect_field record handling
+- is_system_aspect by aspect type id in any project (matching the Dataplex
+  glossary import validation), for both project spellings
+- split_aspect_key / format_aspect_identifier_for_sheet (export round trip)
+- flatten_aspect_data / set_nested_aspect_field / find_conflicting_field_path
 - Aggregation of multiple Sheet 2 rows into one aspect data dict
-- Missing / empty / header-only Sheet 2 -> no aspects, no exception
-- Aspect row validation errors (unknown id, malformed name, empties, dupes)
-- Export with mixed system + custom aspects
+- Missing / empty / header-only Sheet 2 -> no aspects plus a warning
+- Unreadable Sheet 2 or a bad header -> the import fails
+- Aspect row validation errors (unknown id, malformed name, empties, canonical
+  duplicates, overlapping fields, reserved aspect type ids)
+- Export with mixed system + custom aspects, qualified names for aspect types
+  outside the glossary's project/location, and stale Sheet 2 clearing
 - api_layer.get_aspect_type caching and permission fallback
 """
 
@@ -28,7 +32,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils import api_layer, business_glossary_utils, sheet_utils
 from utils.constants import ASPECTS_SHEET_NAME, ASPECT_SHEET_HEADERS
-from utils.error import AspectValidationError, InvalidAspectIdentifierError
+from utils.error import (
+    AspectSheetHeaderError,
+    AspectValidationError,
+    InvalidAspectIdentifierError,
+)
 from utils.models import AspectRow, ParsedAspectIdentifier
 
 
@@ -187,6 +195,84 @@ class TestFormatAspectIdentifier:
         parsed = business_glossary_utils.parse_aspect_identifier(formatted, "p", "global")
         assert parsed.aspect_type_id == "custom-gov"
         assert parsed.field_name == "owner.email"
+
+
+class TestFormatAspectIdentifierForSheet:
+    """Tests for format_aspect_identifier_for_sheet (export round trip)."""
+
+    def _format(self, project, location, aspect_type_id, field_name,
+                glossary_project="my-project", glossary_location="us-central1"):
+        return business_glossary_utils.format_aspect_identifier_for_sheet(
+            project, location, aspect_type_id, field_name,
+            default_project=glossary_project, default_location=glossary_location,
+        )
+
+    def _round_trip(self, cell, glossary_project="my-project", glossary_location="us-central1"):
+        parsed = business_glossary_utils.parse_aspect_identifier(
+            cell, glossary_project, glossary_location
+        )
+        return parsed.project_id, parsed.location, parsed.aspect_type_id, parsed.field_name
+
+    def test_same_project_and_location_uses_short_form(self):
+        assert self._format("my-project", "us-central1", "custom-gov", "tier") == "custom-gov.tier"
+
+    def test_global_aspect_type_on_regional_glossary_is_qualified(self):
+        cell = self._format("my-project", "global", "custom-gov", "tier")
+        assert cell == "my-project.global.custom-gov.tier"
+        assert self._round_trip(cell) == ("my-project", "global", "custom-gov", "tier")
+
+    def test_cross_project_aspect_type_is_qualified(self):
+        cell = self._format("shared-gov", "global", "custom-gov", "tier")
+        assert cell == "shared-gov.global.custom-gov.tier"
+        assert self._round_trip(cell) == ("shared-gov", "global", "custom-gov", "tier")
+
+    def test_domain_scoped_project_uses_resource_form(self):
+        cell = self._format("google.com:gov", "global", "custom-gov", "owner.email")
+        assert cell == "projects/google.com:gov/locations/global/aspectTypes/custom-gov/owner.email"
+        assert self._round_trip(cell) == ("google.com:gov", "global", "custom-gov", "owner.email")
+
+    def test_unrecognized_location_uses_resource_form(self):
+        cell = self._format("shared-gov", "nam3", "custom-gov", "tier")
+        assert cell == "projects/shared-gov/locations/nam3/aspectTypes/custom-gov/tier"
+        assert self._round_trip(cell) == ("shared-gov", "nam3", "custom-gov", "tier")
+
+    def test_field_that_looks_like_a_location_avoids_short_form(self):
+        """'custom-gov.us.tax.rate' would be read as project 'custom-gov' in 'us'."""
+        cell = self._format("my-project", "us-central1", "custom-gov", "us.tax.rate")
+        assert cell == "my-project.us-central1.custom-gov.us.tax.rate"
+        assert self._round_trip(cell) == ("my-project", "us-central1", "custom-gov", "us.tax.rate")
+
+    def test_same_type_id_in_two_projects_stays_distinct(self):
+        first = self._format("my-project", "us-central1", "custom-gov", "tier")
+        second = self._format("other-project", "us-central1", "custom-gov", "tier")
+        assert self._round_trip(first) != self._round_trip(second)
+
+    def test_missing_component_raises(self):
+        with pytest.raises(InvalidAspectIdentifierError):
+            self._format("", "global", "custom-gov", "tier")
+
+
+class TestSplitAspectKey:
+    """Tests for split_aspect_key."""
+
+    def test_numeric_project_key(self):
+        assert business_glossary_utils.split_aspect_key("655216118709.global.overview") == (
+            "655216118709", "global", "overview"
+        )
+
+    def test_domain_scoped_project_key(self):
+        assert business_glossary_utils.split_aspect_key("google.com:gov.us-central1.custom-gov") == (
+            "google.com:gov", "us-central1", "custom-gov"
+        )
+
+    def test_resource_name(self):
+        assert business_glossary_utils.split_aspect_key(
+            "projects/p/locations/eu/aspectTypes/custom-gov"
+        ) == ("p", "eu", "custom-gov")
+
+    @pytest.mark.parametrize("key", ["", "custom-gov", "a.b", "a..b"])
+    def test_unsplittable_returns_none(self, key):
+        assert business_glossary_utils.split_aspect_key(key) is None
 
 
 # ============================================================================
@@ -362,6 +448,33 @@ class TestIsSystemAspect:
         assert business_glossary_utils.is_system_aspect("overview") is True
         assert business_glossary_utils.is_system_aspect("contacts") is True
 
+    @pytest.mark.parametrize("key", [
+        "655216118709.global.glossary-aspect",
+        "dataplex-types.global.glossary-aspect",
+        "glossary-aspect",
+    ])
+    def test_glossary_aspect_is_system(self, key):
+        """Dataplex rejects glossary-aspect on terms and categories."""
+        assert business_glossary_utils.is_system_aspect(key) is True
+
+    @pytest.mark.parametrize("key", [
+        "my-project.us-central1.overview",
+        "my-project.global.contacts",
+        "projects/my-project/locations/us-central1/aspectTypes/overview",
+        "google.com:gov.global.glossary-term-aspect",
+    ])
+    def test_reserved_ids_match_in_any_project_and_location(self, key):
+        """Mirrors the backend, which matches these ids whatever the project."""
+        assert business_glossary_utils.is_system_aspect(key) is True
+
+    @pytest.mark.parametrize("key", [
+        "my-project.global.data-overview",
+        "my-project.global.overview-v2",
+        "projects/my-project/locations/global/aspectTypes/my-contacts",
+    ])
+    def test_ids_that_only_contain_a_reserved_word_are_custom(self, key):
+        assert business_glossary_utils.is_system_aspect(key) is False
+
     def test_resource_name_form(self):
         assert business_glossary_utils.is_system_aspect(
             "projects/dataplex-types/locations/global/aspectTypes/overview"
@@ -408,6 +521,17 @@ class TestFlattenAspectData:
     def test_non_dict_input(self):
         assert business_glossary_utils.flatten_aspect_data("not a dict") == []
 
+    def test_map_with_dotted_keys_stays_json(self):
+        """Flattening {'a.b': 1} would rebuild {'a': {'b': 1}} on import."""
+        assert business_glossary_utils.flatten_aspect_data(
+            {"labels": {"team.name": "core"}}
+        ) == [("labels", '{"team.name":"core"}')]
+
+    def test_map_with_empty_key_stays_json(self):
+        assert business_glossary_utils.flatten_aspect_data(
+            {"labels": {"": "x"}}
+        ) == [("labels", '{"":"x"}')]
+
     def test_round_trip_through_nested_rebuild(self):
         original = {"tier": "HIGH", "owner": {"email": "a@b.c"}, "tags": ["x"]}
         rebuilt = {}
@@ -447,6 +571,41 @@ class TestSetNestedAspectField:
         data = {"owner": "someone"}
         with pytest.raises(InvalidAspectIdentifierError):
             business_glossary_utils.set_nested_aspect_field(data, ["owner", "email"], "a@b.c")
+
+    def test_existing_subfields_are_not_overwritten(self):
+        """'owner.email' then 'owner' must not silently drop the email."""
+        data = {}
+        business_glossary_utils.set_nested_aspect_field(data, ["owner", "email"], "a@b.c")
+        with pytest.raises(InvalidAspectIdentifierError):
+            business_glossary_utils.set_nested_aspect_field(data, ["owner"], "alice")
+        assert data == {"owner": {"email": "a@b.c"}}
+
+    def test_existing_leaf_is_not_overwritten(self):
+        data = {}
+        business_glossary_utils.set_nested_aspect_field(data, ["tier"], "HIGH")
+        with pytest.raises(InvalidAspectIdentifierError):
+            business_glossary_utils.set_nested_aspect_field(data, ["tier"], "LOW")
+        assert data == {"tier": "HIGH"}
+
+
+class TestFindConflictingFieldPath:
+    """Tests for find_conflicting_field_path."""
+
+    @pytest.mark.parametrize("assigned,new_path", [
+        ([("owner",)], ("owner", "email")),
+        ([("owner", "email")], ("owner",)),
+        ([("tier",)], ("tier",)),
+    ])
+    def test_overlaps_are_reported(self, assigned, new_path):
+        assert business_glossary_utils.find_conflicting_field_path(assigned, new_path) == assigned[0]
+
+    @pytest.mark.parametrize("assigned,new_path", [
+        ([("owner", "email")], ("owner", "name")),
+        ([("tier",)], ("tier_v2",)),
+        ([], ("tier",)),
+    ])
+    def test_disjoint_paths_are_allowed(self, assigned, new_path):
+        assert business_glossary_utils.find_conflicting_field_path(assigned, new_path) is None
 
 
 class TestAspectKeyHelpers:
@@ -557,11 +716,26 @@ class TestRowsToAspectRows:
         ])
         assert len(rows) == 1
 
-    def test_unrecognized_headers_ignored(self):
-        assert sheet_utils.rows_to_aspect_rows([
-            ["foo", "bar", "baz"],
-            ["term-1", "custom-gov.tier", "HIGH"],
-        ]) == []
+    def test_completely_blank_sheet_returns_empty(self):
+        assert sheet_utils.rows_to_aspect_rows([["", ""], [], ["  "]]) == []
+
+    @pytest.mark.parametrize("header", [
+        ["foo", "bar", "baz"],
+        ["id", "Aspect", "Value"],
+        ["Category ID", "Aspect name", "Aspect value"],
+    ])
+    def test_unrecognized_headers_raise(self, header):
+        """A mistyped header must not be read as 'no aspects' (that would wipe them)."""
+        with pytest.raises(AspectSheetHeaderError):
+            sheet_utils.rows_to_aspect_rows([header, ["term-1", "custom-gov.tier", "HIGH"]])
+
+    def test_unrecognized_header_without_data_rows_raises(self):
+        with pytest.raises(AspectSheetHeaderError):
+            sheet_utils.rows_to_aspect_rows([["notes about this tab"]])
+
+    def test_blank_header_with_data_raises(self):
+        with pytest.raises(AspectSheetHeaderError):
+            sheet_utils.rows_to_aspect_rows([["", "", ""], ["term-1", "custom-gov.tier", "HIGH"]])
 
 
 class TestResolveAspectsSheetName:
@@ -621,34 +795,6 @@ class TestSheetExists:
             Exception("boom")
         )
         assert sheet_utils.sheet_exists(mock_sheets_client, 'sid', 'Sheet2') is False
-
-
-class TestReadAspectRows:
-    """Tests for sheet_utils.read_aspect_rows."""
-
-    def test_missing_sheet_returns_empty(self, mock_sheets_client):
-        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
-            'sheets': [{'properties': {'title': 'Sheet1'}}]
-        }
-        with patch.object(sheet_utils, 'authenticate_sheets', return_value=mock_sheets_client):
-            rows = sheet_utils.read_aspect_rows(
-                'https://docs.google.com/spreadsheets/d/abc123/edit'
-            )
-        assert rows == []
-
-    def test_reads_rows_when_present(self, mock_sheets_client):
-        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
-            'sheets': [{'properties': {'title': 'Sheet2', 'sheetId': 1}}]
-        }
-        mock_sheets_client.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
-            'values': [ASPECT_SHEET_HEADERS, ['term-1', 'custom-gov.tier', 'HIGH']]
-        }
-        with patch.object(sheet_utils, 'authenticate_sheets', return_value=mock_sheets_client):
-            rows = sheet_utils.read_aspect_rows(
-                'https://docs.google.com/spreadsheets/d/abc123/edit'
-            )
-        assert len(rows) == 1
-        assert rows[0].aspect_name == 'custom-gov.tier'
 
 
 class TestWriteAspectRows:
@@ -826,6 +972,25 @@ class TestExportGetAspectsFromEntry:
         )
         assert result['custom'] == {}
 
+    def test_glossary_aspect_excluded(self):
+        result = glossary_export._get_aspects_from_entry(_entry_with_aspects({
+            '655216118709.global.glossary-aspect': {'data': {}},
+        }))
+        assert result['custom'] == {}
+
+    def test_user_aspect_with_reserved_id_is_skipped_with_warning(self, caplog):
+        with caplog.at_level('WARNING'):
+            result = glossary_export._get_aspects_from_entry(_entry_with_aspects({
+                '123456.us-central1.overview': {'data': {'summary': 'x'}},
+            }))
+        assert result['custom'] == {}
+        assert "reserved aspect type id 'overview'" in caplog.text
+
+    def test_builtin_system_aspects_do_not_warn(self, caplog):
+        with caplog.at_level('WARNING'):
+            glossary_export._get_aspects_from_entry(_entry_with_aspects(MIXED_ASPECTS))
+        assert 'reserved aspect type id' not in caplog.text
+
 
 class TestExportAspectRows:
     """Tests for glossary-export._get_aspect_rows_for_entry."""
@@ -843,7 +1008,7 @@ class TestExportAspectRows:
     def test_category_rows(self):
         rows = glossary_export._get_aspect_rows_for_entry(
             CATEGORY,
-            _entry_with_aspects({'my-project.global.custom-gov': {'data': {'tier': 'LOW'}}}),
+            _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {'tier': 'LOW'}}}),
         )
         assert rows == [['cat-core', 'custom-gov.tier', 'LOW']]
 
@@ -851,7 +1016,7 @@ class TestExportAspectRows:
         rows = glossary_export._get_aspect_rows_for_entry(
             TERM,
             _entry_with_aspects({
-                'my-project.global.custom-gov': {'data': {'owner': {'email': 'a@b.c'}}}
+                'my-project.us-central1.custom-gov': {'data': {'owner': {'email': 'a@b.c'}}}
             }),
         )
         assert rows == [['term-customer-id', 'custom-gov.owner.email', 'a@b.c']]
@@ -860,10 +1025,86 @@ class TestExportAspectRows:
         rows = glossary_export._get_aspect_rows_for_entry(
             TERM,
             _entry_with_aspects({
-                'my-project.global.custom-gov': {'data': {'tags': ['finance', 'core']}}
+                'my-project.us-central1.custom-gov': {'data': {'tags': ['finance', 'core']}}
             }),
         )
         assert rows == [['term-customer-id', 'custom-gov.tags', '["finance","core"]']]
+
+    def test_global_aspect_type_on_regional_glossary_is_qualified(self):
+        rows = glossary_export._get_aspect_rows_for_entry(
+            TERM,
+            _entry_with_aspects({'my-project.global.custom-gov': {'data': {'tier': 'LOW'}}}),
+        )
+        assert rows == [['term-customer-id', 'my-project.global.custom-gov.tier', 'LOW']]
+
+    def test_cross_project_aspect_type_is_qualified(self):
+        rows = glossary_export._get_aspect_rows_for_entry(
+            TERM,
+            _entry_with_aspects({'shared-gov.us-central1.custom-gov': {'data': {'tier': 'LOW'}}}),
+        )
+        assert rows == [['term-customer-id', 'shared-gov.us-central1.custom-gov.tier', 'LOW']]
+
+    def test_project_numbers_are_resolved_before_comparing(self):
+        """Entry aspect keys carry project numbers; the glossary name carries the id."""
+        numbers = {'111': 'my-project', '222': 'shared-gov'}
+        with patch.object(
+            glossary_export.api_layer, 'get_project_id_from_number',
+            side_effect=lambda project, user_project='': numbers.get(project, project),
+        ):
+            rows = glossary_export._get_aspect_rows_for_entry(
+                TERM,
+                _entry_with_aspects({
+                    '111.us-central1.custom-gov': {'data': {'tier': 'HIGH'}},
+                    '222.us-central1.custom-gov': {'data': {'tier': 'LOW'}},
+                }),
+            )
+        assert rows == [
+            ['term-customer-id', 'custom-gov.tier', 'HIGH'],
+            ['term-customer-id', 'shared-gov.us-central1.custom-gov.tier', 'LOW'],
+        ]
+
+    def test_malformed_field_is_skipped_not_fatal(self, caplog):
+        with caplog.at_level('WARNING'):
+            rows = glossary_export._get_aspect_rows_for_entry(
+                TERM,
+                _entry_with_aspects({
+                    'my-project.us-central1.custom-gov': {'data': {'': 'x', 'tier': 'HIGH'}}
+                }),
+            )
+        assert rows == [['term-customer-id', 'custom-gov.tier', 'HIGH']]
+        assert 'Skipping field' in caplog.text
+
+    def test_explicit_glossary_project_and_location_win(self):
+        rows = glossary_export._get_aspect_rows_for_entry(
+            TERM,
+            _entry_with_aspects({'my-project.global.custom-gov': {'data': {'tier': 'LOW'}}}),
+            glossary_project_id='my-project',
+            glossary_location_id='global',
+        )
+        assert rows == [['term-customer-id', 'custom-gov.tier', 'LOW']]
+
+    def test_export_rows_import_back_to_the_same_aspects(self):
+        """Export -> import must resolve every row to the aspect type it came from."""
+        aspects = {
+            'my-project.us-central1.custom-gov': {'data': {'tier': 'HIGH', 'owner': {'email': 'a@b.c'}}},
+            'my-project.global.custom-gov': {'data': {'tier': 'LOW'}},
+            'shared-gov.global.custom-gov': {'data': {'tier': 'MID'}},
+        }
+        rows = glossary_export._get_aspect_rows_for_entry(TERM, _entry_with_aspects(aspects))
+
+        processor = _make_processor()
+        is_valid, imported = processor.read_aspects(
+            _mock_spreadsheet([ASPECT_SHEET_HEADERS] + rows), {'term-customer-id'}
+        )
+
+        assert is_valid is True
+        assert imported == {'term-customer-id': {
+            'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {
+                'tier': 'HIGH', 'owner': {'email': 'a@b.c'}
+            },
+            'projects/my-project/locations/global/aspectTypes/custom-gov': {'tier': 'LOW'},
+            'projects/shared-gov/locations/global/aspectTypes/custom-gov': {'tier': 'MID'},
+        }}
 
     def test_no_custom_aspects_returns_empty(self):
         rows = glossary_export._get_aspect_rows_for_entry(
@@ -883,8 +1124,23 @@ class TestExportWriteAspectsToSheet:
     """Tests for glossary-export._write_aspects_to_sheet."""
 
     def test_no_rows_writes_nothing(self, mock_sheets_client):
+        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
+            'sheets': [{'properties': {'title': 'Sheet1', 'sheetId': 0}}]
+        }
         glossary_export._write_aspects_to_sheet(mock_sheets_client, 'sid', [])
         mock_sheets_client.spreadsheets.return_value.values.return_value.update.assert_not_called()
+        mock_sheets_client.spreadsheets.return_value.values.return_value.clear.assert_not_called()
+        mock_sheets_client.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    def test_no_rows_resets_existing_aspects_sheet(self, mock_sheets_client):
+        """Leftover rows from an earlier export would bring back removed aspects."""
+        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
+            'sheets': [{'properties': {'title': 'Sheet2', 'sheetId': 3}}]
+        }
+        glossary_export._write_aspects_to_sheet(mock_sheets_client, 'sid', [])
+        values_api = mock_sheets_client.spreadsheets.return_value.values.return_value
+        values_api.clear.assert_called_once()
+        assert values_api.update.call_args.kwargs['body']['values'] == [ASPECT_SHEET_HEADERS]
 
     def test_writes_header_and_rows(self, mock_sheets_client):
         mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
@@ -945,26 +1201,65 @@ def _mock_spreadsheet(values, raise_not_found=False):
 class TestImportReadAspects:
     """Tests for SheetProcessor.read_aspects."""
 
-    def test_missing_sheet_is_a_no_op(self):
+    def test_missing_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(
             _mock_spreadsheet(None, raise_not_found=True), {'term-1'}
         )
         assert is_valid is True
         assert aspects == {}
+        assert "will be REMOVED" in capsys.readouterr().out
 
-    def test_empty_sheet_is_a_no_op(self):
+    def test_empty_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([]), {'term-1'})
         assert is_valid is True
         assert aspects == {}
+        assert "will be REMOVED" in capsys.readouterr().out
 
-    def test_header_only_sheet_is_a_no_op(self):
+    def test_header_only_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(
             _mock_spreadsheet([ASPECT_SHEET_HEADERS]), {'term-1'}
         )
         assert is_valid is True
+        assert aspects == {}
+        assert "will be REMOVED" in capsys.readouterr().out
+
+    def test_bad_header_fails_the_import(self, capsys):
+        processor = _make_processor()
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
+            ['id', 'Aspect', 'Value'],
+            ['term-1', 'custom-gov.tier', 'HIGH'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert aspects == {}
+        assert "header" in capsys.readouterr().out
+
+    def test_worksheet_api_error_fails_the_import(self, capsys):
+        processor = _make_processor()
+        spreadsheet = MagicMock()
+        spreadsheet.worksheet.side_effect = Exception("HTTP 429")
+        is_valid, aspects = processor.read_aspects(spreadsheet, {'term-1'})
+        assert is_valid is False
+        assert aspects == {}
+        assert "HTTP 429" in capsys.readouterr().out
+
+    def test_read_values_error_fails_the_import(self):
+        processor = _make_processor()
+        spreadsheet = MagicMock()
+        spreadsheet.worksheet.return_value.get_all_values.side_effect = Exception("HTTP 503")
+        is_valid, aspects = processor.read_aspects(spreadsheet, {'term-1'})
+        assert is_valid is False
+        assert aspects == {}
+
+    def test_spreadsheet_open_error_fails_the_import(self):
+        processor = _make_processor()
+        with patch.object(
+            glossary_import.gspread, 'authorize', side_effect=Exception("boom")
+        ):
+            is_valid, aspects = processor.read_aspects(None, {'term-1'})
+        assert is_valid is False
         assert aspects == {}
 
     def test_rows_aggregate_into_one_data_dict(self):
@@ -1100,6 +1395,49 @@ class TestImportAspectValidation:
         assert is_valid is False
         assert "row 3" in capsys.readouterr().out
 
+    @pytest.mark.parametrize("second_name", [
+        'my-project.us-central1.custom-gov.tier',
+        'projects/my-project/locations/us-central1/aspectTypes/custom-gov/tier',
+    ])
+    def test_equivalent_spellings_are_duplicates(self, second_name, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', 'custom-gov.tier', 'HIGH'],
+            ['term-1', second_name, 'LOW'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert "row 3" in capsys.readouterr().out
+
+    def test_field_names_differing_only_in_case_are_distinct(self):
+        processor = _make_processor()
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', 'custom-gov.tier', 'HIGH'],
+            ['term-1', 'custom-gov.Tier', 'LOW'],
+        ]), {'term-1'})
+        resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
+        assert is_valid is True
+        assert aspects['term-1'][resource] == {'tier': 'HIGH', 'Tier': 'LOW'}
+
+    @pytest.mark.parametrize("first,second", [
+        (('custom-gov.owner', 'alice'), ('custom-gov.owner.email', 'a@b.c')),
+        (('custom-gov.owner.email', 'a@b.c'), ('custom-gov.owner', 'alice')),
+        (('custom-gov.owner.email', 'a@b.c'), ('custom-gov.owner', '{"name":"A"}')),
+        (('custom-gov.owner', '{"name":"A"}'), ('custom-gov.owner.email', 'a@b.c')),
+    ])
+    def test_overlapping_fields_are_rejected_in_either_order(self, first, second, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', first[0], first[1]],
+            ['term-1', second[0], second[1]],
+        ]), {'term-1'})
+        output = capsys.readouterr().out
+        assert is_valid is False
+        assert "row 3" in output
+        assert "row 2" in output
+
     def test_same_field_on_different_terms_is_allowed(self):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
@@ -1118,6 +1456,23 @@ class TestImportAspectValidation:
         ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("aspect_name", [
+        'my-project.us-central1.overview.summary',
+        'overview.summary',
+        'projects/my-project/locations/global/aspectTypes/contacts/identities',
+        'dataplex-types.global.glossary-aspect.x',
+        'my-project.us-central1.glossary-category-aspect.x',
+    ])
+    def test_reserved_aspect_type_ids_are_rejected_in_any_project(self, aspect_name, capsys):
+        """The backend treats these ids as built-in whatever the project."""
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', aspect_name, 'x'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert "reserved" in capsys.readouterr().out
 
 
 class TestImportConvertToImportItem:

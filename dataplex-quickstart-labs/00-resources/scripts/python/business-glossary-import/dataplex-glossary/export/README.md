@@ -148,7 +148,13 @@ Where:
 *   `id` (required): Foreign key to the `id` column of Sheet 1. One term or
     category may own many aspect rows.
 *   `Aspect name` (required): The aspect field identifier. Three forms are
-    accepted on import; export always writes the short form:
+    accepted on import. Export writes the short form for aspect types in the
+    glossary's own project and location, and the qualified form for any other
+    aspect type (for example a `global` aspect type used on a regional
+    glossary, or one from a shared project), so that re-importing resolves to
+    the same aspect type. It falls back to the resource-path form when the
+    qualified form would be ambiguous (a project id containing `.` or `:`, or a
+    location the importer does not recognize):
     *   Short — `<aspectTypeId>.<fieldName>`, e.g. `custom-gov.tier`
     *   Qualified — `<project>.<location>.<aspectTypeId>.<fieldName>`, e.g.
         `my-project.us-central1.custom-gov.tier`
@@ -157,6 +163,10 @@ Where:
 
     When the project/location are omitted they default to the **target
     glossary's** project and location.
+
+    A map field whose keys contain `.` is written as a single JSON object cell
+    rather than as dotted sub-field rows, because dotted rows would rebuild a
+    different structure on import.
 *   `Aspect value` (required): The scalar or serialized value (see the datatype
     table below).
 
@@ -210,17 +220,24 @@ heuristically.
 
 #### System aspects are never exported to Sheet 2
 
-`overview`, `contacts`, `glossary-term-aspect` and `glossary-category-aspect`
-are already represented by Sheet 1 columns (or are purely structural), so they
-are filtered out of Sheet 2. The filter matches the
-`<location>.<aspectTypeId>` suffix, so both `655216118709.global.overview` and
-`dataplex-types.global.overview` are recognized.
+`overview`, `contacts`, `glossary-term-aspect`, `glossary-category-aspect` and
+`glossary-aspect` are already represented by Sheet 1 columns (or are purely
+structural), so they are filtered out of Sheet 2. The filter matches the aspect
+type id in any project, so both `655216118709.global.overview` and
+`dataplex-types.global.overview` are recognized. Dataplex Business Glossary
+treats these ids as built-in in every project, so an aspect type of your own
+with one of these ids cannot round-trip through the glossary import; export
+logs a warning and skips it.
 
 #### Backward compatibility
 
-If the glossary has no custom aspects, **no second sheet is created and nothing
-is written** — a single informational log line is emitted and the export is
-byte-for-byte what it was before. Sheet 1's 14-column schema is unchanged.
+If the glossary has no custom aspects and the spreadsheet has no aspects tab,
+**no second sheet is created and nothing is written**: a single informational
+log line is emitted and the export is what it was before. If the aspects tab
+already exists from an earlier export, it is reset to just the header row.
+Glossary import replaces each term's and category's aspects with the
+spreadsheet contents, so leftover rows would otherwise bring back aspects that
+have since been removed. Sheet 1's 14-column schema is unchanged.
 
 #### Overriding the sheet name
 

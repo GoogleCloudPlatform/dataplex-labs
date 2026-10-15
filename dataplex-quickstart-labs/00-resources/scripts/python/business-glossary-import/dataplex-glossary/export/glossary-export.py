@@ -9,8 +9,9 @@ from typing import List, Dict, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils import business_glossary_utils, sheet_utils
-from utils.constants import ASPECT_SHEET_HEADERS
+from utils import api_layer, business_glossary_utils, sheet_utils
+from utils.constants import ASPECT_SHEET_HEADERS, SYSTEM_ASPECT_PROJECTS
+from utils.error import InvalidAspectIdentifierError
 
 # --- Configure logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -54,6 +55,7 @@ class InvalidEntryIdFormatError(Exception):
 
 GLOSSARY_URL_PATTERN = re.compile(r".*dp-glossaries/projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+).*")
 TERM_NAME_REGEX_PATTERN = re.compile(r"projects/([^/]+)/locations/([^/]+)/glossaries/([^/]+)/terms/([^/]+)")
+GLOSSARY_RESOURCE_NAME_PATTERN = re.compile(r"^projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/]+)$")
 CATERGORY_NAME_REGEX_PATTERN = re.compile(r"projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+)/categories/(?P<category_id>[^/]+)")
 GLOSSARY_NAME_REGEX_PATTERN = re.compile(r"projects/([^/]+)/locations/([^/]+)/glossaries/([^/]+)")
 ENTRY_NAME_REGEX_PATTERN = re.compile(r"projects/([^/]+)/locations/([^/]+)/entryGroups/@dataplex/entries/.*")
@@ -430,10 +432,12 @@ def _get_aspects_from_entry(entry):
         every NON-system aspect, keyed by its aspect key, for Sheet 2.
 
         System aspects (overview, contacts, glossary-term-aspect,
-        glossary-category-aspect) are matched on their
-        '<location>.<aspect_type_id>' suffix, because export observes the
-        numeric project number ('655216118709.global.overview') while import
-        writes the friendly project id ('dataplex-types.global.overview').
+        glossary-category-aspect, glossary-aspect) are matched on their aspect
+        type id alone, whatever the project, because the Dataplex glossary
+        import treats those ids as built-in in any project. This also covers
+        both project spellings: export observes the numeric project number
+        ('655216118709.global.overview') while import writes the friendly
+        project id ('dataplex-types.global.overview').
 
         Args:
             entry: An Entry object.
@@ -456,6 +460,14 @@ def _get_aspects_from_entry(entry):
     # append custom (non-system) aspects
     for aspect_key, aspect in (aspects_map or {}).items():
         if business_glossary_utils.is_system_aspect(aspect_key):
+            split_key = business_glossary_utils.split_aspect_key(aspect_key)
+            if split_key and split_key[0] not in SYSTEM_ASPECT_PROJECTS:
+                logging.warning(
+                    f"Aspect '{aspect_key}' uses the reserved aspect type id "
+                    f"'{split_key[2]}', which Dataplex Business Glossary treats as a built-in "
+                    f"aspect in any project. It is not exported to the aspects sheet and "
+                    f"cannot be set through glossary import."
+                )
             continue
         aspect_data = aspect.get("data") if isinstance(aspect, dict) else None
         if not aspect_data:
@@ -464,17 +476,40 @@ def _get_aspects_from_entry(entry):
     return simplified_aspects
 
 
-def _get_aspect_rows_for_entry(term_or_category, entry) -> List[List[str]]:
+def _resolve_project_id(project: str, user_project: str) -> str:
+    """Resolves a numeric project number to its project id (cached, best effort)."""
+    return api_layer.get_project_id_from_number(project, user_project=user_project)
+
+
+def _get_aspect_rows_for_entry(
+    term_or_category,
+    entry,
+    glossary_project_id: Optional[str] = None,
+    glossary_location_id: Optional[str] = None,
+) -> List[List[str]]:
     """Builds the Sheet 2 rows for a single term or category.
 
-    Each custom aspect's ``data`` dict is flattened into one row per field,
-    using the '<aspect_type_id>.<field_name>' short identifier. Record and map
-    sub-fields are flattened one level into dotted names ('custom-gov.owner.email');
-    anything deeper is serialized as a JSON object string.
+    Each custom aspect's ``data`` dict is flattened into one row per field.
+    Record and map sub-fields are flattened one level into dotted names
+    ('custom-gov.owner.email'); anything deeper is serialized as a JSON object
+    string.
+
+    The 'Aspect name' cell must import back to the same AspectType. Import
+    resolves the short '<aspect_type_id>.<field_name>' form against the target
+    glossary's project and location, so the short form is only written for
+    aspect types in the glossary's own project and location. Other aspect types
+    (for example a 'global' aspect type on a regional glossary, or one from a
+    shared project) are written in the qualified
+    '<project>.<location>.<aspect_type_id>.<field_name>' form, or in the
+    resource-path form when the qualified form would be ambiguous.
 
     Args:
         term_or_category: A Term or Category resource dict.
         entry: The Entry representing that term or category.
+        glossary_project_id: The glossary's project. Defaults to the project in
+            the term or category resource name.
+        glossary_location_id: The glossary's location. Defaults to the location
+            in the term or category resource name.
 
     Returns:
         A list of [id, Aspect name, Aspect value] rows, empty when the entry
@@ -486,18 +521,42 @@ def _get_aspect_rows_for_entry(term_or_category, entry) -> List[List[str]]:
         logging.warning(f"Could not determine id for aspect rows from: {resource_name}")
         return []
     resource_id = match.groups()[-1]
+    glossary_project = _resolve_project_id(
+        glossary_project_id or match.groups()[0], user_project=glossary_project_id or match.groups()[0]
+    )
+    glossary_location = glossary_location_id or match.groups()[1]
 
     simplified_aspects = _get_aspects_from_entry(entry)
     aspect_rows = []
 
     for aspect_key, aspect_data in simplified_aspects["custom"].items():
-        aspect_type_id = business_glossary_utils.extract_aspect_type_id(aspect_key)
+        split_key = business_glossary_utils.split_aspect_key(aspect_key)
+        if not split_key:
+            logging.warning(
+                f"Skipping aspect '{aspect_key}' on '{resource_id}': the aspect key does not "
+                f"carry a project and a location."
+            )
+            continue
+        aspect_project, aspect_location, aspect_type_id = split_key
+        aspect_project = _resolve_project_id(aspect_project, user_project=glossary_project)
+
         for field_name, cell_value in business_glossary_utils.flatten_aspect_data(aspect_data):
-            aspect_rows.append([
-                resource_id,
-                business_glossary_utils.format_aspect_identifier(aspect_type_id, field_name),
-                cell_value,
-            ])
+            try:
+                aspect_name = business_glossary_utils.format_aspect_identifier_for_sheet(
+                    aspect_project,
+                    aspect_location,
+                    aspect_type_id,
+                    field_name,
+                    default_project=glossary_project,
+                    default_location=glossary_location,
+                )
+            except InvalidAspectIdentifierError as format_error:
+                logging.warning(
+                    f"Skipping field '{field_name}' of aspect '{aspect_key}' on "
+                    f"'{resource_id}': {format_error}"
+                )
+                continue
+            aspect_rows.append([resource_id, aspect_name, cell_value])
 
     return aspect_rows
 
@@ -540,13 +599,17 @@ def _write_aspects_to_sheet(
 ) -> None:
     """Writes the collected custom aspect rows to the aspects sheet (Sheet 2).
 
-    When there are no custom aspects, nothing is written and no tab is created:
-    a single informational line is logged, so glossaries without custom aspects
-    export exactly as they did before.
+    When there are no custom aspects and the spreadsheet has no aspects tab,
+    nothing is written and no tab is created: a single informational line is
+    logged, so glossaries without custom aspects export exactly as they did
+    before. When there are no custom aspects but the tab already exists (from
+    an earlier export), it is reset to the header row: glossary import
+    replaces each entry's aspects with the sheet contents, so leftover rows
+    would bring back aspects that have since been removed in Dataplex.
 
     The write clears the target tab first, so aspect rows removed since the
     previous export do not linger as orphans (which would later fail import
-    validation with an unknown id).
+    validation with an unknown id, or bring back removed aspects).
 
     Args:
         sheets_service: The Google Sheets API service object.
@@ -557,8 +620,14 @@ def _write_aspects_to_sheet(
         SheetsAPIError: If there is an error during the write operation.
     """
     if not aspect_rows:
-        logging.info("No custom aspects found; skipping the aspects sheet.")
-        return
+        aspects_sheet_name = sheet_utils.resolve_aspects_sheet_name()
+        if not sheet_utils.sheet_exists(sheets_service, spreadsheet_id, aspects_sheet_name):
+            logging.info("No custom aspects found; skipping the aspects sheet.")
+            return
+        logging.info(
+            f"No custom aspects found; clearing the existing '{aspects_sheet_name}' tab so "
+            f"rows from an earlier export are not re-imported."
+        )
 
     try:
         target_sheet_name = sheet_utils.write_aspect_rows(
@@ -597,6 +666,12 @@ def list_and_write_glossary_taxonomy(spreadsheet_url: str, glossary_name: str) -
 
         # 4. List glossary terms
         terms = _list_glossary_terms(dataplex_service, glossary_name)
+
+        # The glossary's project and location decide which aspect names can use
+        # the short form on export (import resolves short names against them).
+        glossary_name_match = GLOSSARY_RESOURCE_NAME_PATTERN.match(glossary_name)
+        glossary_project_id = glossary_name_match.group("project_id") if glossary_name_match else None
+        glossary_location_id = glossary_name_match.group("location_id") if glossary_name_match else None
 
         entry_names_map = {}
         # 5. Get Category and Terms.
@@ -640,7 +715,9 @@ def list_and_write_glossary_taxonomy(spreadsheet_url: str, glossary_name: str) -
                 else:
                     category_row.append("")
             sheet_data.append(category_row)
-            aspect_rows.extend(_get_aspect_rows_for_entry(category, category_entry))
+            aspect_rows.extend(
+                _get_aspect_rows_for_entry(category, category_entry, glossary_project_id, glossary_location_id)
+            )
 
         # 8. Add Terms data in the sheet
         for term in terms:
@@ -656,7 +733,9 @@ def list_and_write_glossary_taxonomy(spreadsheet_url: str, glossary_name: str) -
             else:
               term_row.append("")
           sheet_data.append(term_row)
-          aspect_rows.extend(_get_aspect_rows_for_entry(term, term_entry))
+          aspect_rows.extend(
+              _get_aspect_rows_for_entry(term, term_entry, glossary_project_id, glossary_location_id)
+          )
         
         # 9. Write data to the sheet
         _write_to_sheet(sheets_service, spreadsheet_id, sheet_data)

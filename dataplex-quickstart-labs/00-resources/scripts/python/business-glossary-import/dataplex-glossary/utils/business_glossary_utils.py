@@ -8,7 +8,7 @@ Common utility functions for working with Dataplex Glossary resources.
 import json
 import re
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # Local imports
 from utils.constants import (
@@ -21,7 +21,6 @@ from utils.constants import (
     ASPECT_FIELD_TYPE_MAP,
     ASPECT_FIELD_TYPE_RECORD,
     ASPECT_FIELD_TYPE_STRING,
-    ASPECT_KEY_PATTERN,
     ASPECT_RESOURCE_PATTERN,
     BIGQUERY_ENTRY_ID_PATTERN,
     BOOL_FALSE_LITERALS,
@@ -34,7 +33,6 @@ from utils.constants import (
     INTEGER_LITERAL_PATTERN,
     LOCATION_ID_PATTERN,
     MAX_ASPECT_FLATTEN_DEPTH,
-    SYSTEM_ASPECT_KEY_SUFFIXES,
     SYSTEM_ASPECT_TYPE_IDS,
     TERM_NAME_PATTERN,
 )
@@ -322,13 +320,17 @@ def is_system_aspect(aspect_type_key: str) -> bool:
     """Check whether an aspect key refers to a system (non-custom) aspect.
 
     System aspects are already represented in Sheet 1 (overview, contacts) or
-    are purely structural (glossary-term-aspect, glossary-category-aspect), so
-    they must never be duplicated into Sheet 2.
+    are purely structural (glossary-term-aspect, glossary-category-aspect,
+    glossary-aspect), so they must never be duplicated into Sheet 2.
 
-    Matching is done on the '<location>.<aspect_type_id>' suffix because the
-    project component differs between tools: export observes the numeric
-    project number ('655216118709.global.overview') while import writes the
-    friendly project id ('dataplex-types.global.overview').
+    Matching is done on the aspect type id alone, whatever the project and
+    location. This is deliberate: the Dataplex glossary import treats any
+    aspect whose type id is 'overview' or 'contacts' as the built-in aspect and
+    rejects the 'glossary-*' structural aspects in any project, so accepting
+    such an aspect here would only move the failure into the metadata job. It
+    also covers both project spellings: export observes the numeric project
+    number ('655216118709.global.overview') while import writes the friendly
+    project id ('dataplex-types.global.overview').
 
     Args:
         aspect_type_key: Aspect key as found in an Entry's 'aspects' map, an
@@ -342,22 +344,52 @@ def is_system_aspect(aspect_type_key: str) -> bool:
         True
         >>> is_system_aspect("dataplex-types.global.overview")
         True
+        >>> is_system_aspect("my-project.us-central1.overview")
+        True
         >>> is_system_aspect("my-project.us-central1.custom-gov")
         False
     """
-    if not aspect_type_key:
+    if not aspect_type_key or not aspect_type_key.strip():
         return False
+    return extract_aspect_type_id(aspect_type_key) in SYSTEM_ASPECT_TYPE_IDS
 
-    key = aspect_type_key.strip()
 
-    resource_match = ASPECT_RESOURCE_PATTERN.match(key)
+def split_aspect_key(aspect_key: str) -> Optional[Tuple[str, str, str]]:
+    """Split an aspect key or AspectType resource name into its components.
+
+    Aspect type ids and location ids never contain dots, so the last two dotted
+    segments are the location and the aspect type id and everything before them
+    is the project. This keeps domain-scoped projects ('google.com:my-proj')
+    intact.
+
+    Args:
+        aspect_key: e.g. '655216118709.us-central1.custom-gov' or
+            'projects/p/locations/l/aspectTypes/custom-gov'.
+
+    Returns:
+        A (project, location, aspect_type_id) tuple, or None when the key does
+        not carry a project and a location.
+
+    Example:
+        >>> split_aspect_key("google.com:my-proj.global.custom-gov")
+        ('google.com:my-proj', 'global', 'custom-gov')
+    """
+    if not aspect_key:
+        return None
+    cleaned = aspect_key.strip()
+
+    resource_match = ASPECT_RESOURCE_PATTERN.match(cleaned)
     if resource_match:
-        return resource_match.group('aspect_type_id') in SYSTEM_ASPECT_TYPE_IDS
+        return (
+            resource_match.group('project_id'),
+            resource_match.group('location_id'),
+            resource_match.group('aspect_type_id'),
+        )
 
-    if key in SYSTEM_ASPECT_TYPE_IDS:
-        return True
-
-    return any(key.endswith(f".{suffix}") or key == suffix for suffix in SYSTEM_ASPECT_KEY_SUFFIXES)
+    parts = cleaned.rsplit('.', 2)
+    if len(parts) != 3 or not all(part.strip() for part in parts):
+        return None
+    return parts[0], parts[1], parts[2]
 
 
 def _is_location_id(candidate: str) -> bool:
@@ -383,7 +415,10 @@ def parse_aspect_identifier(
     LOCATION_ID_PATTERN: only a segment that looks like a real location id
     (global/us/eu/asia or a region ending in a digit) promotes the identifier to
     the qualified form, so 'custom-gov.owner.email' is read as aspect type
-    'custom-gov' with field 'owner.email'.
+    'custom-gov' with field 'owner.email'. Shape 3 is never ambiguous; use it
+    when the project id contains dots or ':', when the location is not matched
+    by LOCATION_ID_PATTERN, or when a short-form field's first segment looks
+    like a location ('custom-gov.us.tax.rate' reads as project 'custom-gov').
 
     Args:
         name: The raw 'Aspect name' cell value.
@@ -501,6 +536,86 @@ def format_aspect_identifier(
     return (
         f"{project_id.strip()}.{location.strip()}."
         f"{aspect_type_id.strip()}.{field_name.strip()}"
+    )
+
+
+def _parses_back_to(
+    cell: str,
+    expected: Tuple[str, str, str, str],
+    default_project: str,
+    default_location: str,
+) -> bool:
+    """Return True when an 'Aspect name' cell parses back to the expected parts."""
+    try:
+        parsed = parse_aspect_identifier(cell, default_project, default_location)
+    except InvalidAspectIdentifierError:
+        return False
+    return (
+        parsed.project_id, parsed.location, parsed.aspect_type_id, parsed.field_name
+    ) == expected
+
+
+def format_aspect_identifier_for_sheet(
+    project_id: str,
+    location: str,
+    aspect_type_id: str,
+    field_name: str,
+    default_project: str,
+    default_location: str,
+) -> str:
+    """Format the shortest 'Aspect name' cell that imports back to the same field.
+
+    Import resolves the short form against the TARGET glossary's project and
+    location, so export may only use it for aspect types that live in the
+    glossary's own project and location. Every candidate is checked by parsing
+    it back with the same defaults the importer uses, which rules out any cell
+    that would be read differently (a project id containing dots, a location
+    the parser does not recognize, or a field whose first segment looks like a
+    location). When no dotted form is safe, the unambiguous resource form is
+    used.
+
+    Candidates, in order of preference:
+
+    1. Short:     '<aspect_type_id>.<field_name>' (same project and location only)
+    2. Qualified: '<project>.<location>.<aspect_type_id>.<field_name>'
+    3. Resource:  'projects/{p}/locations/{l}/aspectTypes/{at}/{field_name}'
+
+    Args:
+        project_id: Project owning the AspectType.
+        location: Location of the AspectType.
+        aspect_type_id: The AspectType id.
+        field_name: Field within the aspect, dotted for record sub-fields.
+        default_project: The glossary's project (what the importer defaults to).
+        default_location: The glossary's location (what the importer defaults to).
+
+    Returns:
+        The formatted aspect identifier.
+
+    Raises:
+        InvalidAspectIdentifierError: If any component is empty.
+    """
+    if not (project_id and location and aspect_type_id and field_name):
+        raise InvalidAspectIdentifierError(
+            "project_id, location, aspect_type_id and field_name are all required to "
+            "format an aspect identifier for the sheet."
+        )
+
+    expected = (project_id, location, aspect_type_id, field_name)
+    candidates = []
+    if project_id == default_project and location == default_location:
+        candidates.append(format_aspect_identifier(aspect_type_id, field_name))
+    candidates.append(
+        format_aspect_identifier(
+            aspect_type_id, field_name, project_id=project_id, location=location, qualified=True
+        )
+    )
+
+    for candidate in candidates:
+        if _parses_back_to(candidate, expected, default_project, default_location):
+            return candidate
+
+    return (
+        f"projects/{project_id}/locations/{location}/aspectTypes/{aspect_type_id}/{field_name}"
     )
 
 
@@ -677,7 +792,9 @@ def flatten_aspect_data(
     ``max_depth`` path segments (``owner.email``). Any dict still present at the
     depth limit is serialized as a compact JSON object string instead, which
     keeps deep structures lossless while keeping the common one-level case
-    human-editable.
+    human-editable. A dict whose keys cannot be expressed as dotted segments
+    (empty keys, or keys containing a '.', as map fields allow) is also kept as
+    JSON, because flattening it would rebuild a different structure on import.
 
     Args:
         data: The aspect's ``data`` dictionary.
@@ -688,10 +805,15 @@ def flatten_aspect_data(
     """
     flattened: List[Tuple[str, str]] = []
 
+    def _can_flatten(value: Any) -> bool:
+        return isinstance(value, dict) and bool(value) and all(
+            isinstance(key, str) and key and '.' not in key for key in value
+        )
+
     def _walk(current: Dict[str, Any], prefix: List[str]) -> None:
         for key, value in current.items():
             path = prefix + [str(key)]
-            if isinstance(value, dict) and value and len(path) < max_depth:
+            if _can_flatten(value) and len(path) < max_depth:
                 _walk(value, path)
             else:
                 flattened.append(('.'.join(path), serialize_aspect_value(value)))
@@ -708,6 +830,8 @@ def set_nested_aspect_field(data: Dict[str, Any], field_path: List[str], value: 
 
     Intermediate dictionaries are created as needed, which is what makes
     'custom-gov.owner.email' round-trip back into ``{'owner': {'email': ...}}``.
+    An existing value is never overwritten: callers that need order-independent
+    conflict detection across rows should also use find_conflicting_field_path.
 
     Args:
         data: The aspect ``data`` dict to mutate.
@@ -715,8 +839,9 @@ def set_nested_aspect_field(data: Dict[str, Any], field_path: List[str], value: 
         value: The coerced value to assign.
 
     Raises:
-        InvalidAspectIdentifierError: If field_path is empty, or a segment
-            collides with an existing scalar value.
+        InvalidAspectIdentifierError: If field_path is empty, a segment
+            collides with an existing scalar value, or the target field
+            already holds a value or sub-fields.
     """
     if not field_path:
         raise InvalidAspectIdentifierError("Cannot assign an aspect value without a field name.")
@@ -733,7 +858,43 @@ def set_nested_aspect_field(data: Dict[str, Any], field_path: List[str], value: 
             )
         cursor = cursor[segment]
 
-    cursor[field_path[-1]] = value
+    leaf = field_path[-1]
+    if leaf in cursor:
+        raise InvalidAspectIdentifierError(
+            f"Conflicting aspect field '{'.'.join(field_path)}': "
+            f"'{leaf}' already has a value or sub-fields assigned."
+        )
+    cursor[leaf] = value
+
+
+def find_conflicting_field_path(
+    assigned_paths: Iterable[Tuple[str, ...]], new_path: Tuple[str, ...]
+) -> Optional[Tuple[str, ...]]:
+    """Find an already-assigned field path that overlaps a new one.
+
+    Two paths overlap when they are equal or one is a prefix of the other
+    ('owner' and 'owner.email'): both rows would write the same part of the
+    aspect, so whichever ran last would silently win. Checking every pair makes
+    the result independent of row order.
+
+    Args:
+        assigned_paths: Field paths already assigned for the same aspect.
+        new_path: The field path about to be assigned.
+
+    Returns:
+        The first overlapping path, or None when there is no overlap.
+
+    Example:
+        >>> find_conflicting_field_path([("owner", "email")], ("owner",))
+        ('owner', 'email')
+        >>> find_conflicting_field_path([("owner", "email")], ("owner", "name")) is None
+        True
+    """
+    for assigned in assigned_paths:
+        shorter = min(len(assigned), len(new_path))
+        if assigned[:shorter] == new_path[:shorter]:
+            return assigned
+    return None
 
 
 def extract_aspect_type_id(aspect_key: str) -> str:
@@ -750,13 +911,9 @@ def extract_aspect_type_id(aspect_key: str) -> str:
         return ""
     cleaned = aspect_key.strip()
 
-    resource_match = ASPECT_RESOURCE_PATTERN.match(cleaned)
-    if resource_match:
-        return resource_match.group('aspect_type_id')
-
-    key_match = ASPECT_KEY_PATTERN.match(cleaned)
-    if key_match:
-        return key_match.group('aspect_type_id')
+    split_key = split_aspect_key(cleaned)
+    if split_key:
+        return split_key[2]
 
     return cleaned
 

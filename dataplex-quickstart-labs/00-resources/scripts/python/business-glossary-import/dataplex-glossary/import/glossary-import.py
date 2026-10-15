@@ -17,8 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils import api_layer, business_glossary_utils, sheet_utils
-from utils.constants import ASPECT_SHEET_HEADERS
-from utils.error import AspectValidationError, InvalidAspectIdentifierError
+from utils.constants import ASPECT_SHEET_HEADERS, ASPECTS_SHEET_NAME_ENV_VAR
+from utils.error import AspectSheetHeaderError, AspectValidationError, InvalidAspectIdentifierError
 
 # Regex pattern for the glossary URL, allowing any valid URL
 GLOSSARY_URL_PATTERN = re.compile(r".*dp-glossaries/projects/(?P<project_id>[^/]+)/locations/(?P<location_id>[^/]+)/glossaries/(?P<glossary_id>[^/?#]+).*")
@@ -451,8 +451,12 @@ class SheetProcessor:
         Args:
             aspect_row: The AspectRow to validate.
             known_ids: Set of ids declared in Sheet 1.
-            seen_pairs: Set of already-seen (id, aspect name) pairs, mutated
-                in place so duplicates are reported on their second occurrence.
+            seen_pairs: Set of already-seen (id, aspect type resource, field
+                name) keys, mutated in place so duplicates are reported on
+                their second occurrence. The key uses the parsed identifier,
+                so equivalent spellings ('custom-gov.tier' and its qualified or
+                resource-path form) are caught, while field names stay
+                case-sensitive like the MetadataTemplate.
 
         Returns:
             The ParsedAspectIdentifier for the row.
@@ -490,14 +494,19 @@ class SheetProcessor:
                 f"Invalid '{ASPECT_SHEET_HEADERS[1]}' in aspects sheet row {row_num}: {parse_error}"
             )
 
-        if business_glossary_utils.is_system_aspect(parsed.aspect_key):
+        if business_glossary_utils.is_system_aspect(parsed.aspect_type_id):
             raise AspectValidationError(
                 f"System aspect '{aspect_row.aspect_name}' in aspects sheet row {row_num} is "
-                f"managed by the glossary sheet (overview/contacts columns) and must not be "
-                f"set from the aspects sheet."
+                f"not allowed. Aspect type id '{parsed.aspect_type_id}' is reserved by Dataplex "
+                f"Business Glossary (overview and contacts are set from the glossary sheet "
+                f"columns; glossary-* aspects are structural) in any project or location."
             )
 
-        pair_key = (aspect_row.term_id, aspect_row.aspect_name.lower())
+        pair_key = (
+            aspect_row.term_id,
+            parsed.aspect_type_resource.lower(),
+            parsed.field_name,
+        )
         if pair_key in seen_pairs:
             raise AspectValidationError(
                 f"Duplicate ('{ASPECT_SHEET_HEADERS[0]}', '{ASPECT_SHEET_HEADERS[1]}') pair "
@@ -508,6 +517,23 @@ class SheetProcessor:
 
         return parsed
 
+    @staticmethod
+    def _warn_no_custom_aspects(sheet_name, reason):
+        """Prints the warning shown when the import will carry no custom aspects.
+
+        Dataplex glossary import recreates every term and category that is
+        already in the glossary from the import file alone, so any custom
+        aspect currently attached to them is removed when the file carries
+        none. The user must hear about that before the job runs.
+        """
+        print(
+            f"WARNING: {reason}; importing without custom aspects. Glossary import replaces "
+            f"the aspects of every imported term and category with the contents of the "
+            f"spreadsheet, so any custom aspects currently attached to them in Dataplex will "
+            f"be REMOVED. To keep them, export the glossary first so that '{sheet_name}' is "
+            f"populated, then edit and re-import that spreadsheet."
+        )
+
     def read_aspects(self, spreadsheet=None, known_ids=None):
         """Reads and resolves custom aspects from the aspects sheet (Sheet 2).
 
@@ -515,9 +541,13 @@ class SheetProcessor:
         aspect ``data`` dict. Dotted field names rebuild nested records, so
         'custom-gov.owner.email' becomes ``{'owner': {'email': ...}}``.
 
-        A missing, empty or header-only aspects sheet is not an error: an
-        informational line is printed and an empty mapping is returned, so
-        existing single-sheet spreadsheets import exactly as before.
+        A missing, blank or header-only aspects sheet means "no custom
+        aspects": a warning is printed (existing custom aspects on the imported
+        entries will be removed) and an empty mapping is returned, so existing
+        single-sheet spreadsheets still import. Anything else that prevents the
+        sheet from being read reliably (the spreadsheet or worksheet cannot be
+        opened, the values cannot be read, the header is wrong) fails the
+        import instead, because carrying on would silently remove aspects.
 
         Args:
             spreadsheet: An open gspread Spreadsheet. Opened from sheet_url
@@ -535,29 +565,44 @@ class SheetProcessor:
             try:
                 spreadsheet = gspread.authorize(self.creds).open_by_url(self.sheet_url)
             except Exception as open_error:
-                print(f"Could not open the spreadsheet to read aspects: {open_error}")
-                return True, {}
+                print(
+                    f"Could not open the spreadsheet to read the aspects sheet "
+                    f"'{sheet_name}': {open_error}"
+                )
+                return False, {}
 
         try:
             worksheet = spreadsheet.worksheet(sheet_name)
         except gspread.exceptions.WorksheetNotFound:
-            print(f"No '{sheet_name}' worksheet found; importing without custom aspects.")
+            self._warn_no_custom_aspects(sheet_name, f"No '{sheet_name}' worksheet found")
             return True, {}
         except Exception as worksheet_error:
-            print(
-                f"Could not open '{sheet_name}' ({worksheet_error}); "
-                f"importing without custom aspects."
-            )
-            return True, {}
+            print(f"Could not open the aspects sheet '{sheet_name}': {worksheet_error}")
+            return False, {}
 
-        raw_values = worksheet.get_all_values()
-        aspect_rows = sheet_utils.rows_to_aspect_rows(raw_values)
+        try:
+            raw_values = worksheet.get_all_values()
+        except Exception as read_error:
+            print(f"Could not read the aspects sheet '{sheet_name}': {read_error}")
+            return False, {}
+
+        try:
+            aspect_rows = sheet_utils.rows_to_aspect_rows(raw_values)
+        except AspectSheetHeaderError as header_error:
+            print(
+                f"Invalid aspects sheet '{sheet_name}': {header_error} Fix the header row. If "
+                f"this tab is not meant to hold aspects, rename it or set "
+                f"{ASPECTS_SHEET_NAME_ENV_VAR} to the tab that does."
+            )
+            return False, {}
+
         if not aspect_rows:
-            print(f"'{sheet_name}' is empty; importing without custom aspects.")
+            self._warn_no_custom_aspects(sheet_name, f"The aspects sheet '{sheet_name}' is empty")
             return True, {}
 
         is_valid = True
         seen_pairs = set()
+        assigned_paths = {}
         field_types_cache = {}
         aspects_by_id = {}
 
@@ -572,6 +617,27 @@ class SheetProcessor:
                 continue
 
             aspect_type_resource = parsed.aspect_type_resource
+
+            # Reject overlapping fields ('owner' and 'owner.email') whatever
+            # the row order, so no row can silently overwrite another.
+            paths_for_aspect = assigned_paths.setdefault(
+                (aspect_row.term_id, aspect_type_resource.lower()), {}
+            )
+            new_path = tuple(parsed.field_path)
+            conflicting_path = business_glossary_utils.find_conflicting_field_path(
+                paths_for_aspect, new_path
+            )
+            if conflicting_path is not None:
+                is_valid = False
+                print(
+                    f"Invalid aspect data in aspects sheet row {aspect_row.row_number}: field "
+                    f"'{'.'.join(new_path)}' overlaps field '{'.'.join(conflicting_path)}' set in "
+                    f"row {paths_for_aspect[conflicting_path]} for the same id and aspect type. "
+                    f"Use either the whole value or its sub-fields, not both."
+                )
+                continue
+            paths_for_aspect[new_path] = aspect_row.row_number
+
             if aspect_type_resource not in field_types_cache:
                 field_types_cache[aspect_type_resource] = self._get_aspect_field_types(
                     aspect_type_resource
@@ -769,7 +835,9 @@ class SheetProcessor:
             print("Dump is not valid. Please fix the errors and try again.")
             return is_dump_valid, dump_entries
 
-        # Read the aspects sheet (Sheet 2). Absent/empty is a no-op; malformed
+        # Read the aspects sheet (Sheet 2). Absent/empty means "no custom
+        # aspects" (with a warning, since existing custom aspects on the
+        # imported entries will be removed); an unreadable sheet or malformed
         # rows invalidate the dump just like Sheet 1 validation errors do.
         known_ids = {row_data[ID_COLUMN] for row_data in valid_rows if row_data.get(ID_COLUMN)}
         aspects_valid, self.aspects_by_id = self.read_aspects(spreadsheet, known_ids)

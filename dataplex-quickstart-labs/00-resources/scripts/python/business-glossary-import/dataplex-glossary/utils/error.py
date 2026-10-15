@@ -83,3 +83,7 @@ class InvalidAspectIdentifierError(Exception):
 class AspectValidationError(Exception):
     """Raised when an aspect row fails validation."""
     pass
+
+class AspectSheetHeaderError(AspectValidationError):
+    """Raised when a non-empty aspects sheet does not have the required header."""
+    pass

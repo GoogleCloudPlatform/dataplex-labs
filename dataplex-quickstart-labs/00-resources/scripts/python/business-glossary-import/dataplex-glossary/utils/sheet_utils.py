@@ -23,7 +23,7 @@ from utils.constants import (
     TARGET_NAME_HEADER_ALIASES,
     TYPE_HEADER_ALIASES,
 )
-from utils.error import InvalidSpreadsheetURLError, SheetsAPIError
+from utils.error import AspectSheetHeaderError, InvalidSpreadsheetURLError, SheetsAPIError
 from utils.retry_utils import execute_with_retry, is_network_error
 
 logger = logging_utils.get_logger()
@@ -545,16 +545,29 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
     The header row is validated leniently: the three canonical headers are
     detected case-insensitively in any order. Blank rows are skipped.
 
+    A sheet that is completely blank, or has a valid header and no data rows,
+    yields an empty list. A sheet that has content but no valid header is an
+    error rather than "no aspects": glossary import replaces each entry's
+    aspects with the sheet contents, so silently ignoring a mistyped header
+    would remove every custom aspect.
+
     Args:
         spreadsheet_data: Raw values as returned by the Sheets API, header first.
 
     Returns:
-        A list of AspectRow objects, empty when the sheet is empty or
+        A list of AspectRow objects, empty when the sheet is blank or
         header-only.
+
+    Raises:
+        AspectSheetHeaderError: If the sheet has content but row 1 does not
+            contain the required headers.
     """
     from utils.models import AspectRow
 
-    if not spreadsheet_data or not spreadsheet_data[0]:
+    def _is_blank(row) -> bool:
+        return not row or all(not str(cell).strip() for cell in row)
+
+    if not spreadsheet_data or all(_is_blank(row) for row in spreadsheet_data):
         return []
 
     headers = [str(header).strip() for header in spreadsheet_data[0]]
@@ -571,11 +584,10 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
     value_idx = _index_of('aspect value', 'aspect_value', 'aspectvalue')
 
     if id_idx < 0 or name_idx < 0 or value_idx < 0:
-        logger.warning(
-            f"Aspects sheet header does not match {ASPECT_SHEET_HEADERS}. "
-            f"Actual headers: {headers}. Ignoring the aspects sheet."
+        raise AspectSheetHeaderError(
+            f"Aspects sheet header must contain the columns {ASPECT_SHEET_HEADERS}, "
+            f"but row 1 is {headers}."
         )
-        return []
 
     aspect_rows = []
     for row_number, data_row in enumerate(spreadsheet_data[1:], start=2):
@@ -592,44 +604,6 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
             continue
         aspect_rows.append(aspect_row)
 
-    return aspect_rows
-
-
-def read_aspect_rows(spreadsheet_url: str, sheet_name: str = None) -> List['AspectRow']:
-    """Read the aspects sheet (Sheet 2) from a spreadsheet URL.
-
-    Missing, empty and header-only aspect sheets are all treated as "no
-    aspects": an informational line is logged and an empty list is returned, so
-    single-sheet spreadsheets keep working exactly as before.
-
-    Args:
-        spreadsheet_url: The Google Sheets URL.
-        sheet_name: Optional worksheet name override. Defaults to
-            GLOSSARY_ASPECTS_SHEET_NAME or 'Sheet2'.
-
-    Returns:
-        A list of AspectRow objects (possibly empty).
-    """
-    target_sheet_name = resolve_aspects_sheet_name(sheet_name)
-    sheets_service = authenticate_sheets()
-    spreadsheet_id = get_spreadsheet_id(spreadsheet_url)
-
-    if not sheet_exists(sheets_service, spreadsheet_id, target_sheet_name):
-        logger.info(
-            f"No '{target_sheet_name}' worksheet found; continuing without custom aspects."
-        )
-        return []
-
-    try:
-        raw_values = read_from_sheet(sheets_service, spreadsheet_id, 'A:C', target_sheet_name)
-    except SheetsAPIError as read_error:
-        logger.warning(
-            f"Could not read '{target_sheet_name}': {read_error}. Continuing without custom aspects."
-        )
-        return []
-
-    aspect_rows = rows_to_aspect_rows(raw_values)
-    logger.info(f"Read {len(aspect_rows)} aspect row(s) from '{target_sheet_name}'.")
     return aspect_rows
 
 

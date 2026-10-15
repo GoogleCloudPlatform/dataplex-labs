@@ -196,30 +196,30 @@ ASPECT_TYPE_RESOURCE_PATTERN = re.compile(
 # (qualified) apart from 'custom-gov.owner.email' (dotted record sub-field).
 LOCATION_ID_PATTERN = re.compile(r"^(global|us|eu|asia|[a-z]+-[a-z]+\d+)$")
 
-# Aspect keys as they appear in an Entry's 'aspects' map, e.g.
-# '655216118709.global.overview' or 'dataplex-types.global.overview'.
-ASPECT_KEY_PATTERN = re.compile(
-    r"^(?P<project>[^.]+)\.(?P<location>[^.]+)\.(?P<aspect_type_id>.+)$"
-)
-
 # --- System vs custom aspects ---
 # System aspects are already represented by dedicated Sheet 1 columns (or are
 # purely structural) and MUST NOT be duplicated into Sheet 2.
 #
-# The project component of an aspect key differs by tool: export sees the
-# numeric project number ('655216118709.global.overview') while import writes
-# the friendly project id ('dataplex-types.global.overview'). Matching is
-# therefore done on the '<location>.<aspect_type_id>' SUFFIX, never the full key.
+# Matching is done on the aspect type id alone, whatever the project and
+# location. This mirrors the Dataplex glossary import validation
+# (ValidateGlossaryTaxonomyItemFn), which treats any aspect whose type id is
+# 'overview' or 'contacts' as the built-in aspect and rejects the 'glossary-*'
+# structural aspects regardless of their project. It also covers both project
+# spellings: export sees the numeric project number
+# ('655216118709.global.overview') while import writes the friendly project id
+# ('dataplex-types.global.overview').
+ASPECT_TYPE_GLOSSARY = "glossary-aspect"
+
 SYSTEM_ASPECT_TYPE_IDS = frozenset({
     ASPECT_OVERVIEW,
     ASPECT_CONTACTS,
     ASPECT_TYPE_TERM,
     ASPECT_TYPE_CATEGORY,
+    ASPECT_TYPE_GLOSSARY,
 })
 
-SYSTEM_ASPECT_KEY_SUFFIXES = frozenset(
-    f"{LOCATION_TYPE_GLOBAL}.{aspect_type_id}" for aspect_type_id in SYSTEM_ASPECT_TYPE_IDS
-)
+# Projects that own the built-in (1P) Dataplex aspect types.
+SYSTEM_ASPECT_PROJECTS = frozenset({PROJECT_NUMBER, "dataplex-types"})
 
 # --- AspectType MetadataTemplate datatypes ---
 # See google/cloud/dataplex/v1/catalog.proto (AspectType.MetadataTemplate).
