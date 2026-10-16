@@ -811,6 +811,17 @@ class TestWriteAspectRows:
         update_call = mock_sheets_client.spreadsheets.return_value.values.return_value.update
         assert update_call.call_args.kwargs['range'] == "'Sheet2'!A1"
 
+    def test_values_are_written_raw(self, mock_sheets_client):
+        """USER_ENTERED would let Sheets turn '007' into 7, '=x' into a formula, etc."""
+        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.return_value = {
+            'sheets': [{'properties': {'title': 'Sheet2', 'sheetId': 7}}]
+        }
+        sheet_utils.write_aspect_rows(
+            mock_sheets_client, 'sid', [ASPECT_SHEET_HEADERS, ['t', 'a.code', '007']]
+        )
+        update_call = mock_sheets_client.spreadsheets.return_value.values.return_value.update
+        assert update_call.call_args.kwargs['valueInputOption'] == 'RAW'
+
 
 # ============================================================================
 # api_layer.get_aspect_type
@@ -1063,6 +1074,19 @@ class TestExportAspectRows:
             ['term-customer-id', 'shared-gov.us-central1.custom-gov.tier', 'LOW'],
         ]
 
+    def test_null_and_empty_fields_are_not_exported(self):
+        rows = glossary_export._get_aspect_rows_for_entry(
+            TERM,
+            _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {
+                'tier': 'HIGH', 'note': '', 'owner': None, 'tags': [], 'meta': {}
+            }}}),
+        )
+        assert rows == [
+            ['term-customer-id', 'custom-gov.tier', 'HIGH'],
+            ['term-customer-id', 'custom-gov.tags', '[]'],
+            ['term-customer-id', 'custom-gov.meta', '{}'],
+        ]
+
     def test_malformed_field_is_skipped_not_fatal(self, caplog):
         with caplog.at_level('WARNING'):
             rows = glossary_export._get_aspect_rows_for_entry(
@@ -1118,6 +1142,71 @@ class TestExportAspectRows:
             {'name': 'not-a-resource'}, _entry_with_aspects(MIXED_ASPECTS)
         )
         assert rows == []
+
+
+class TestExportLookupFailures:
+    """A partial export must never be written: re-importing it would delete entries."""
+
+    GLOSSARY = 'projects/my-project/locations/us-east1/glossaries/g'
+    SHEET_URL = 'https://docs.google.com/spreadsheets/d/abc123/edit'
+
+    def _run(self, lookup):
+        terms = [
+            {'name': f'{self.GLOSSARY}/terms/t1', 'parent': self.GLOSSARY},
+            {'name': f'{self.GLOSSARY}/terms/t2', 'parent': self.GLOSSARY},
+        ]
+        categories = [{'name': f'{self.GLOSSARY}/categories/c1', 'parent': self.GLOSSARY}]
+        with patch.object(glossary_export, '_authenticate_dataplex', return_value=MagicMock()), \
+             patch.object(glossary_export, '_authenticate_sheets', return_value=MagicMock()), \
+             patch.object(glossary_export, '_list_glossary_categories', return_value=categories), \
+             patch.object(glossary_export, '_list_glossary_terms', return_value=terms), \
+             patch.object(glossary_export, '_resolve_project_number', side_effect=lambda p: p), \
+             patch.object(glossary_export, '_lookup_entry', side_effect=lookup), \
+             patch.object(glossary_export, '_write_to_sheet') as write_sheet1, \
+             patch.object(glossary_export, '_write_aspects_to_sheet') as write_sheet2:
+            error = None
+            try:
+                glossary_export.list_and_write_glossary_taxonomy(self.SHEET_URL, self.GLOSSARY)
+            except glossary_export.DataplexAPIError as e:
+                error = e
+        return error, write_sheet1, write_sheet2
+
+    def test_one_failed_lookup_aborts_without_writing(self):
+        def lookup(service, entry_name):
+            if entry_name.endswith('/terms/t2'):
+                raise glossary_export.DataplexAPIError('403 denied')
+            return {'aspects': {}}
+        error, write_sheet1, write_sheet2 = self._run(lookup)
+        assert error is not None
+        assert 'Could not read 1 of 3' in str(error)
+        write_sheet1.assert_not_called()
+        write_sheet2.assert_not_called()
+
+    def test_empty_lookup_response_aborts_without_writing(self):
+        error, write_sheet1, _ = self._run(lambda service, name: None)
+        assert 'Could not read 3 of 3' in str(error)
+        write_sheet1.assert_not_called()
+
+    def test_all_lookups_succeed_writes_sheets(self):
+        error, write_sheet1, write_sheet2 = self._run(lambda service, name: {'aspects': {}})
+        assert error is None
+        write_sheet1.assert_called_once()
+        write_sheet2.assert_called_once()
+
+    def test_lookup_entry_retries_transient_errors(self):
+        from googleapiclient.errors import HttpError
+        response = MagicMock()
+        response.status = 503
+        service = MagicMock()
+        execute = service.projects.return_value.locations.return_value.lookupEntry.return_value.execute
+        execute.side_effect = [HttpError(response, b'unavailable'), {'name': 'e'}]
+        with patch('utils.retry_utils.time.sleep'):
+            result = glossary_export._lookup_entry(
+                service,
+                'projects/p/locations/us-east1/entryGroups/@dataplex/entries/projects/1/locations/us-east1/glossaries/g/terms/t1',
+            )
+        assert result == {'name': 'e'}
+        assert execute.call_count == 2
 
 
 class TestExportEntryNames:
@@ -1210,11 +1299,21 @@ class TestExportWriteAspectsToSheet:
         clear_call.assert_called_once()
         assert clear_call.call_args.kwargs['range'] == "'Sheet2'!A:ZZ"
 
-    def test_sheet1_write_path_unchanged(self, mock_sheets_client):
-        """Without a sheet name the range stays the original bare 'A1'."""
+    def test_sheet1_is_cleared_then_written(self, mock_sheets_client):
+        """Leftover rows from a bigger earlier export would bring back deleted terms."""
+        calls = []
+        values_api = mock_sheets_client.spreadsheets.return_value.values.return_value
+        values_api.clear.side_effect = lambda **kw: calls.append(('clear', kw['range'])) or MagicMock()
+        values_api.update.side_effect = lambda **kw: calls.append(('update', kw['range'])) or MagicMock()
         glossary_export._write_to_sheet(mock_sheets_client, 'sid', [['a']])
-        update_call = mock_sheets_client.spreadsheets.return_value.values.return_value.update
-        assert update_call.call_args.kwargs['range'] == 'A1'
+        assert calls == [('clear', 'A:ZZ'), ('update', 'A1')]
+
+    def test_sheet1_clear_failure_raises(self, mock_sheets_client):
+        values_api = mock_sheets_client.spreadsheets.return_value.values.return_value
+        values_api.clear.return_value.execute.side_effect = Exception('boom')
+        with pytest.raises(glossary_export.SheetsAPIError):
+            glossary_export._write_to_sheet(mock_sheets_client, 'sid', [['a']])
+        values_api.update.assert_not_called()
 
 
 # ============================================================================
@@ -1419,6 +1518,18 @@ class TestImportAspectValidation:
         ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("value", ['', '   '])
+    def test_missing_aspect_value_is_rejected(self, value, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', 'custom-gov.tier', value],
+        ]), {'term-1'})
+        output = capsys.readouterr().out
+        assert is_valid is False
+        assert "row 2" in output
+        assert "Aspect value" in output
 
     def test_malformed_aspect_name_is_rejected(self, capsys):
         processor = _make_processor()

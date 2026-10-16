@@ -121,6 +121,12 @@ entries under the project number, so the script resolves it with
 If it cannot, it logs a warning; in that case, pass the glossary URL with the
 project number.
 
+The export replaces the contents of the first tab (and of the aspects tab, see
+below). It **fails without writing anything** if any term or category cannot be
+read (transient errors are retried first). Glossary import deletes terms and
+categories that are missing from the sheet, so a partial export must never be
+re-imported.
+
 ### Sheets file schema (Glossary)
 
 The first line of the sheet contains the following header:
@@ -175,6 +181,11 @@ Where:
     A map field whose keys contain `.` is written as a single JSON object cell
     rather than as dotted sub-field rows, because dotted rows would rebuild a
     different structure on import.
+
+    Values are written as plain text, so Sheets does not reinterpret them
+    (`007` stays `007`, a value starting with `=` is not turned into a formula).
+    Fields that are null or empty are not exported; on import, a missing row
+    means the field is unset.
 *   `Aspect value` (required): The scalar or serialized value (see the datatype
     table below).
 

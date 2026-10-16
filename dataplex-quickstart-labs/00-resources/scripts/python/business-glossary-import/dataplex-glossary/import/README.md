@@ -217,7 +217,8 @@ Aspect rows are validated with row-numbered messages, like the glossary sheet:
 
 *   A non-empty aspects sheet whose first row does not contain the
     `id`, `Aspect name` and `Aspect value` headers.
-*   Missing `id` or missing `Aspect name`.
+*   Missing `id`, `Aspect name` or `Aspect value`. To leave a field unset,
+    delete its row.
 *   `id` that does not exist in Sheet 1.
 *   Malformed `Aspect name` (no field component, empty dotted segments, bad
     resource path).

@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from utils import api_layer, business_glossary_utils, sheet_utils
 from utils.constants import ASPECT_SHEET_HEADERS, SYSTEM_ASPECT_PROJECTS
 from utils.error import InvalidAspectIdentifierError
+from utils.retry_utils import execute_with_retry
 
 # --- Configure logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -231,6 +232,9 @@ def _extract_project_and_location_from_entry_id(entry_id: str) -> tuple:
 def _lookup_entry(dataplex_service: build, entry_id: str) -> Optional[Dict]:
     """Looks up an entry using the Dataplex API.
 
+    Transient errors (HTTP 429 and 5xx, network errors) are retried with
+    backoff before giving up.
+
     Args:
         dataplex_service: The Dataplex API service object.
         entry_id: The entry ID to look up.
@@ -245,7 +249,7 @@ def _lookup_entry(dataplex_service: build, entry_id: str) -> Optional[Dict]:
         project_id, location_id = _extract_project_and_location_from_entry_id(entry_id)
         name = f"projects/{project_id}/locations/{location_id}"
         request = dataplex_service.projects().locations().lookupEntry(name=name, entry=entry_id, view="ALL")
-        response = request.execute()
+        response = execute_with_retry(request.execute, f"lookupEntry {entry_id}")
         return response
     except Exception as e:
         logging.error(f"Error while looking up entry {entry_id}: {e}")
@@ -583,6 +587,10 @@ def _get_aspect_rows_for_entry(
         aspect_project = _resolve_project_id(aspect_project, user_project=glossary_project)
 
         for field_name, cell_value in business_glossary_utils.flatten_aspect_data(aspect_data):
+            if cell_value == "":
+                # Null or empty fields are unset: the importer rejects rows
+                # without a value, and leaving the row out round-trips as unset.
+                continue
             try:
                 aspect_name = business_glossary_utils.format_aspect_identifier_for_sheet(
                     aspect_project,
@@ -609,21 +617,31 @@ def _write_to_sheet(
     data: List[List[str]],
     sheet_name: Optional[str] = None,
 ) -> None:
-    """Writes data to a Google Sheet.
-    
+    """Writes data to a Google Sheet, replacing the target tab's contents.
+
+    The tab is cleared first. Otherwise, when the glossary has fewer rows than
+    an earlier export into the same spreadsheet, the leftover rows would stay
+    and re-importing the sheet would bring back terms/categories that have
+    since been deleted.
+
     Args:
         sheets_service: The Google Sheets API service object.
         spreadsheet_id: The ID of the spreadsheet.
         data: The data to write to the sheet.
-        sheet_name: Optional worksheet name to target. When omitted the write
-            is untargeted (range 'A1'), exactly as before, which keeps the
-            Sheet 1 write path behaviorally unchanged.
-    
+        sheet_name: Optional worksheet name to target. When omitted the clear
+            and the write are untargeted ('A:ZZ' / 'A1'), which the Sheets API
+            applies to the first tab, as before.
+
     Raises:
         SheetsAPIError: If there is an error during the write operation.
     """
     target_range = f"'{sheet_name}'!A1" if sheet_name else 'A1'
+    clear_range = f"'{sheet_name}'!A:ZZ" if sheet_name else 'A:ZZ'
     try:
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=spreadsheet_id,
+            range=clear_range,
+        ).execute()
         sheets_service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
             range=target_range,
@@ -730,16 +748,27 @@ def list_and_write_glossary_taxonomy(spreadsheet_url: str, glossary_name: str) -
                 continue
             entry_names_map[term_name] = _generate_entry_name_from_term_name(term_name)
 
-        # 6. Lookup entries and store results
+        # 6. Lookup entries and store results. Every term and category must be
+        # read: a sheet that silently leaves one out would DELETE it when it is
+        # re-imported (glossary import removes entries missing from the file).
         entry_id_to_entry_map = {}
+        failed_lookups = []
         for entry_id, entry_name in entry_names_map.items():
             try:
                 entry_response = _lookup_entry(dataplex_service, entry_name)
-                if entry_response:
-                    entry_id_to_entry_map[entry_id] = entry_response
             except DataplexAPIError as e:
-                logging.warning(f"Skipping entry {entry_name} due to lookup error: {e}")
+                failed_lookups.append(f"{entry_id}: {e}")
                 continue
+            if not entry_response:
+                failed_lookups.append(f"{entry_id}: lookupEntry returned no entry")
+                continue
+            entry_id_to_entry_map[entry_id] = entry_response
+        if failed_lookups:
+            raise DataplexAPIError(
+                f"Could not read {len(failed_lookups)} of {len(entry_names_map)} glossary "
+                f"entries, so nothing was written (an incomplete export would delete the "
+                f"missing terms/categories if re-imported). First failure: {failed_lookups[0]}"
+            )
 
         sheet_data = [SHEET_HEADERS]
         aspect_rows = []

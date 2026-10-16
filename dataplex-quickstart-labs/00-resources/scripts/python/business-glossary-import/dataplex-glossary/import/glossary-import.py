@@ -463,7 +463,8 @@ class SheetProcessor:
 
         Raises:
             AspectValidationError: If the id is missing/unknown, the aspect
-                name is missing, or the (id, aspect name) pair is duplicated.
+                name or value is missing, or the (id, aspect name) pair is
+                duplicated.
             InvalidAspectIdentifierError: If the aspect name is malformed.
         """
         row_num = aspect_row.row_number
@@ -475,6 +476,11 @@ class SheetProcessor:
         if not aspect_row.aspect_name:
             raise AspectValidationError(
                 f"Missing '{ASPECT_SHEET_HEADERS[1]}' value in aspects sheet row {row_num}."
+            )
+        if not str(aspect_row.aspect_value or "").strip():
+            raise AspectValidationError(
+                f"Missing '{ASPECT_SHEET_HEADERS[2]}' in aspects sheet row {row_num}. To leave "
+                f"the field unset, delete the row."
             )
         if aspect_row.term_id not in known_ids:
             raise AspectValidationError(

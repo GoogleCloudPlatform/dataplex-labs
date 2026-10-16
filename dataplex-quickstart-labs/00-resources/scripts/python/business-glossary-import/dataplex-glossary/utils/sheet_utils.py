@@ -639,9 +639,12 @@ def write_aspect_rows(
         sheets_service.spreadsheets().values().clear(
             spreadsheetId=spreadsheet_id, range=f"'{target_sheet_name}'!A:ZZ"
         ).execute()
+        # RAW, not USER_ENTERED: Sheets must not reinterpret aspect values as if
+        # they were typed ('007' -> 7, '50%' -> 0.5, '=x' -> formula, long
+        # integers losing precision), or they would not import back unchanged.
         sheets_service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id, range=f"'{target_sheet_name}'!A1",
-            valueInputOption='USER_ENTERED', body={'values': row_data}
+            valueInputOption='RAW', body={'values': row_data}
         ).execute()
         if sheet_id is not None:
             _apply_aspect_sheet_formatting(sheets_service, spreadsheet_id, sheet_id, len(row_data))
