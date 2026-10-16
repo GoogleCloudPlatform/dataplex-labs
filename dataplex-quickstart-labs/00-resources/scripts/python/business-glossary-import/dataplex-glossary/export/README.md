@@ -113,6 +113,14 @@ Exports categories and terms from a Dataplex business glossary into Google Sheet
 python3 glossary-export.py
 ```
 
+The script prompts for the Google Sheet URL and the glossary URL
+(`.../dp-glossaries/projects/<project>/locations/<location>/glossaries/<glossary>`).
+`<project>` can be the project ID or the project number. Dataplex stores glossary
+entries under the project number, so the script resolves it with
+`resourcemanager.projects.get` (included in the Browser role, `roles/browser`).
+If it cannot, it logs a warning; in that case, pass the glossary URL with the
+project number.
+
 ### Sheets file schema (Glossary)
 
 The first line of the sheet contains the following header:

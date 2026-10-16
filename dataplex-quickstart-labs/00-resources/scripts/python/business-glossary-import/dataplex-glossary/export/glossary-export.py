@@ -251,15 +251,52 @@ def _lookup_entry(dataplex_service: build, entry_id: str) -> Optional[Dict]:
         logging.error(f"Error while looking up entry {entry_id}: {e}")
         raise DataplexAPIError(f"Error while looking up entry {entry_id}: {e}")
 
+_unresolvable_projects = set()
+
+
+def _resolve_project_number(project: str) -> str:
+    """Returns the project number for a project id, or the input if it can't be resolved.
+
+    Business glossary entries are stored under the project NUMBER in the
+    inner path of their entry name
+    ('.../entries/projects/<number>/locations/...'), so looking one up with
+    the project id in that position returns ENTRY_NOT_FOUND. Resolving the
+    number (cached) lets the export accept glossary URLs with either form.
+
+    Args:
+        project: A project id or project number.
+
+    Returns:
+        The project number, or the input unchanged when it is already a number
+        or the lookup fails (for example without resourcemanager.projects.get).
+    """
+    if project in _unresolvable_projects:
+        return project
+    try:
+        return api_layer.get_project_number(project, user_project=project) or project
+    except Exception as e:
+        _unresolvable_projects.add(project)
+        logging.warning(
+            f"Could not resolve the project number of '{project}' ({e}). Looking up entries "
+            f"with the project id, which finds no entries if they are stored under the "
+            f"project number. Grant resourcemanager.projects.get (roles/browser) or use a "
+            f"glossary URL with the project number."
+        )
+        return project
+
+
 def _generate_entry_name_from_category_name(category_name: str) -> str:
     """Generates an entryId from a category name.
-    
+
+    The inner path of the entry name uses the project number, which is how
+    Dataplex stores glossary entries.
+
     Args:
         category_name: The full category name.
-        
+
     Returns:
         The generated entryId.
-        
+
     Raises:
         InvalidCategoryNameError: If the category name format is invalid.
     """
@@ -268,17 +305,21 @@ def _generate_entry_name_from_category_name(category_name: str) -> str:
         logging.error(f"Invalid category name format: {category_name}")
         raise InvalidCategoryNameError(f"Invalid category name format: {category_name}")
     project_id, location_id, glossary_id, category_id = match.groups()
-    return f"projects/{project_id}/locations/{location_id}/entryGroups/@dataplex/entries/projects/{project_id}/locations/{location_id}/glossaries/{glossary_id}/categories/{category_id}"
+    project_number = _resolve_project_number(project_id)
+    return f"projects/{project_id}/locations/{location_id}/entryGroups/@dataplex/entries/projects/{project_number}/locations/{location_id}/glossaries/{glossary_id}/categories/{category_id}"
 
 def _generate_entry_name_from_term_name(term_name: str) -> str:
     """Generates an entryId from a term name.
-    
+
+    The inner path of the entry name uses the project number, which is how
+    Dataplex stores glossary entries.
+
     Args:
         term_name: The full term name.
-        
+
     Returns:
         The generated entryId.
-        
+
     Raises:
         InvalidTermNameError: If the term name format is invalid.
     """
@@ -287,7 +328,8 @@ def _generate_entry_name_from_term_name(term_name: str) -> str:
         logging.error(f"Invalid term name format: {term_name}")
         raise InvalidTermNameError(f"Invalid term name format: {term_name}")
     project_id, location_id, glossary_id, term_id = match.groups()
-    return f"projects/{project_id}/locations/{location_id}/entryGroups/@dataplex/entries/projects/{project_id}/locations/{location_id}/glossaries/{glossary_id}/terms/{term_id}"
+    project_number = _resolve_project_number(project_id)
+    return f"projects/{project_id}/locations/{location_id}/entryGroups/@dataplex/entries/projects/{project_number}/locations/{location_id}/glossaries/{glossary_id}/terms/{term_id}"
 
 def _get_sheet_row_for_category(category, entry):
     """Generates a sheet row from category and entry.

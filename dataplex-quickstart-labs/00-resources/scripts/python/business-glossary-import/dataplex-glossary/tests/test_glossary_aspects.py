@@ -1120,6 +1120,50 @@ class TestExportAspectRows:
         assert rows == []
 
 
+class TestExportEntryNames:
+    """Entry names must use the project number in their inner path (how Dataplex stores them)."""
+
+    TERM_NAME = 'projects/my-project/locations/us-east1/glossaries/g/terms/t1'
+    CATEGORY_NAME = 'projects/my-project/locations/us-east1/glossaries/g/categories/c1'
+
+    def setup_method(self):
+        glossary_export._unresolvable_projects.clear()
+
+    def test_project_id_is_resolved_to_number_for_terms(self):
+        with patch.object(glossary_export.api_layer, 'get_project_number', return_value='123'):
+            name = glossary_export._generate_entry_name_from_term_name(self.TERM_NAME)
+        assert name == (
+            'projects/my-project/locations/us-east1/entryGroups/@dataplex/entries/'
+            'projects/123/locations/us-east1/glossaries/g/terms/t1'
+        )
+
+    def test_project_id_is_resolved_to_number_for_categories(self):
+        with patch.object(glossary_export.api_layer, 'get_project_number', return_value='123'):
+            name = glossary_export._generate_entry_name_from_category_name(self.CATEGORY_NAME)
+        assert name == (
+            'projects/my-project/locations/us-east1/entryGroups/@dataplex/entries/'
+            'projects/123/locations/us-east1/glossaries/g/categories/c1'
+        )
+
+    def test_project_number_url_is_unchanged_without_an_api_call(self):
+        with patch.object(glossary_export.api_layer, '_fetch_project_info') as fetch:
+            name = glossary_export._generate_entry_name_from_term_name(
+                'projects/123/locations/us-east1/glossaries/g/terms/t1'
+            )
+        fetch.assert_not_called()
+        assert '/entries/projects/123/locations/us-east1/glossaries/g/terms/t1' in name
+
+    def test_lookup_failure_falls_back_to_project_id_and_warns_once(self, caplog):
+        with patch.object(
+            glossary_export.api_layer, 'get_project_number', side_effect=Exception('403')
+        ) as get_number, caplog.at_level('WARNING'):
+            first = glossary_export._generate_entry_name_from_term_name(self.TERM_NAME)
+            glossary_export._generate_entry_name_from_category_name(self.CATEGORY_NAME)
+        assert '/entries/projects/my-project/locations/' in first
+        assert get_number.call_count == 1
+        assert caplog.text.count('Could not resolve the project number') == 1
+
+
 class TestExportWriteAspectsToSheet:
     """Tests for glossary-export._write_aspects_to_sheet."""
 
