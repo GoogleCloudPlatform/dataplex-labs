@@ -10,6 +10,8 @@ from utils.constants import (
     ASPECTS_SHEET_NAME,
     ASPECTS_SHEET_NAME_ENV_VAR,
     ASPECT_SHEET_HEADERS,
+    ASPECT_SHEET_REQUIRED_HEADERS,
+    ASPECT_TYPE_COLUMN,
     COLUMN_HEADER_ALIASES,
     DP_LINK_TYPE_DEFINITION,
     ENTRYLINK_SHEET_HEADERS,
@@ -542,8 +544,10 @@ def ensure_sheet_exists(sheets_service, spreadsheet_id: str, title: str) -> int:
 def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
     """Convert raw Sheet 2 values into AspectRow objects.
 
-    The header row is validated leniently: the three canonical headers are
-    detected case-insensitively in any order. Blank rows are skipped.
+    The header row is validated leniently: the canonical headers are detected
+    case-insensitively in any order. 'id', 'Aspect name' and 'Aspect value' are
+    required; 'type' (TERM or CATEGORY) is optional, so sheets written before
+    it existed keep working. Blank rows are skipped.
 
     A sheet that is completely blank, or has a valid header and no data rows,
     yields an empty list. A sheet that has content but no valid header is an
@@ -580,13 +584,14 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
         return -1
 
     id_idx = _index_of('id', 'term_id', 'term id')
+    type_idx = _index_of('type')
     name_idx = _index_of('aspect name', 'aspect_name', 'aspectname')
     value_idx = _index_of('aspect value', 'aspect_value', 'aspectvalue')
 
     if id_idx < 0 or name_idx < 0 or value_idx < 0:
         raise AspectSheetHeaderError(
-            f"Aspects sheet header must contain the columns {ASPECT_SHEET_HEADERS}, "
-            f"but row 1 is {headers}."
+            f"Aspects sheet header must contain the columns {ASPECT_SHEET_REQUIRED_HEADERS} "
+            f"(and optionally '{ASPECT_TYPE_COLUMN}'), but row 1 is {headers}."
         )
 
     aspect_rows = []
@@ -599,6 +604,7 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
             aspect_name=_cell(name_idx),
             aspect_value=_cell(value_idx),
             row_number=row_number,
+            entry_type=_cell(type_idx),
         )
         if aspect_row.is_empty():
             continue
@@ -667,9 +673,9 @@ def _apply_aspect_sheet_formatting(
     """Apply formatting to the aspects sheet.
 
     Mirrors _apply_sheet_formatting: fixed column widths, wrapped text, a bold
-    header row and auto-resized rows -- sized for [id, Aspect name, Aspect value].
+    header row and auto-resized rows -- sized for [id, type, Aspect name, Aspect value].
     """
-    column_widths = [(0, 220), (1, 300), (2, 450)]
+    column_widths = [(0, 220), (1, 110), (2, 300), (3, 450)]
     column_count = len(ASPECT_SHEET_HEADERS)
     requests = []
 

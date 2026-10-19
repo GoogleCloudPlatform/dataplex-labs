@@ -110,19 +110,23 @@ class SpreadsheetRow:
 class AspectRow:
     """Represents a row from the aspects sheet (Sheet 2).
 
-    Sheet 2 has a normalized 3-column schema: (id, Aspect name, Aspect value).
-    A single term/category may own many rows, one per aspect field.
+    Sheet 2 has a normalized schema: (id, type, Aspect name, Aspect value),
+    where 'type' is optional. A single term/category may own many rows, one per
+    aspect field.
 
     Attributes:
-        term_id: Foreign key into the Sheet 1 'id' column.
+        term_id: Foreign key into the Sheet 1 'id' column (a term or a category).
         aspect_name: Aspect field identifier, e.g. 'custom-gov.tier'.
         aspect_value: Raw (unparsed) cell value.
         row_number: 1-based spreadsheet row number, used in validation messages.
+        entry_type: 'TERM' or 'CATEGORY' (the Sheet 1 'type'), or '' when the
+            row leaves it blank or the sheet has no 'type' column.
     """
     term_id: str = ""
     aspect_name: str = ""
     aspect_value: str = ""
     row_number: int = 0
+    entry_type: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, str], row_number: int = 0) -> 'AspectRow':
@@ -140,6 +144,7 @@ class AspectRow:
         term_id = (
             data.get('id') or data.get('term_id') or data.get('ID') or ''
         ).strip()
+        entry_type = (data.get('type') or data.get('Type') or data.get('TYPE') or '').strip()
         aspect_name = (
             data.get('Aspect name') or data.get('aspect_name')
             or data.get('aspect name') or data.get('Aspect Name') or ''
@@ -153,14 +158,19 @@ class AspectRow:
             aspect_name=aspect_name,
             aspect_value=aspect_value.strip() if isinstance(aspect_value, str) else aspect_value,
             row_number=row_number,
+            entry_type=entry_type,
         )
 
     def to_row(self) -> List[str]:
-        """Convert to a spreadsheet row [id, Aspect name, Aspect value]."""
-        return [self.term_id, self.aspect_name, self.aspect_value]
+        """Convert to a spreadsheet row [id, type, Aspect name, Aspect value]."""
+        return [self.term_id, self.entry_type, self.aspect_name, self.aspect_value]
 
     def is_empty(self) -> bool:
-        """Return True when the row carries no usable data."""
+        """Return True when the row carries no usable data.
+
+        'type' alone does not count: a row with only a pre-filled type (for
+        example from a dropdown copied down the column) is skipped.
+        """
         return not (self.term_id or self.aspect_name or self.aspect_value)
 
 

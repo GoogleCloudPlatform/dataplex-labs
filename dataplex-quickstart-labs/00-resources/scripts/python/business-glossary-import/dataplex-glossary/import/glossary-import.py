@@ -17,7 +17,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils import api_layer, business_glossary_utils, sheet_utils
-from utils.constants import ASPECT_SHEET_HEADERS, ASPECTS_SHEET_NAME_ENV_VAR
+from utils.constants import (
+    ASPECT_ENTRY_TYPES,
+    ASPECT_ID_COLUMN,
+    ASPECT_NAME_COLUMN,
+    ASPECT_TYPE_COLUMN,
+    ASPECT_VALUE_COLUMN,
+    ASPECTS_SHEET_NAME_ENV_VAR,
+)
 from utils.error import AspectSheetHeaderError, AspectValidationError, InvalidAspectIdentifierError
 
 # Regex pattern for the glossary URL, allowing any valid URL
@@ -157,7 +164,7 @@ class SheetProcessor:
         self.glossary_id = None
         self.project_location_base = None
         self.category_names = {}
-        # term/category id -> { aspect type resource -> aspect data dict }
+        # (type, id) -> { aspect type resource -> aspect data dict }
         self.aspects_by_id = {}
         self._dataplex_service = None
         self._extract_glossary_ids()
@@ -445,49 +452,108 @@ class SheetProcessor:
             )
             return {}
 
+    @staticmethod
+    def _resolve_aspect_target(aspect_row, known_ids):
+        """Works out which Sheet 1 item (type, id) an aspect row belongs to.
+
+        A term and a category may share an id in one glossary, so the row's
+        optional 'type' picks between them:
+        * type set: it must be TERM or CATEGORY (as in Sheet 1) and (type, id)
+          must exist in Sheet 1;
+        * type blank or no 'type' column: the id must be exactly one item in
+          Sheet 1 - only a term, or only a category.
+
+        Args:
+            aspect_row: The AspectRow (id already checked to be non-empty).
+            known_ids: Set of (type, id) pairs declared in Sheet 1, or None to
+                skip the existence checks (then 'type' is required).
+
+        Returns:
+            The (type, id) key of the target item.
+
+        Raises:
+            AspectValidationError: If the type is invalid, the item is not in
+                Sheet 1, or a blank type is ambiguous.
+        """
+        row_num = aspect_row.row_number
+        item_id = aspect_row.term_id
+        entry_type = aspect_row.entry_type
+
+        if entry_type:
+            if entry_type not in ASPECT_ENTRY_TYPES:
+                raise AspectValidationError(
+                    f"Invalid '{ASPECT_TYPE_COLUMN}' '{entry_type}' in aspects sheet row {row_num}. "
+                    f"It must be one of {', '.join(ASPECT_ENTRY_TYPES)} (as in the glossary sheet), "
+                    f"or left blank."
+                )
+            if known_ids is not None and (entry_type, item_id) not in known_ids:
+                other_types = [t for t in ASPECT_ENTRY_TYPES if (t, item_id) in known_ids]
+                hint = (f" The glossary sheet has '{item_id}' only as a {other_types[0]}."
+                        if other_types else "")
+                raise AspectValidationError(
+                    f"Unknown {entry_type} '{item_id}' in aspects sheet row {row_num}. Every aspect "
+                    f"row must reference a term or category present in the glossary sheet.{hint}"
+                )
+            return entry_type, item_id
+
+        if known_ids is None:
+            raise AspectValidationError(
+                f"Missing '{ASPECT_TYPE_COLUMN}' in aspects sheet row {row_num}: it is required when "
+                f"the glossary sheet's ids are not known."
+            )
+        matches = [t for t in ASPECT_ENTRY_TYPES if (t, item_id) in known_ids]
+        if not matches:
+            raise AspectValidationError(
+                f"Unknown '{ASPECT_ID_COLUMN}' '{item_id}' in aspects sheet row {row_num}. Every "
+                f"aspect row must reference an id present in the glossary sheet."
+            )
+        if len(matches) > 1:
+            raise AspectValidationError(
+                f"'{item_id}' in aspects sheet row {row_num} is both a TERM and a CATEGORY in the "
+                f"glossary sheet. Fill in the '{ASPECT_TYPE_COLUMN}' column (TERM or CATEGORY) of "
+                f"this row to say which one the aspect is for."
+            )
+        return matches[0], item_id
+
     def _validate_aspect_row(self, aspect_row, known_ids, seen_pairs):
         """Validates a single aspect row from Sheet 2.
 
         Args:
             aspect_row: The AspectRow to validate.
-            known_ids: Set of ids declared in Sheet 1.
-            seen_pairs: Set of already-seen (id, aspect type resource, field
-                name) keys, mutated in place so duplicates are reported on
-                their second occurrence. The key uses the parsed identifier,
+            known_ids: Set of (type, id) pairs declared in Sheet 1, or None to
+                skip the existence checks.
+            seen_pairs: Set of already-seen (type, id, aspect type resource,
+                field name) keys, mutated in place so duplicates are reported
+                on their second occurrence. The key uses the parsed identifier,
                 so equivalent spellings ('custom-gov.tier' and its qualified or
                 resource-path form) are caught, while field names stay
                 case-sensitive like the MetadataTemplate.
 
         Returns:
-            The ParsedAspectIdentifier for the row.
+            A tuple ((type, id), ParsedAspectIdentifier) for the row.
 
         Raises:
-            AspectValidationError: If the id is missing/unknown, the aspect
-                name or value is missing, or the (id, aspect name) pair is
-                duplicated.
+            AspectValidationError: If the id is missing/unknown, the type is
+                invalid or needed, the aspect name or value is missing, or the
+                field is duplicated.
             InvalidAspectIdentifierError: If the aspect name is malformed.
         """
         row_num = aspect_row.row_number
 
         if not aspect_row.term_id:
             raise AspectValidationError(
-                f"Missing '{ASPECT_SHEET_HEADERS[0]}' value in aspects sheet row {row_num}."
+                f"Missing '{ASPECT_ID_COLUMN}' value in aspects sheet row {row_num}."
             )
         if not aspect_row.aspect_name:
             raise AspectValidationError(
-                f"Missing '{ASPECT_SHEET_HEADERS[1]}' value in aspects sheet row {row_num}."
+                f"Missing '{ASPECT_NAME_COLUMN}' value in aspects sheet row {row_num}."
             )
         if not str(aspect_row.aspect_value or "").strip():
             raise AspectValidationError(
-                f"Missing '{ASPECT_SHEET_HEADERS[2]}' in aspects sheet row {row_num}. To leave "
+                f"Missing '{ASPECT_VALUE_COLUMN}' in aspects sheet row {row_num}. To leave "
                 f"the field unset, delete the row."
             )
-        if aspect_row.term_id not in known_ids:
-            raise AspectValidationError(
-                f"Unknown '{ASPECT_SHEET_HEADERS[0]}' '{aspect_row.term_id}' in aspects sheet "
-                f"row {row_num}. Every aspect row must reference an id present in the "
-                f"glossary sheet."
-            )
+        target = self._resolve_aspect_target(aspect_row, known_ids)
 
         try:
             parsed = business_glossary_utils.parse_aspect_identifier(
@@ -497,7 +563,7 @@ class SheetProcessor:
             )
         except InvalidAspectIdentifierError as parse_error:
             raise InvalidAspectIdentifierError(
-                f"Invalid '{ASPECT_SHEET_HEADERS[1]}' in aspects sheet row {row_num}: {parse_error}"
+                f"Invalid '{ASPECT_NAME_COLUMN}' in aspects sheet row {row_num}: {parse_error}"
             )
 
         if business_glossary_utils.is_system_aspect(parsed.aspect_type_id):
@@ -509,19 +575,18 @@ class SheetProcessor:
             )
 
         pair_key = (
-            aspect_row.term_id,
+            target,
             parsed.aspect_type_resource.lower(),
             parsed.field_name,
         )
         if pair_key in seen_pairs:
             raise AspectValidationError(
-                f"Duplicate ('{ASPECT_SHEET_HEADERS[0]}', '{ASPECT_SHEET_HEADERS[1]}') pair "
-                f"('{aspect_row.term_id}', '{aspect_row.aspect_name}') in aspects sheet "
-                f"row {row_num}."
+                f"Duplicate field '{aspect_row.aspect_name}' for {target[0]} '{target[1]}' in "
+                f"aspects sheet row {row_num}: the same field is already set in an earlier row."
             )
         seen_pairs.add(pair_key)
 
-        return parsed
+        return target, parsed
 
     @staticmethod
     def _warn_no_custom_aspects(sheet_name, reason):
@@ -543,7 +608,7 @@ class SheetProcessor:
     def read_aspects(self, spreadsheet=None, known_ids=None):
         """Reads and resolves custom aspects from the aspects sheet (Sheet 2).
 
-        All rows sharing an (id, aspect type) are aggregated into a single
+        All rows sharing a (type, id, aspect type) are aggregated into a single
         aspect ``data`` dict. Dotted field names rebuild nested records, so
         'custom-gov.owner.email' becomes ``{'owner': {'email': ...}}``.
 
@@ -558,13 +623,26 @@ class SheetProcessor:
         Args:
             spreadsheet: An open gspread Spreadsheet. Opened from sheet_url
                 when not supplied.
-            known_ids: Set of ids declared in Sheet 1, used to reject orphan
-                aspect rows. Validation of unknown ids is skipped when None.
+            known_ids: Set of (type, id) pairs declared in Sheet 1, e.g.
+                {('TERM', 'sales'), ('CATEGORY', 'sales')}, used to resolve rows
+                with a blank 'type' and to reject rows for items that are not in
+                Sheet 1. When None, the existence checks are skipped and every
+                row must fill in 'type'.
 
         Returns:
             A tuple (is_valid, aspects_by_id) where aspects_by_id maps
-            term/category id -> aspect type resource -> aspect data dict.
+            (type, id) -> aspect type resource -> aspect data dict, e.g.
+            {('TERM', 'sales'): {'projects/p/locations/l/aspectTypes/gov': {'tier': 'HIGH'}}}.
+
+        Raises:
+            TypeError: If known_ids is not a collection of (type, id) pairs.
         """
+        if known_ids is not None:
+            known_ids = set(known_ids)
+            if not all(isinstance(k, tuple) and len(k) == 2 for k in known_ids):
+                raise TypeError(
+                    "read_aspects(known_ids=...) expects (type, id) pairs, e.g. {('TERM', 'sales')}."
+                )
         sheet_name = sheet_utils.resolve_aspects_sheet_name()
 
         if spreadsheet is None:
@@ -614,9 +692,7 @@ class SheetProcessor:
 
         for aspect_row in aspect_rows:
             try:
-                parsed = self._validate_aspect_row(
-                    aspect_row, known_ids if known_ids is not None else {aspect_row.term_id}, seen_pairs
-                )
+                target, parsed = self._validate_aspect_row(aspect_row, known_ids, seen_pairs)
             except (AspectValidationError, InvalidAspectIdentifierError) as validation_error:
                 is_valid = False
                 print(f"Invalid aspect data: {validation_error}")
@@ -627,7 +703,7 @@ class SheetProcessor:
             # Reject overlapping fields ('owner' and 'owner.email') whatever
             # the row order, so no row can silently overwrite another.
             paths_for_aspect = assigned_paths.setdefault(
-                (aspect_row.term_id, aspect_type_resource.lower()), {}
+                (target, aspect_type_resource.lower()), {}
             )
             new_path = tuple(parsed.field_path)
             conflicting_path = business_glossary_utils.find_conflicting_field_path(
@@ -638,7 +714,7 @@ class SheetProcessor:
                 print(
                     f"Invalid aspect data in aspects sheet row {aspect_row.row_number}: field "
                     f"'{'.'.join(new_path)}' overlaps field '{'.'.join(conflicting_path)}' set in "
-                    f"row {paths_for_aspect[conflicting_path]} for the same id and aspect type. "
+                    f"row {paths_for_aspect[conflicting_path]} for the same {target[0]} and aspect type. "
                     f"Use either the whole value or its sub-fields, not both."
                 )
                 continue
@@ -654,7 +730,7 @@ class SheetProcessor:
                 aspect_row.aspect_value, field_types.get(parsed.field_name)
             )
 
-            aspect_data = aspects_by_id.setdefault(aspect_row.term_id, {}).setdefault(
+            aspect_data = aspects_by_id.setdefault(target, {}).setdefault(
                 aspect_type_resource, {}
             )
             try:
@@ -683,18 +759,19 @@ class SheetProcessor:
             for aspect_type_resource in by_type
         })
 
-    def _build_custom_aspects(self, row_id):
+    def _build_custom_aspects(self, row_type, row_id):
         """Builds the custom aspects payload fragment for one term/category.
 
         Args:
-            row_id: The Sheet 1 id of the term or category.
+            row_type: The Sheet 1 type of the item, TERM or CATEGORY.
+            row_id: The Sheet 1 id of the item.
 
         Returns:
             Mapping of aspects-map key -> {'aspectType': ..., 'data': ...},
             empty when the row has no custom aspects.
         """
         custom_aspects = {}
-        for aspect_type_resource, aspect_data in self.aspects_by_id.get(row_id, {}).items():
+        for aspect_type_resource, aspect_data in self.aspects_by_id.get((row_type, row_id), {}).items():
             aspect_key = business_glossary_utils.aspect_key_from_resource(aspect_type_resource)
             custom_aspects[aspect_key] = {
                 "aspectType": aspect_type_resource,
@@ -724,7 +801,7 @@ class SheetProcessor:
         # merged FIRST so the three system aspects below always win, and a
         # malformed custom row can never clobber overview/contacts/structural
         # aspects.
-        custom_aspects = self._build_custom_aspects(row_data[ID_COLUMN])
+        custom_aspects = self._build_custom_aspects(row_data[TYPE_COLUMN_NAME], row_data[ID_COLUMN])
 
         if row_data["type"] == TERM_TYPE:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-term"
@@ -845,7 +922,10 @@ class SheetProcessor:
         # aspects" (with a warning, since existing custom aspects on the
         # imported entries will be removed); an unreadable sheet or malformed
         # rows invalidate the dump just like Sheet 1 validation errors do.
-        known_ids = {row_data[ID_COLUMN] for row_data in valid_rows if row_data.get(ID_COLUMN)}
+        known_ids = {
+            (row_data[TYPE_COLUMN_NAME], row_data[ID_COLUMN])
+            for row_data in valid_rows if row_data.get(ID_COLUMN)
+        }
         aspects_valid, self.aspects_by_id = self.read_aspects(spreadsheet, known_ids)
         if not aspects_valid:
             is_dump_valid = False

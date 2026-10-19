@@ -153,14 +153,18 @@ Where:
 ### Sheets file schema (Aspects — second sheet)
 
 Custom Dataplex **Aspects** are exported to a **second worksheet** (`Sheet2` by
-default) using a normalized 3-column schema. Sheet 1 above is **unchanged**.
+default) using a normalized schema. Sheet 1 above is **unchanged**.
 
-`id, Aspect name, Aspect value`
+`id, type, Aspect name, Aspect value`
 
 Where:
 
 *   `id` (required): Foreign key to the `id` column of Sheet 1. One term or
     category may own many aspect rows.
+*   `type`: `TERM` or `CATEGORY`, as in Sheet 1. Export always writes it, so a
+    term and a category that share an id (for example `.../terms/sales` and
+    `.../categories/sales`) keep their own aspects when the sheet is
+    re-imported. On import the column is optional.
 *   `Aspect name` (required): The aspect field identifier. Three forms are
     accepted on import. Export writes the short form for aspect types in the
     glossary's own project and location, and the qualified form for any other
@@ -199,13 +203,13 @@ Sheet 1:
 
 Sheet 2:
 
-| id | Aspect name | Aspect value |
-|---|---|---|
-| `term-customer-id` | `custom-gov.tier` | `HIGH` |
-| `term-customer-id` | `custom-gov.is_pii` | `true` |
-| `term-customer-id` | `custom-gov.retention_days` | `365` |
-| `term-customer-id` | `custom-gov.tags` | `["finance","core"]` |
-| `term-customer-id` | `custom-gov.owner.email` | `alice@example.com` |
+| id | type | Aspect name | Aspect value |
+|---|---|---|---|
+| `term-customer-id` | `TERM` | `custom-gov.tier` | `HIGH` |
+| `term-customer-id` | `TERM` | `custom-gov.is_pii` | `true` |
+| `term-customer-id` | `TERM` | `custom-gov.retention_days` | `365` |
+| `term-customer-id` | `TERM` | `custom-gov.tags` | `["finance","core"]` |
+| `term-customer-id` | `TERM` | `custom-gov.owner.email` | `alice@example.com` |
 
 All five rows are aggregated into a **single** `custom-gov` aspect on the
 `term-customer-id` entry.
