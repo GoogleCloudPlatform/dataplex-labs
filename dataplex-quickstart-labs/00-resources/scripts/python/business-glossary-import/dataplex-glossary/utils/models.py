@@ -111,10 +111,11 @@ class AspectRow:
     """Represents a row from the aspects sheet (Sheet 2).
 
     Sheet 2 has a normalized 3-column schema: (id, Aspect name, Aspect value).
-    A single term/category may own many rows, one per aspect field.
+    Custom aspects can only be set on terms, so the id is a term id. A single
+    term may own many rows, one per aspect field.
 
     Attributes:
-        term_id: Foreign key into the Sheet 1 'id' column.
+        term_id: Foreign key into the Sheet 1 'id' column (a term id).
         aspect_name: Aspect field identifier, e.g. 'custom-gov.tier'.
         aspect_value: Raw (unparsed) cell value.
         row_number: 1-based spreadsheet row number, used in validation messages.
@@ -129,7 +130,8 @@ class AspectRow:
         """Create an AspectRow from a dictionary, tolerating header spellings.
 
         Args:
-            data: Mapping of column header to cell value. Both the canonical
+            data: Mapping of column header to cell value. Headers are matched
+                case-insensitively, like rows_to_aspect_rows: the canonical
                 headers ('id', 'Aspect name', 'Aspect value') and snake_case
                 variants ('term_id', 'aspect_name', 'aspect_value') are accepted.
             row_number: 1-based spreadsheet row number for error reporting.
@@ -137,20 +139,18 @@ class AspectRow:
         Returns:
             A populated AspectRow with all string fields stripped.
         """
-        term_id = (
-            data.get('id') or data.get('term_id') or data.get('ID') or ''
-        ).strip()
-        aspect_name = (
-            data.get('Aspect name') or data.get('aspect_name')
-            or data.get('aspect name') or data.get('Aspect Name') or ''
-        ).strip()
-        aspect_value = (
-            data.get('Aspect value') or data.get('aspect_value')
-            or data.get('aspect value') or data.get('Aspect Value') or ''
-        )
+        normalized = {str(key).strip().lower(): value for key, value in data.items()}
+
+        def _value(*keys: str) -> Any:
+            for key in keys:
+                if normalized.get(key):
+                    return normalized[key]
+            return ''
+
+        aspect_value = _value('aspect value', 'aspect_value', 'aspectvalue')
         return cls(
-            term_id=term_id,
-            aspect_name=aspect_name,
+            term_id=str(_value('id', 'term_id', 'term id')).strip(),
+            aspect_name=str(_value('aspect name', 'aspect_name', 'aspectname')).strip(),
             aspect_value=aspect_value.strip() if isinstance(aspect_value, str) else aspect_value,
             row_number=row_number,
         )

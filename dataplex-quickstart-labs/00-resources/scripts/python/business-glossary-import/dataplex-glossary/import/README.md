@@ -136,7 +136,10 @@ default) using a normalized 3-column schema. The Sheet 1 schema above is
 Where:
 
 *   `id` (required): Foreign key to the `id` column of Sheet 1. Must reference a
-    term or category that exists in Sheet 1. One id may own many aspect rows.
+    **term** that exists in Sheet 1: custom aspects can only be set on terms.
+    One id may own many aspect rows. If a term and a category share the id
+    (Dataplex allows that), the row is applied to the term and a warning is
+    printed.
 *   `Aspect name` (required): The aspect field identifier, in any of:
     *   Short — `<aspectTypeId>.<fieldName>`, e.g. `custom-gov.tier`
     *   Qualified — `<project>.<location>.<aspectTypeId>.<fieldName>`, e.g.
@@ -219,7 +222,8 @@ Aspect rows are validated with row-numbered messages, like the glossary sheet:
     `id`, `Aspect name` and `Aspect value` headers.
 *   Missing `id`, `Aspect name` or `Aspect value`. To leave a field unset,
     delete its row.
-*   `id` that does not exist in Sheet 1.
+*   `id` that is not a term in Sheet 1. An id that is only a category gets its
+    own message: custom aspects can only be set on terms.
 *   Malformed `Aspect name` (no field component, empty dotted segments, bad
     resource path).
 *   Duplicate `(id, aspect type, field)` combinations. Names are compared after
@@ -249,18 +253,21 @@ the glossary from the import file: the existing entry is replaced, and only the
 aspects present in the file are kept. Unmentioned aspects are **not** preserved,
 whatever `aspect_sync_mode` says.
 
-In practice, the spreadsheet is the complete description of each term's and
-category's aspects:
+In practice, the spreadsheet is the complete description of each term's
+aspects:
 
 *   Adding or changing a row in Sheet 2 adds or updates that aspect field.
 *   Deleting a row from Sheet 2 **removes** that field (and the aspect, once all
     of its rows are gone) on the next import.
 *   Importing with Sheet 2 missing or empty **removes all custom aspects** from
-    the imported terms and categories.
+    the imported terms.
+*   Categories never carry custom aspects after an import. A custom aspect
+    attached to a category outside the Business Glossary UI (for example
+    through the API) is removed; the export warns about such aspects.
 
 > [!WARNING]
-> **Always export first.** Before importing into a glossary whose terms or
-> categories already carry custom aspects, run the export into the spreadsheet
+> **Always export first.** Before importing into a glossary whose terms
+> already carry custom aspects, run the export into the spreadsheet
 > you are going to import, so that Sheet 2 holds the current aspects. Then edit
 > and import that spreadsheet. The importer prints a warning whenever it is
 > about to import without custom aspects.

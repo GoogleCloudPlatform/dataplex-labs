@@ -24,6 +24,7 @@ from utils.constants import (
     TYPE_HEADER_ALIASES,
 )
 from utils.error import AspectSheetHeaderError, InvalidSpreadsheetURLError, SheetsAPIError
+from utils.models import AspectRow
 from utils.retry_utils import execute_with_retry, is_network_error
 
 logger = logging_utils.get_logger()
@@ -478,20 +479,31 @@ def resolve_aspects_sheet_name(sheet_name: str = None) -> str:
 def sheet_exists(sheets_service, spreadsheet_id: str, title: str) -> bool:
     """Check whether a worksheet with the given title exists.
 
+    A failure to read the spreadsheet metadata is raised rather than reported
+    as "absent": the export uses this check to decide whether to reset a
+    leftover aspects tab, and skipping that reset would leave stale rows that
+    bring back removed aspects on the next import.
+
     Args:
         sheets_service: The Google Sheets API service object.
         spreadsheet_id: The spreadsheet ID.
         title: The worksheet title to look for.
 
     Returns:
-        True when the worksheet exists, False when it does not or when the
-        metadata call fails.
+        True when the worksheet exists, False when it does not.
+
+    Raises:
+        SheetsAPIError: If the spreadsheet metadata cannot be read.
     """
     try:
-        metadata = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        metadata = execute_with_retry(
+            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
+            f"Read spreadsheet metadata {spreadsheet_id}",
+            is_retryable=is_network_error,
+        )
     except Exception as metadata_error:
-        logger.warning(f"Could not read spreadsheet metadata: {metadata_error}")
-        return False
+        logger.error(f"Could not read spreadsheet metadata: {metadata_error}")
+        raise SheetsAPIError(f"Could not read spreadsheet metadata: {metadata_error}")
 
     for sheet in metadata.get('sheets', []):
         if sheet.get('properties', {}).get('title') == title:
@@ -539,7 +551,7 @@ def ensure_sheet_exists(sheets_service, spreadsheet_id: str, title: str) -> int:
         raise SheetsAPIError(f"Error ensuring worksheet '{title}' exists: {ensure_error}")
 
 
-def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
+def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List[AspectRow]:
     """Convert raw Sheet 2 values into AspectRow objects.
 
     The header row is validated leniently: the three canonical headers are
@@ -562,8 +574,6 @@ def rows_to_aspect_rows(spreadsheet_data: List[List[str]]) -> List['AspectRow']:
         AspectSheetHeaderError: If the sheet has content but row 1 does not
             contain the required headers.
     """
-    from utils.models import AspectRow
-
     def _is_blank(row) -> bool:
         return not row or all(not str(cell).strip() for cell in row)
 

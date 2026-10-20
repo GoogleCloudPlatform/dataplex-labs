@@ -157,7 +157,7 @@ class SheetProcessor:
         self.glossary_id = None
         self.project_location_base = None
         self.category_names = {}
-        # term/category id -> { aspect type resource -> aspect data dict }
+        # term id -> { aspect type resource -> aspect data dict }
         self.aspects_by_id = {}
         self._dataplex_service = None
         self._extract_glossary_ids()
@@ -435,9 +435,7 @@ class SheetProcessor:
         if not dataplex_service:
             return {}
         try:
-            return api_layer.get_aspect_field_types(
-                dataplex_service, aspect_type_resource, self.project_id
-            )
+            return api_layer.get_aspect_field_types(dataplex_service, aspect_type_resource)
         except Exception as schema_error:
             print(
                 f"Warning: could not read AspectType {aspect_type_resource} "
@@ -445,12 +443,17 @@ class SheetProcessor:
             )
             return {}
 
-    def _validate_aspect_row(self, aspect_row, known_ids, seen_pairs):
+    def _validate_aspect_row(self, aspect_row, term_ids, category_ids, seen_pairs):
         """Validates a single aspect row from Sheet 2.
+
+        Custom aspects can only be set on terms, so the id must be the id of a
+        term in Sheet 1.
 
         Args:
             aspect_row: The AspectRow to validate.
-            known_ids: Set of ids declared in Sheet 1.
+            term_ids: Set of term ids declared in Sheet 1.
+            category_ids: Set of category ids declared in Sheet 1, used to
+                explain why a category id is rejected.
             seen_pairs: Set of already-seen (id, aspect type resource, field
                 name) keys, mutated in place so duplicates are reported on
                 their second occurrence. The key uses the parsed identifier,
@@ -462,9 +465,9 @@ class SheetProcessor:
             The ParsedAspectIdentifier for the row.
 
         Raises:
-            AspectValidationError: If the id is missing/unknown, the aspect
-                name or value is missing, or the (id, aspect name) pair is
-                duplicated.
+            AspectValidationError: If the id is missing or is not a term id,
+                the aspect name or value is missing, or the (id, aspect name)
+                pair is duplicated.
             InvalidAspectIdentifierError: If the aspect name is malformed.
         """
         row_num = aspect_row.row_number
@@ -482,10 +485,15 @@ class SheetProcessor:
                 f"Missing '{ASPECT_SHEET_HEADERS[2]}' in aspects sheet row {row_num}. To leave "
                 f"the field unset, delete the row."
             )
-        if aspect_row.term_id not in known_ids:
+        if aspect_row.term_id not in term_ids:
+            if aspect_row.term_id in category_ids:
+                raise AspectValidationError(
+                    f"'{aspect_row.term_id}' in aspects sheet row {row_num} is a category. "
+                    f"Custom aspects can only be set on terms; remove this row."
+                )
             raise AspectValidationError(
                 f"Unknown '{ASPECT_SHEET_HEADERS[0]}' '{aspect_row.term_id}' in aspects sheet "
-                f"row {row_num}. Every aspect row must reference an id present in the "
+                f"row {row_num}. Every aspect row must reference the id of a term in the "
                 f"glossary sheet."
             )
 
@@ -540,8 +548,13 @@ class SheetProcessor:
             f"populated, then edit and re-import that spreadsheet."
         )
 
-    def read_aspects(self, spreadsheet=None, known_ids=None):
+    def read_aspects(self, spreadsheet=None, term_ids=None, category_ids=None):
         """Reads and resolves custom aspects from the aspects sheet (Sheet 2).
+
+        Custom aspects can only be set on terms: every row must reference the
+        id of a term in Sheet 1. A row whose id is only a category is an error.
+        A row whose id is both a term and a category (Dataplex allows a term
+        and a category to share an id) is applied to the term, with a warning.
 
         All rows sharing an (id, aspect type) are aggregated into a single
         aspect ``data`` dict. Dotted field names rebuild nested records, so
@@ -558,13 +571,17 @@ class SheetProcessor:
         Args:
             spreadsheet: An open gspread Spreadsheet. Opened from sheet_url
                 when not supplied.
-            known_ids: Set of ids declared in Sheet 1, used to reject orphan
-                aspect rows. Validation of unknown ids is skipped when None.
+            term_ids: Set of term ids declared in Sheet 1. Rows whose id is not
+                in it are rejected. Id validation is skipped when None.
+            category_ids: Optional set of category ids declared in Sheet 1,
+                used to explain why a category id is rejected and to warn when
+                an id is both a term and a category.
 
         Returns:
             A tuple (is_valid, aspects_by_id) where aspects_by_id maps
-            term/category id -> aspect type resource -> aspect data dict.
+            term id -> aspect type resource -> aspect data dict.
         """
+        category_ids = category_ids or set()
         sheet_name = sheet_utils.resolve_aspects_sheet_name()
 
         if spreadsheet is None:
@@ -615,12 +632,22 @@ class SheetProcessor:
         for aspect_row in aspect_rows:
             try:
                 parsed = self._validate_aspect_row(
-                    aspect_row, known_ids if known_ids is not None else {aspect_row.term_id}, seen_pairs
+                    aspect_row,
+                    term_ids if term_ids is not None else {aspect_row.term_id},
+                    category_ids,
+                    seen_pairs,
                 )
             except (AspectValidationError, InvalidAspectIdentifierError) as validation_error:
                 is_valid = False
                 print(f"Invalid aspect data: {validation_error}")
                 continue
+
+            if aspect_row.term_id in category_ids:
+                print(
+                    f"Warning: '{aspect_row.term_id}' in aspects sheet row "
+                    f"{aspect_row.row_number} is both a term and a category. Custom aspects can "
+                    f"only be set on terms, so this row is applied to the term."
+                )
 
             aspect_type_resource = parsed.aspect_type_resource
 
@@ -671,7 +698,7 @@ class SheetProcessor:
         aspect_count = sum(len(by_type) for by_type in aspects_by_id.values())
         print(
             f"Resolved {aspect_count} custom aspect(s) across {len(aspects_by_id)} "
-            f"term(s)/category(ies) from '{sheet_name}'."
+            f"term(s) from '{sheet_name}'."
         )
         return is_valid, aspects_by_id
 
@@ -683,18 +710,18 @@ class SheetProcessor:
             for aspect_type_resource in by_type
         })
 
-    def _build_custom_aspects(self, row_id):
-        """Builds the custom aspects payload fragment for one term/category.
+    def _build_custom_aspects(self, term_id):
+        """Builds the custom aspects payload fragment for one term.
 
         Args:
-            row_id: The Sheet 1 id of the term or category.
+            term_id: The Sheet 1 id of the term.
 
         Returns:
             Mapping of aspects-map key -> {'aspectType': ..., 'data': ...},
-            empty when the row has no custom aspects.
+            empty when the term has no custom aspects.
         """
         custom_aspects = {}
-        for aspect_type_resource, aspect_data in self.aspects_by_id.get(row_id, {}).items():
+        for aspect_type_resource, aspect_data in self.aspects_by_id.get(term_id, {}).items():
             aspect_key = business_glossary_utils.aspect_key_from_resource(aspect_type_resource)
             custom_aspects[aspect_key] = {
                 "aspectType": aspect_type_resource,
@@ -720,17 +747,16 @@ class SheetProcessor:
         if row_data[LABEL2_KEY_COLUMN_NAME] and row_data[LABEL2_VALUE_COLUMN_NAME]:
             labels[row_data[LABEL2_KEY_COLUMN_NAME]] = row_data[LABEL2_VALUE_COLUMN_NAME]
         
-        # Custom aspects resolved from the aspects sheet (Sheet 2). These are
-        # merged FIRST so the three system aspects below always win, and a
-        # malformed custom row can never clobber overview/contacts/structural
-        # aspects.
-        custom_aspects = self._build_custom_aspects(row_data[ID_COLUMN])
-
+        # Custom aspects resolved from the aspects sheet (Sheet 2), for terms
+        # only: a category that shares an id with a term must not get the
+        # term's aspects. These are merged FIRST so the three system aspects
+        # below always win, and a malformed custom row can never clobber
+        # overview/contacts/structural aspects.
         if row_data["type"] == TERM_TYPE:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-term"
             resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/terms/{row_data[ID_COLUMN]}"
             aspects = {
-                **custom_aspects,
+                **self._build_custom_aspects(row_data[ID_COLUMN]),
                 "dataplex-types.global.glossary-term-aspect": {"data": {}}, 
                 "dataplex-types.global.overview": {"data": {"content": row_data[OVERVIEW_COLUMN_NAME]}},
                 "dataplex-types.global.contacts": {"data": {"identities": identities}}
@@ -739,7 +765,6 @@ class SheetProcessor:
             entry_type = "projects/dataplex-types/locations/global/entryTypes/glossary-category"
             resource = f"{self.project_location_base}/glossaries/{self.glossary_id}/categories/{row_data[ID_COLUMN]}"
             aspects = {
-                **custom_aspects,
                 "dataplex-types.global.glossary-category-aspect": {"data": {}}, 
                 "dataplex-types.global.overview": {"data": {"content": row_data[OVERVIEW_COLUMN_NAME]}},
                 "dataplex-types.global.contacts": {"data": {"identities": identities}}
@@ -845,8 +870,18 @@ class SheetProcessor:
         # aspects" (with a warning, since existing custom aspects on the
         # imported entries will be removed); an unreadable sheet or malformed
         # rows invalidate the dump just like Sheet 1 validation errors do.
-        known_ids = {row_data[ID_COLUMN] for row_data in valid_rows if row_data.get(ID_COLUMN)}
-        aspects_valid, self.aspects_by_id = self.read_aspects(spreadsheet, known_ids)
+        # Custom aspects can only be set on terms; category ids are passed so
+        # that a row naming a category gets a clear error (or, when a term
+        # shares the id, a warning).
+        term_ids = {
+            row[ID_COLUMN] for row in valid_rows
+            if row.get(ID_COLUMN) and row.get(TYPE_COLUMN_NAME) == TERM_TYPE
+        }
+        category_ids = {
+            row[ID_COLUMN] for row in valid_rows
+            if row.get(ID_COLUMN) and row.get(TYPE_COLUMN_NAME) == CATEGORY_TYPE
+        }
+        aspects_valid, self.aspects_by_id = self.read_aspects(spreadsheet, term_ids, category_ids)
         if not aspects_valid:
             is_dump_valid = False
             print("Aspects sheet is not valid. Please fix the errors and try again.")

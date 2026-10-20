@@ -15,6 +15,9 @@ Test coverage:
 - Unreadable Sheet 2 or a bad header -> the import fails
 - Aspect row validation errors (unknown id, malformed name, empties, canonical
   duplicates, overlapping fields, reserved aspect type ids)
+- Custom aspects are for terms only: category ids are rejected, an id shared
+  by a term and a category goes to the term with a warning, and export skips
+  (and warns about) custom aspects on categories
 - Export with mixed system + custom aspects, qualified names for aspect types
   outside the glossary's project/location, and stale Sheet 2 clearing
 - api_layer.get_aspect_type caching and permission fallback
@@ -36,6 +39,7 @@ from utils.error import (
     AspectSheetHeaderError,
     AspectValidationError,
     InvalidAspectIdentifierError,
+    SheetsAPIError,
 )
 from utils.models import AspectRow, ParsedAspectIdentifier
 
@@ -664,6 +668,10 @@ class TestAspectRow:
         row = AspectRow.from_dict({})
         assert row.is_empty() is True
 
+    def test_from_dict_headers_match_in_any_case(self):
+        row = AspectRow.from_dict({"Id": "term-1", "ASPECT NAME": "custom-gov.tier", " aspect Value ": "HIGH"})
+        assert (row.term_id, row.aspect_name, row.aspect_value) == ("term-1", "custom-gov.tier", "HIGH")
+
     def test_to_row(self):
         row = AspectRow(term_id="t", aspect_name="a.b", aspect_value="v")
         assert row.to_row() == ["t", "a.b", "v"]
@@ -790,11 +798,20 @@ class TestSheetExists:
         }
         assert sheet_utils.sheet_exists(mock_sheets_client, 'sid', 'Sheet2') is False
 
-    def test_false_on_api_error(self, mock_sheets_client):
+    def test_api_error_raises_instead_of_reporting_absent(self, mock_sheets_client):
+        """'Absent' would skip resetting a stale aspects tab and bring back removed aspects."""
         mock_sheets_client.spreadsheets.return_value.get.return_value.execute.side_effect = (
             Exception("boom")
         )
-        assert sheet_utils.sheet_exists(mock_sheets_client, 'sid', 'Sheet2') is False
+        with pytest.raises(SheetsAPIError):
+            sheet_utils.sheet_exists(mock_sheets_client, 'sid', 'Sheet2')
+
+    def test_network_errors_are_retried(self, mock_sheets_client):
+        mock_sheets_client.spreadsheets.return_value.get.return_value.execute.side_effect = [
+            ConnectionError("reset"), {'sheets': [{'properties': {'title': 'Sheet2'}}]},
+        ]
+        with patch('utils.retry_utils.time.sleep'):
+            assert sheet_utils.sheet_exists(mock_sheets_client, 'sid', 'Sheet2') is True
 
 
 class TestWriteAspectRows:
@@ -876,6 +893,20 @@ class TestGetAspectType:
         assert api_layer.get_aspect_type(
             service, 'projects/p/locations/global/aspectTypes/custom-gov'
         ) is None
+
+    def test_transient_failure_is_not_cached(self):
+        """A 503 that outlasted the retries must not hide the schema for the rest of the run."""
+        from googleapiclient.errors import HttpError
+        response = MagicMock()
+        response.status = 503
+        resource = 'projects/p/locations/global/aspectTypes/custom-gov'
+        with patch.object(
+            api_layer, 'execute_with_retry',
+            side_effect=[HttpError(response, b'unavailable'), {'name': 'at'}],
+        ) as execute:
+            assert api_layer.get_aspect_type(MagicMock(), resource) is None
+            assert api_layer.get_aspect_type(MagicMock(), resource) == {'name': 'at'}
+        assert execute.call_count == 2
 
     def test_field_types_flattened(self):
         service = self._mock_service({
@@ -1015,13 +1046,6 @@ class TestExportAspectRows:
             ['term-customer-id', 'custom-gov.is_pii', 'true'],
             ['term-customer-id', 'custom-gov.retention_days', '365'],
         ]
-
-    def test_category_rows(self):
-        rows = glossary_export._get_aspect_rows_for_entry(
-            CATEGORY,
-            _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {'tier': 'LOW'}}}),
-        )
-        assert rows == [['cat-core', 'custom-gov.tier', 'LOW']]
 
     def test_record_fields_are_dotted(self):
         rows = glossary_export._get_aspect_rows_for_entry(
@@ -1208,6 +1232,31 @@ class TestExportLookupFailures:
         assert result == {'name': 'e'}
         assert execute.call_count == 2
 
+
+class TestExportCategoryAspects:
+    """Custom aspects can only be set on terms, so category aspects are not exported."""
+
+    def test_category_aspects_are_skipped_with_a_warning(self, caplog):
+        aspects = {'my-project.us-east1.custom-gov': {'data': {'tier': 'HIGH'}}}
+        with caplog.at_level('WARNING'):
+            _, write_sheet1, write_sheet2 = TestExportLookupFailures()._run(
+                lambda service, name: {'aspects': aspects}
+            )
+        write_sheet1.assert_called_once()
+        aspect_rows = write_sheet2.call_args.args[2]
+        assert aspect_rows == [
+            ['t1', 'custom-gov.tier', 'HIGH'],
+            ['t2', 'custom-gov.tier', 'HIGH'],
+        ]
+        assert "Category 'c1' has custom aspect(s) my-project.us-east1.custom-gov" in caplog.text
+        assert "Re-importing this spreadsheet removes them" in caplog.text
+
+    def test_category_without_custom_aspects_does_not_warn(self, caplog):
+        with caplog.at_level('WARNING'):
+            glossary_export._warn_about_category_custom_aspects(
+                CATEGORY, _entry_with_aspects({'655216118709.global.overview': {'data': {'content': 'x'}}})
+            )
+        assert caplog.text == ''
 
 class TestExportEntryNames:
     """Entry names must use the project number in their inner path (how Dataplex stores them)."""
@@ -1630,6 +1679,83 @@ class TestImportAspectValidation:
         assert "reserved" in capsys.readouterr().out
 
 
+class TestImportAspectsAreForTermsOnly:
+    """Custom aspects can only be set on terms; a term and a category may share an id."""
+
+    GOV = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
+
+    def test_category_id_is_rejected(self, capsys):
+        processor = _make_processor()
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['cat-core', 'custom-gov.tier', 'HIGH'],
+        ]), {'term-1'}, {'cat-core'})
+        output = capsys.readouterr().out
+        assert is_valid is False
+        assert aspects == {}
+        assert "'cat-core' in aspects sheet row 2 is a category" in output
+        assert "only be set on terms" in output
+
+    def test_id_shared_by_a_term_and_a_category_goes_to_the_term_with_a_warning(self, capsys):
+        processor = _make_processor()
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['sales', 'custom-gov.tier', 'HIGH'],
+            ['term-1', 'custom-gov.tier', 'LOW'],
+        ]), {'sales', 'term-1'}, {'sales'})
+        output = capsys.readouterr().out
+        assert is_valid is True
+        assert aspects == {'sales': {self.GOV: {'tier': 'HIGH'}}, 'term-1': {self.GOV: {'tier': 'LOW'}}}
+        assert "'sales' in aspects sheet row 2 is both a term and a category" in output
+        assert "applied to the term" in output
+        assert "row 3" not in output
+
+    def test_unknown_id_message_asks_for_a_term_id(self, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['ghost', 'custom-gov.tier', 'HIGH'],
+        ]), {'term-1'}, {'cat-core'})
+        output = capsys.readouterr().out
+        assert is_valid is False
+        assert "Unknown 'id' 'ghost' in aspects sheet row 2" in output
+        assert "id of a term" in output
+
+    def test_category_ids_are_optional(self, capsys):
+        """Without category ids, a non-term id is reported as unknown."""
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['cat-core', 'custom-gov.tier', 'HIGH'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert "Unknown 'id' 'cat-core'" in capsys.readouterr().out
+
+    def test_read_and_validate_data_passes_term_and_category_ids(self):
+        headers = [
+            'id', 'parent', 'display_name', 'description', 'overview', 'type',
+            'contact1_email', 'contact1_name', 'contact2_email', 'contact2_name',
+            'label1_key', 'label1_value', 'label2_key', 'label2_value',
+        ]
+
+        def row(row_id, row_type):
+            return [row_id, '', row_id.title(), '', '', row_type] + [''] * 8
+
+        spreadsheet = MagicMock()
+        spreadsheet.sheet1.get_all_values.return_value = [
+            headers, row('sales', 'CATEGORY'), row('sales', 'TERM'), row('term-1', 'TERM'),
+            row('cat-core', 'CATEGORY'),
+        ]
+        processor = _make_processor()
+        with patch.object(glossary_import.gspread, 'authorize') as authorize, \
+             patch.object(processor, 'read_aspects', return_value=(False, {})) as read_aspects:
+            authorize.return_value.open_by_url.return_value = spreadsheet
+            processor.read_and_validate_data()
+        _, term_ids, category_ids = read_aspects.call_args.args
+        assert term_ids == {'sales', 'term-1'}
+        assert category_ids == {'sales', 'cat-core'}
+
+
 class TestImportConvertToImportItem:
     """Tests for merging custom aspects into the import payload."""
 
@@ -1689,7 +1815,8 @@ class TestImportConvertToImportItem:
 
         assert aspects['dataplex-types.global.overview'] == {'data': {'content': '<p>o</p>'}}
 
-    def test_custom_aspect_merged_for_category(self):
+    def test_category_never_gets_custom_aspects(self):
+        """Custom aspects are for terms only, even if aspects_by_id has the id."""
         processor = _make_processor()
         processor.aspects_by_id = {
             'cat-core': {
@@ -1700,8 +1827,21 @@ class TestImportConvertToImportItem:
             self._row(row_id='cat-core', row_type='CATEGORY'), []
         )['entry']['aspects']
 
-        assert 'dataplex-types.global.glossary-category-aspect' in aspects
-        assert aspects['my-project.us-central1.custom-gov']['data'] == {'tier': 'LOW'}
+        assert set(aspects) == {
+            'dataplex-types.global.glossary-category-aspect',
+            'dataplex-types.global.overview',
+            'dataplex-types.global.contacts',
+        }
+
+    def test_term_and_category_sharing_an_id_only_the_term_gets_aspects(self):
+        processor = _make_processor()
+        processor.aspects_by_id = {
+            'sales': {'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {'tier': 'X'}}
+        }
+        term = processor._convert_to_import_item(self._row(row_id='sales', row_type='TERM'), [])
+        category = processor._convert_to_import_item(self._row(row_id='sales', row_type='CATEGORY'), [])
+        assert term['entry']['aspects']['my-project.us-central1.custom-gov']['data'] == {'tier': 'X'}
+        assert 'my-project.us-central1.custom-gov' not in category['entry']['aspects']
 
     def test_payload_is_json_serializable(self):
         processor = _make_processor()

@@ -533,7 +533,10 @@ def _get_aspect_rows_for_entry(
     glossary_project_id: Optional[str] = None,
     glossary_location_id: Optional[str] = None,
 ) -> List[List[str]]:
-    """Builds the Sheet 2 rows for a single term or category.
+    """Builds the Sheet 2 rows for a single term.
+
+    The export only calls this for terms: custom aspects can only be set on
+    terms, so categories get no aspect rows.
 
     Each custom aspect's ``data`` dict is flattened into one row per field.
     Record and map sub-fields are flattened one level into dotted names
@@ -609,6 +612,31 @@ def _get_aspect_rows_for_entry(
             aspect_rows.append([resource_id, aspect_name, cell_value])
 
     return aspect_rows
+
+
+def _warn_about_category_custom_aspects(category, entry) -> None:
+    """Logs a warning when a category carries custom aspects.
+
+    Custom aspects can only be set on terms, so the aspects sheet holds term
+    aspects only and the import rejects rows for categories. A custom aspect
+    on a category (which can only be attached outside the Business Glossary
+    UI, e.g. through the API) is therefore not exported, and re-importing the
+    spreadsheet removes it, because glossary import replaces the aspects of
+    every imported category with the contents of the spreadsheet.
+
+    Args:
+        category: A Category resource dict.
+        entry: The Entry representing that category.
+    """
+    custom_aspect_keys = sorted(_get_aspects_from_entry(entry)["custom"])
+    if not custom_aspect_keys:
+        return
+    category_id = category.get("name", "").rsplit("/", 1)[-1]
+    logging.warning(
+        f"Category '{category_id}' has custom aspect(s) {', '.join(custom_aspect_keys)}, which "
+        f"are not exported: custom aspects can only be set on terms. Re-importing this "
+        f"spreadsheet removes them from the category."
+    )
 
 
 def _write_to_sheet(
@@ -786,9 +814,9 @@ def list_and_write_glossary_taxonomy(spreadsheet_url: str, glossary_name: str) -
                 else:
                     category_row.append("")
             sheet_data.append(category_row)
-            aspect_rows.extend(
-                _get_aspect_rows_for_entry(category, category_entry, glossary_project_id, glossary_location_id)
-            )
+            # Custom aspects can only be set on terms, so categories get no
+            # aspect rows (see _warn_about_category_custom_aspects).
+            _warn_about_category_custom_aspects(category, category_entry)
 
         # 8. Add Terms data in the sheet
         for term in terms:

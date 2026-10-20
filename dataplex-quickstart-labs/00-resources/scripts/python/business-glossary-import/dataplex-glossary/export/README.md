@@ -159,8 +159,12 @@ default) using a normalized 3-column schema. Sheet 1 above is **unchanged**.
 
 Where:
 
-*   `id` (required): Foreign key to the `id` column of Sheet 1. One term or
-    category may own many aspect rows.
+*   `id` (required): Foreign key to the `id` column of Sheet 1. Custom aspects
+    can only be set on terms, so only term aspects are exported. One term may
+    own many aspect rows. If a category carries custom aspects (they can only
+    be attached outside the Business Glossary UI, for example through the API),
+    export logs a warning and skips them; re-importing the spreadsheet removes
+    them from the category.
 *   `Aspect name` (required): The aspect field identifier. Three forms are
     accepted on import. Export writes the short form for aspect types in the
     glossary's own project and location, and the qualified form for any other
@@ -256,7 +260,9 @@ log line is emitted and the export is what it was before. If the aspects tab
 already exists from an earlier export, it is reset to just the header row.
 Glossary import replaces each term's and category's aspects with the
 spreadsheet contents, so leftover rows would otherwise bring back aspects that
-have since been removed. Sheet 1's 14-column schema is unchanged.
+have since been removed. If the spreadsheet metadata cannot be read to check
+for that tab, the export fails rather than leaving stale rows behind. Sheet 1's
+14-column schema is unchanged.
 
 #### Overriding the sheet name
 

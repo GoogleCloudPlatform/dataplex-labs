@@ -41,7 +41,7 @@ from utils.error import (
     InvalidTermIdentifierError,
     InvalidTermNameError,
 )
-from utils.models import ParsedTermIdentifier
+from utils.models import ParsedAspectIdentifier, ParsedTermIdentifier
 
 
 def extract_glossary_name(url: str) -> str:
@@ -434,8 +434,6 @@ def parse_aspect_identifier(
         InvalidAspectIdentifierError: If the identifier is empty, has no field
             component, or contains empty segments.
     """
-    from utils.models import ParsedAspectIdentifier
-
     if not name or not isinstance(name, str) or not name.strip():
         raise InvalidAspectIdentifierError(
             "Invalid 'Aspect name': value must be a non-empty string."

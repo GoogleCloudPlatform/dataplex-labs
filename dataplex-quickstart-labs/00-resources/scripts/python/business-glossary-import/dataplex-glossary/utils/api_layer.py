@@ -1082,21 +1082,19 @@ def is_known_entry(entry_name: str) -> bool:
     return entry_name in _known_entry_names
 
 
-def get_aspect_type(
-    dataplex_service: build, aspect_type_resource: str, user_project: str = ""
-) -> Optional[Dict]:
+def get_aspect_type(dataplex_service: build, aspect_type_resource: str) -> Optional[Dict]:
     """Fetch an AspectType resource by name, with in-memory caching.
 
-    Permission and not-found failures are treated as "schema unavailable"
-    rather than fatal: the caller then falls back to heuristic value coercion.
-    Negative results are cached too, so a missing AspectType is only looked up
-    once per run.
+    Any failure is treated as "schema unavailable" rather than fatal: the
+    caller then falls back to heuristic value coercion. Permission and
+    not-found results are cached, so a missing AspectType is only looked up
+    once per run. Transient failures (network, 429, 5xx, after retries) are
+    not cached, so a later call tries again (see _get_or_fetch).
 
     Args:
         dataplex_service: The Dataplex API service object.
         aspect_type_resource: Full AspectType resource name, i.e.
             'projects/{project}/locations/{location}/aspectTypes/{aspect_type}'.
-        user_project: Optional project used for billing/quota attribution.
 
     Returns:
         The AspectType resource dict, or None when it cannot be read.
@@ -1104,40 +1102,30 @@ def get_aspect_type(
     if not aspect_type_resource:
         return None
 
-    if aspect_type_resource in _aspect_type_cache:
-        return _aspect_type_cache[aspect_type_resource]
-
-    logger.debug(f"Request: aspectTypes.get(name={aspect_type_resource})")
-    try:
+    def fetch() -> Optional[Dict]:
+        logger.debug(f"Request: aspectTypes.get(name={aspect_type_resource})")
         request = dataplex_service.projects().locations().aspectTypes().get(
             name=aspect_type_resource
         )
-        response = execute_with_retry(
-            request.execute, f"Get aspect type {aspect_type_resource}"
-        )
-        _aspect_type_cache[aspect_type_resource] = response
-        return response
-    except HttpError as http_error:
-        status_code = http_error.resp.status if hasattr(http_error, 'resp') else None
-        if status_code in (401, 403, 404):
-            logger.warning(
-                f"Could not read AspectType {aspect_type_resource} (HTTP {status_code}). "
-                f"Falling back to heuristic value coercion."
-            )
-            _aspect_type_cache[aspect_type_resource] = None
-            return None
-        logger.warning(
-            f"Error fetching AspectType {aspect_type_resource}: {http_error}. "
-            f"Falling back to heuristic value coercion."
-        )
-        _aspect_type_cache[aspect_type_resource] = None
-        return None
+        try:
+            return execute_with_retry(request.execute, f"Get aspect type {aspect_type_resource}")
+        except HttpError as http_error:
+            status_code = http_error.resp.status if hasattr(http_error, 'resp') else None
+            if status_code in (401, 403, 404):
+                logger.warning(
+                    f"Could not read AspectType {aspect_type_resource} (HTTP {status_code}). "
+                    f"Falling back to heuristic value coercion."
+                )
+                return None
+            raise
+
+    try:
+        return _get_or_fetch(_aspect_type_cache, aspect_type_resource, fetch)
     except Exception as aspect_type_error:
         logger.warning(
             f"Error fetching AspectType {aspect_type_resource}: {aspect_type_error}. "
             f"Falling back to heuristic value coercion."
         )
-        _aspect_type_cache[aspect_type_resource] = None
         return None
 
 
@@ -1176,22 +1164,19 @@ def _flatten_metadata_template(
     return field_types
 
 
-def get_aspect_field_types(
-    dataplex_service: build, aspect_type_resource: str, user_project: str = ""
-) -> Dict[str, str]:
+def get_aspect_field_types(dataplex_service: build, aspect_type_resource: str) -> Dict[str, str]:
     """Return the declared field types for an AspectType.
 
     Args:
         dataplex_service: The Dataplex API service object.
         aspect_type_resource: Full AspectType resource name.
-        user_project: Optional project used for billing/quota attribution.
 
     Returns:
         Mapping of dotted field path to MetadataTemplate type (e.g.
         {'tier': 'string', 'is_pii': 'bool', 'owner.email': 'string'}). Empty
         when the AspectType cannot be read, which signals heuristic coercion.
     """
-    aspect_type = get_aspect_type(dataplex_service, aspect_type_resource, user_project)
+    aspect_type = get_aspect_type(dataplex_service, aspect_type_resource)
     if not aspect_type:
         return {}
     return _flatten_metadata_template(aspect_type.get('metadataTemplate', {}) or {})
