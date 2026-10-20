@@ -10,12 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils import api_layer, business_glossary_utils, sheet_utils
-from utils.constants import (
-    ASPECT_ENTRY_TYPE_CATEGORY,
-    ASPECT_ENTRY_TYPE_TERM,
-    ASPECT_SHEET_HEADERS,
-    SYSTEM_ASPECT_PROJECTS,
-)
+from utils.constants import ASPECT_SHEET_HEADERS, SYSTEM_ASPECT_PROJECTS
 from utils.error import InvalidAspectIdentifierError
 from utils.retry_utils import execute_with_retry
 
@@ -563,19 +558,15 @@ def _get_aspect_rows_for_entry(
             in the term or category resource name.
 
     Returns:
-        A list of [id, type, Aspect name, Aspect value] rows (type is TERM or
-        CATEGORY, so a term and a category that share an id stay apart), empty
-        when the entry
+        A list of [id, Aspect name, Aspect value] rows, empty when the entry
         carries no custom aspects.
     """
     resource_name = term_or_category.get("name", "")
-    term_match = TERM_NAME_REGEX_PATTERN.match(resource_name)
-    match = term_match or CATERGORY_NAME_REGEX_PATTERN.match(resource_name)
+    match = TERM_NAME_REGEX_PATTERN.match(resource_name) or CATERGORY_NAME_REGEX_PATTERN.match(resource_name)
     if not match:
         logging.warning(f"Could not determine id for aspect rows from: {resource_name}")
         return []
     resource_id = match.groups()[-1]
-    entry_type = ASPECT_ENTRY_TYPE_TERM if term_match else ASPECT_ENTRY_TYPE_CATEGORY
     glossary_project = _resolve_project_id(
         glossary_project_id or match.groups()[0], user_project=glossary_project_id or match.groups()[0]
     )
@@ -615,7 +606,7 @@ def _get_aspect_rows_for_entry(
                     f"'{resource_id}': {format_error}"
                 )
                 continue
-            aspect_rows.append([resource_id, entry_type, aspect_name, cell_value])
+            aspect_rows.append([resource_id, aspect_name, cell_value])
 
     return aspect_rows
 
@@ -683,7 +674,7 @@ def _write_aspects_to_sheet(
     Args:
         sheets_service: The Google Sheets API service object.
         spreadsheet_id: The ID of the spreadsheet.
-        aspect_rows: Rows of [id, type, Aspect name, Aspect value], header excluded.
+        aspect_rows: Rows of [id, Aspect name, Aspect value], header excluded.
 
     Raises:
         SheetsAPIError: If there is an error during the write operation.

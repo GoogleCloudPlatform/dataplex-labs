@@ -40,16 +40,6 @@ from utils.error import (
 from utils.models import AspectRow, ParsedAspectIdentifier
 
 
-# Sheet 2 header written before the optional 'type' column existed. Import
-# must keep accepting it.
-LEGACY_ASPECT_HEADER = ["id", "Aspect name", "Aspect value"]
-
-
-def _terms(*ids):
-    """Known Sheet 1 items as (type, id) pairs, all terms."""
-    return {("TERM", item_id) for item_id in ids}
-
-
 def _load_module(module_name, relative_path):
     """Load one of the hyphenated standalone scripts as a module."""
     spec = importlib.util.spec_from_file_location(
@@ -675,8 +665,8 @@ class TestAspectRow:
         assert row.is_empty() is True
 
     def test_to_row(self):
-        row = AspectRow(term_id="t", aspect_name="a.b", aspect_value="v", entry_type="TERM")
-        assert row.to_row() == ["t", "TERM", "a.b", "v"]
+        row = AspectRow(term_id="t", aspect_name="a.b", aspect_value="v")
+        assert row.to_row() == ["t", "a.b", "v"]
 
 
 # ============================================================================
@@ -688,7 +678,7 @@ class TestRowsToAspectRows:
 
     def test_parses_canonical_sheet(self):
         rows = sheet_utils.rows_to_aspect_rows([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ["term-1", "custom-gov.tier", "HIGH"],
             ["term-1", "custom-gov.is_pii", "true"],
         ])
@@ -701,11 +691,11 @@ class TestRowsToAspectRows:
         assert sheet_utils.rows_to_aspect_rows([]) == []
 
     def test_header_only_returns_empty(self):
-        assert sheet_utils.rows_to_aspect_rows([LEGACY_ASPECT_HEADER]) == []
+        assert sheet_utils.rows_to_aspect_rows([ASPECT_SHEET_HEADERS]) == []
 
     def test_blank_rows_are_skipped(self):
         rows = sheet_utils.rows_to_aspect_rows([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ["", "", ""],
             ["term-1", "custom-gov.tier", "HIGH"],
         ])
@@ -714,7 +704,7 @@ class TestRowsToAspectRows:
 
     def test_short_rows_are_padded(self):
         rows = sheet_utils.rows_to_aspect_rows([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ["term-1", "custom-gov.tier"],
         ])
         assert rows[0].aspect_value == ""
@@ -725,39 +715,6 @@ class TestRowsToAspectRows:
             ["term-1", "custom-gov.tier", "HIGH"],
         ])
         assert len(rows) == 1
-
-    def test_type_column_is_read_in_any_case_and_order(self):
-        rows = sheet_utils.rows_to_aspect_rows([
-            ["Aspect Value", "TYPE", "Aspect Name", "ID"],
-            ["HIGH", "CATEGORY", "custom-gov.tier", "sales"],
-            ["LOW", "", "custom-gov.tier", "term-1"],
-        ])
-        assert [(r.term_id, r.entry_type, r.aspect_value) for r in rows] == [
-            ("sales", "CATEGORY", "HIGH"), ("term-1", "", "LOW"),
-        ]
-
-    def test_type_value_is_kept_as_written(self):
-        """The type is validated later, exactly like Sheet 1 (no case folding)."""
-        rows = sheet_utils.rows_to_aspect_rows([
-            ["id", "type", "Aspect name", "Aspect value"],
-            ["sales", " Term ", "custom-gov.tier", "HIGH"],
-        ])
-        assert rows[0].entry_type == "Term"
-
-    def test_row_with_only_a_type_is_skipped(self):
-        rows = sheet_utils.rows_to_aspect_rows([
-            ["id", "type", "Aspect name", "Aspect value"],
-            ["", "TERM", "", ""],
-            ["term-1", "TERM", "custom-gov.tier", "HIGH"],
-        ])
-        assert len(rows) == 1
-        assert rows[0].row_number == 3
-
-    def test_legacy_header_without_type(self):
-        rows = sheet_utils.rows_to_aspect_rows([
-            LEGACY_ASPECT_HEADER, ["term-1", "custom-gov.tier", "HIGH"],
-        ])
-        assert rows[0].entry_type == ""
 
     def test_completely_blank_sheet_returns_empty(self):
         assert sheet_utils.rows_to_aspect_rows([["", ""], [], ["  "]]) == []
@@ -848,7 +805,7 @@ class TestWriteAspectRows:
             'sheets': [{'properties': {'title': 'Sheet2', 'sheetId': 7}}]
         }
         result = sheet_utils.write_aspect_rows(
-            mock_sheets_client, 'sid', [ASPECT_SHEET_HEADERS, ['t', 'TERM', 'a.b', 'v']]
+            mock_sheets_client, 'sid', [ASPECT_SHEET_HEADERS, ['t', 'a.b', 'v']]
         )
         assert result == 'Sheet2'
         update_call = mock_sheets_client.spreadsheets.return_value.values.return_value.update
@@ -860,7 +817,7 @@ class TestWriteAspectRows:
             'sheets': [{'properties': {'title': 'Sheet2', 'sheetId': 7}}]
         }
         sheet_utils.write_aspect_rows(
-            mock_sheets_client, 'sid', [ASPECT_SHEET_HEADERS, ['t', 'TERM', 'a.code', '007']]
+            mock_sheets_client, 'sid', [ASPECT_SHEET_HEADERS, ['t', 'a.code', '007']]
         )
         update_call = mock_sheets_client.spreadsheets.return_value.values.return_value.update
         assert update_call.call_args.kwargs['valueInputOption'] == 'RAW'
@@ -1054,9 +1011,9 @@ class TestExportAspectRows:
             TERM, _entry_with_aspects(MIXED_ASPECTS)
         )
         assert rows == [
-            ['term-customer-id', 'TERM', 'custom-gov.tier', 'HIGH'],
-            ['term-customer-id', 'TERM', 'custom-gov.is_pii', 'true'],
-            ['term-customer-id', 'TERM', 'custom-gov.retention_days', '365'],
+            ['term-customer-id', 'custom-gov.tier', 'HIGH'],
+            ['term-customer-id', 'custom-gov.is_pii', 'true'],
+            ['term-customer-id', 'custom-gov.retention_days', '365'],
         ]
 
     def test_category_rows(self):
@@ -1064,7 +1021,7 @@ class TestExportAspectRows:
             CATEGORY,
             _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {'tier': 'LOW'}}}),
         )
-        assert rows == [['cat-core', 'CATEGORY', 'custom-gov.tier', 'LOW']]
+        assert rows == [['cat-core', 'custom-gov.tier', 'LOW']]
 
     def test_record_fields_are_dotted(self):
         rows = glossary_export._get_aspect_rows_for_entry(
@@ -1073,7 +1030,7 @@ class TestExportAspectRows:
                 'my-project.us-central1.custom-gov': {'data': {'owner': {'email': 'a@b.c'}}}
             }),
         )
-        assert rows == [['term-customer-id', 'TERM', 'custom-gov.owner.email', 'a@b.c']]
+        assert rows == [['term-customer-id', 'custom-gov.owner.email', 'a@b.c']]
 
     def test_arrays_are_json(self):
         rows = glossary_export._get_aspect_rows_for_entry(
@@ -1082,21 +1039,21 @@ class TestExportAspectRows:
                 'my-project.us-central1.custom-gov': {'data': {'tags': ['finance', 'core']}}
             }),
         )
-        assert rows == [['term-customer-id', 'TERM', 'custom-gov.tags', '["finance","core"]']]
+        assert rows == [['term-customer-id', 'custom-gov.tags', '["finance","core"]']]
 
     def test_global_aspect_type_on_regional_glossary_is_qualified(self):
         rows = glossary_export._get_aspect_rows_for_entry(
             TERM,
             _entry_with_aspects({'my-project.global.custom-gov': {'data': {'tier': 'LOW'}}}),
         )
-        assert rows == [['term-customer-id', 'TERM', 'my-project.global.custom-gov.tier', 'LOW']]
+        assert rows == [['term-customer-id', 'my-project.global.custom-gov.tier', 'LOW']]
 
     def test_cross_project_aspect_type_is_qualified(self):
         rows = glossary_export._get_aspect_rows_for_entry(
             TERM,
             _entry_with_aspects({'shared-gov.us-central1.custom-gov': {'data': {'tier': 'LOW'}}}),
         )
-        assert rows == [['term-customer-id', 'TERM', 'shared-gov.us-central1.custom-gov.tier', 'LOW']]
+        assert rows == [['term-customer-id', 'shared-gov.us-central1.custom-gov.tier', 'LOW']]
 
     def test_project_numbers_are_resolved_before_comparing(self):
         """Entry aspect keys carry project numbers; the glossary name carries the id."""
@@ -1113,8 +1070,8 @@ class TestExportAspectRows:
                 }),
             )
         assert rows == [
-            ['term-customer-id', 'TERM', 'custom-gov.tier', 'HIGH'],
-            ['term-customer-id', 'TERM', 'shared-gov.us-central1.custom-gov.tier', 'LOW'],
+            ['term-customer-id', 'custom-gov.tier', 'HIGH'],
+            ['term-customer-id', 'shared-gov.us-central1.custom-gov.tier', 'LOW'],
         ]
 
     def test_null_and_empty_fields_are_not_exported(self):
@@ -1125,9 +1082,9 @@ class TestExportAspectRows:
             }}}),
         )
         assert rows == [
-            ['term-customer-id', 'TERM', 'custom-gov.tier', 'HIGH'],
-            ['term-customer-id', 'TERM', 'custom-gov.tags', '[]'],
-            ['term-customer-id', 'TERM', 'custom-gov.meta', '{}'],
+            ['term-customer-id', 'custom-gov.tier', 'HIGH'],
+            ['term-customer-id', 'custom-gov.tags', '[]'],
+            ['term-customer-id', 'custom-gov.meta', '{}'],
         ]
 
     def test_malformed_field_is_skipped_not_fatal(self, caplog):
@@ -1138,7 +1095,7 @@ class TestExportAspectRows:
                     'my-project.us-central1.custom-gov': {'data': {'': 'x', 'tier': 'HIGH'}}
                 }),
             )
-        assert rows == [['term-customer-id', 'TERM', 'custom-gov.tier', 'HIGH']]
+        assert rows == [['term-customer-id', 'custom-gov.tier', 'HIGH']]
         assert 'Skipping field' in caplog.text
 
     def test_explicit_glossary_project_and_location_win(self):
@@ -1148,7 +1105,7 @@ class TestExportAspectRows:
             glossary_project_id='my-project',
             glossary_location_id='global',
         )
-        assert rows == [['term-customer-id', 'TERM', 'custom-gov.tier', 'LOW']]
+        assert rows == [['term-customer-id', 'custom-gov.tier', 'LOW']]
 
     def test_export_rows_import_back_to_the_same_aspects(self):
         """Export -> import must resolve every row to the aspect type it came from."""
@@ -1161,11 +1118,11 @@ class TestExportAspectRows:
 
         processor = _make_processor()
         is_valid, imported = processor.read_aspects(
-            _mock_spreadsheet([ASPECT_SHEET_HEADERS] + rows), _terms('term-customer-id')
+            _mock_spreadsheet([ASPECT_SHEET_HEADERS] + rows), {'term-customer-id'}
         )
 
         assert is_valid is True
-        assert imported == {('TERM', 'term-customer-id'): {
+        assert imported == {'term-customer-id': {
             'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {
                 'tier': 'HIGH', 'owner': {'email': 'a@b.c'}
             },
@@ -1390,7 +1347,7 @@ class TestImportReadAspects:
     def test_missing_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(
-            _mock_spreadsheet(None, raise_not_found=True), _terms('term-1')
+            _mock_spreadsheet(None, raise_not_found=True), {'term-1'}
         )
         assert is_valid is True
         assert aspects == {}
@@ -1398,7 +1355,7 @@ class TestImportReadAspects:
 
     def test_empty_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([]), _terms('term-1'))
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([]), {'term-1'})
         assert is_valid is True
         assert aspects == {}
         assert "will be REMOVED" in capsys.readouterr().out
@@ -1406,7 +1363,7 @@ class TestImportReadAspects:
     def test_header_only_sheet_is_valid_with_warning(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(
-            _mock_spreadsheet([LEGACY_ASPECT_HEADER]), _terms('term-1')
+            _mock_spreadsheet([ASPECT_SHEET_HEADERS]), {'term-1'}
         )
         assert is_valid is True
         assert aspects == {}
@@ -1417,7 +1374,7 @@ class TestImportReadAspects:
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
             ['id', 'Aspect', 'Value'],
             ['term-1', 'custom-gov.tier', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert aspects == {}
         assert "header" in capsys.readouterr().out
@@ -1426,7 +1383,7 @@ class TestImportReadAspects:
         processor = _make_processor()
         spreadsheet = MagicMock()
         spreadsheet.worksheet.side_effect = Exception("HTTP 429")
-        is_valid, aspects = processor.read_aspects(spreadsheet, _terms('term-1'))
+        is_valid, aspects = processor.read_aspects(spreadsheet, {'term-1'})
         assert is_valid is False
         assert aspects == {}
         assert "HTTP 429" in capsys.readouterr().out
@@ -1435,7 +1392,7 @@ class TestImportReadAspects:
         processor = _make_processor()
         spreadsheet = MagicMock()
         spreadsheet.worksheet.return_value.get_all_values.side_effect = Exception("HTTP 503")
-        is_valid, aspects = processor.read_aspects(spreadsheet, _terms('term-1'))
+        is_valid, aspects = processor.read_aspects(spreadsheet, {'term-1'})
         assert is_valid is False
         assert aspects == {}
 
@@ -1444,62 +1401,62 @@ class TestImportReadAspects:
         with patch.object(
             glossary_import.gspread, 'authorize', side_effect=Exception("boom")
         ):
-            is_valid, aspects = processor.read_aspects(None, _terms('term-1'))
+            is_valid, aspects = processor.read_aspects(None, {'term-1'})
         assert is_valid is False
         assert aspects == {}
 
     def test_rows_aggregate_into_one_data_dict(self):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-1', 'custom-gov.is_pii', 'true'],
             ['term-1', 'custom-gov.retention_days', '365'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
 
         assert is_valid is True
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
         assert aspects == {
-            ('TERM', 'term-1'): {resource: {'tier': 'HIGH', 'is_pii': True, 'retention_days': 365}}
+            'term-1': {resource: {'tier': 'HIGH', 'is_pii': True, 'retention_days': 365}}
         }
 
     def test_multiple_aspect_types_for_one_term(self):
         processor = _make_processor()
         _, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-1', 'custom-quality.score', '9'],
-        ]), _terms('term-1'))
-        assert len(aspects[('TERM', 'term-1')]) == 2
+        ]), {'term-1'})
+        assert len(aspects['term-1']) == 2
 
     def test_qualified_names_resolve_to_their_own_project(self):
         processor = _make_processor()
         _, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'other-project.europe-west4.custom-gov.tier', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert 'projects/other-project/locations/europe-west4/aspectTypes/custom-gov' in (
-            aspects[('TERM', 'term-1')]
+            aspects['term-1']
         )
 
     def test_record_subfields_rebuild_nested_dict(self):
         processor = _make_processor()
         _, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.owner.email', 'a@b.c'],
             ['term-1', 'custom-gov.owner.name', 'A'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
-        assert aspects[('TERM', 'term-1')][resource] == {'owner': {'email': 'a@b.c', 'name': 'A'}}
+        assert aspects['term-1'][resource] == {'owner': {'email': 'a@b.c', 'name': 'A'}}
 
     def test_json_values_are_parsed(self):
         processor = _make_processor()
         _, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tags', '["finance","core"]'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
-        assert aspects[('TERM', 'term-1')][resource] == {'tags': ['finance', 'core']}
+        assert aspects['term-1'][resource] == {'tags': ['finance', 'core']}
 
     def test_aspect_type_schema_drives_coercion(self):
         processor = _make_processor()
@@ -1509,12 +1466,12 @@ class TestImportReadAspects:
             return_value={'flag': 'bool', 'tags': 'array'}
         ):
             _, aspects = processor.read_aspects(_mock_spreadsheet([
-                LEGACY_ASPECT_HEADER,
+                ASPECT_SHEET_HEADERS,
                 ['term-1', 'custom-gov.flag', '1'],
                 ['term-1', 'custom-gov.tags', 'a,b'],
-            ]), _terms('term-1'))
+            ]), {'term-1'})
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
-        assert aspects[('TERM', 'term-1')][resource] == {'flag': True, 'tags': ['a', 'b']}
+        assert aspects['term-1'][resource] == {'flag': True, 'tags': ['a', 'b']}
 
     def test_schema_lookup_failure_falls_back_to_heuristics(self):
         processor = _make_processor()
@@ -1523,12 +1480,12 @@ class TestImportReadAspects:
             glossary_import.api_layer, 'get_aspect_field_types', side_effect=Exception("denied")
         ):
             is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-                LEGACY_ASPECT_HEADER,
+                ASPECT_SHEET_HEADERS,
                 ['term-1', 'custom-gov.flag', '1'],
-            ]), _terms('term-1'))
+            ]), {'term-1'})
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
         assert is_valid is True
-        assert aspects[('TERM', 'term-1')][resource] == {'flag': 1}
+        assert aspects['term-1'][resource] == {'flag': 1}
 
 
 class TestImportAspectValidation:
@@ -1537,9 +1494,9 @@ class TestImportAspectValidation:
     def test_unknown_id_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['ghost-term', 'custom-gov.tier', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert aspects == {}
         assert "row 2" in capsys.readouterr().out
@@ -1547,18 +1504,18 @@ class TestImportAspectValidation:
     def test_missing_id_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['', 'custom-gov.tier', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
 
     def test_missing_aspect_name_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', '', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
 
@@ -1566,9 +1523,9 @@ class TestImportAspectValidation:
     def test_missing_aspect_value_is_rejected(self, value, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', value],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         output = capsys.readouterr().out
         assert is_valid is False
         assert "row 2" in output
@@ -1577,19 +1534,19 @@ class TestImportAspectValidation:
     def test_malformed_aspect_name_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'no-field-part', 'HIGH'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
 
     def test_duplicate_pair_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-1', 'custom-gov.tier', 'LOW'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 3" in capsys.readouterr().out
 
@@ -1600,23 +1557,23 @@ class TestImportAspectValidation:
     def test_equivalent_spellings_are_duplicates(self, second_name, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-1', second_name, 'LOW'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 3" in capsys.readouterr().out
 
     def test_field_names_differing_only_in_case_are_distinct(self):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-1', 'custom-gov.Tier', 'LOW'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         resource = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
         assert is_valid is True
-        assert aspects[('TERM', 'term-1')][resource] == {'tier': 'HIGH', 'Tier': 'LOW'}
+        assert aspects['term-1'][resource] == {'tier': 'HIGH', 'Tier': 'LOW'}
 
     @pytest.mark.parametrize("first,second", [
         (('custom-gov.owner', 'alice'), ('custom-gov.owner.email', 'a@b.c')),
@@ -1627,10 +1584,10 @@ class TestImportAspectValidation:
     def test_overlapping_fields_are_rejected_in_either_order(self, first, second, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', first[0], first[1]],
             ['term-1', second[0], second[1]],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         output = capsys.readouterr().out
         assert is_valid is False
         assert "row 3" in output
@@ -1639,19 +1596,19 @@ class TestImportAspectValidation:
     def test_same_field_on_different_terms_is_allowed(self):
         processor = _make_processor()
         is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'custom-gov.tier', 'HIGH'],
             ['term-2', 'custom-gov.tier', 'LOW'],
-        ]), _terms('term-1', 'term-2'))
+        ]), {'term-1', 'term-2'})
         assert is_valid is True
         assert len(aspects) == 2
 
     def test_system_aspect_is_rejected(self, capsys):
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', 'dataplex-types.global.overview.content', '<p>x</p>'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "row 2" in capsys.readouterr().out
 
@@ -1666,148 +1623,11 @@ class TestImportAspectValidation:
         """The backend treats these ids as built-in whatever the project."""
         processor = _make_processor()
         is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
+            ASPECT_SHEET_HEADERS,
             ['term-1', aspect_name, 'x'],
-        ]), _terms('term-1'))
+        ]), {'term-1'})
         assert is_valid is False
         assert "reserved" in capsys.readouterr().out
-
-
-TYPED_HEADER = ["id", "type", "Aspect name", "Aspect value"]
-SHARED_IDS = {("TERM", "sales"), ("CATEGORY", "sales"), ("TERM", "term-1"), ("CATEGORY", "cat-1")}
-GOV = "projects/my-project/locations/us-central1/aspectTypes/custom-gov"
-
-
-class TestImportAspectTargetType:
-    """Rows are matched to Sheet 1 items by (type, id): a term and a category may share an id."""
-
-    def test_row_with_type_goes_to_that_item(self):
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["sales", "TERM", "custom-gov.tier", "TERM-VALUE"],
-            ["sales", "CATEGORY", "custom-gov.tier", "CATEGORY-VALUE"],
-        ]), SHARED_IDS)
-        assert is_valid is True
-        assert aspects == {
-            ("TERM", "sales"): {GOV: {"tier": "TERM-VALUE"}},
-            ("CATEGORY", "sales"): {GOV: {"tier": "CATEGORY-VALUE"}},
-        }
-
-    def test_blank_type_resolves_to_the_only_matching_item(self):
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["term-1", "", "custom-gov.tier", "A"],
-            ["cat-1", "", "custom-gov.tier", "B"],
-        ]), SHARED_IDS)
-        assert is_valid is True
-        assert aspects == {("TERM", "term-1"): {GOV: {"tier": "A"}}, ("CATEGORY", "cat-1"): {GOV: {"tier": "B"}}}
-
-    def test_blank_type_on_a_shared_id_is_an_error(self, capsys):
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["sales", "", "custom-gov.tier", "HIGH"],
-        ]), SHARED_IDS)
-        output = capsys.readouterr().out
-        assert is_valid is False
-        assert aspects == {}
-        assert "'sales' in aspects sheet row 2 is both a TERM and a CATEGORY" in output
-        assert "Fill in the 'type' column" in output
-
-    def test_legacy_sheet_without_type_on_a_shared_id_is_an_error(self, capsys):
-        processor = _make_processor()
-        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER, ["sales", "custom-gov.tier", "HIGH"],
-        ]), SHARED_IDS)
-        assert is_valid is False
-        assert "both a TERM and a CATEGORY" in capsys.readouterr().out
-
-    @pytest.mark.parametrize("bad_type", ["Term", "category", "GLOSSARY", "T"])
-    def test_invalid_type_is_rejected(self, bad_type, capsys):
-        processor = _make_processor()
-        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER, ["term-1", bad_type, "custom-gov.tier", "HIGH"],
-        ]), SHARED_IDS)
-        output = capsys.readouterr().out
-        assert is_valid is False
-        assert f"Invalid 'type' '{bad_type}' in aspects sheet row 2" in output
-        assert "TERM, CATEGORY" in output
-
-    def test_type_and_id_must_exist_in_sheet1(self, capsys):
-        processor = _make_processor()
-        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER, ["cat-1", "TERM", "custom-gov.tier", "HIGH"],
-        ]), SHARED_IDS)
-        output = capsys.readouterr().out
-        assert is_valid is False
-        assert "Unknown TERM 'cat-1' in aspects sheet row 2" in output
-        assert "only as a CATEGORY" in output
-
-    def test_old_sheet_without_type_column_still_imports(self):
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            LEGACY_ASPECT_HEADER,
-            ["term-1", "custom-gov.tier", "A"],
-            ["cat-1", "custom-gov.tier", "B"],
-        ]), SHARED_IDS)
-        assert is_valid is True
-        assert set(aspects) == {("TERM", "term-1"), ("CATEGORY", "cat-1")}
-
-    def test_same_field_on_term_and_category_with_same_id_is_not_a_duplicate(self):
-        processor = _make_processor()
-        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["sales", "TERM", "custom-gov.owner", "Alice"],
-            ["sales", "CATEGORY", "custom-gov.owner.email", "a@b.c"],
-            ["sales", "CATEGORY", "custom-gov.tier", "X"],
-            ["sales", "TERM", "custom-gov.tier", "Y"],
-        ]), SHARED_IDS)
-        assert is_valid is True
-
-    def test_same_field_twice_for_one_item_is_still_a_duplicate(self, capsys):
-        processor = _make_processor()
-        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["sales", "TERM", "custom-gov.tier", "X"],
-            ["sales", "TERM", "my-project.us-central1.custom-gov.tier", "Y"],
-        ]), SHARED_IDS)
-        output = capsys.readouterr().out
-        assert is_valid is False
-        assert "Duplicate field" in output and "for TERM 'sales'" in output and "row 3" in output
-
-    def test_known_ids_must_be_type_id_pairs(self):
-        processor = _make_processor()
-        with pytest.raises(TypeError, match=r"\(type, id\) pairs"):
-            processor.read_aspects(_mock_spreadsheet([LEGACY_ASPECT_HEADER]), {"term-1"})
-
-    def test_without_known_ids_type_is_required(self, capsys):
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
-            TYPED_HEADER,
-            ["anything", "CATEGORY", "custom-gov.tier", "A"],
-            ["other", "", "custom-gov.tier", "B"],
-        ]), None)
-        assert is_valid is False
-        assert ("CATEGORY", "anything") in aspects
-        assert "Missing 'type' in aspects sheet row 3" in capsys.readouterr().out
-
-    def test_shared_id_round_trip_through_export(self):
-        """Export writes type, so a term and a category sharing an id import back apart."""
-        term = {'name': 'projects/my-project/locations/us-central1/glossaries/g/terms/sales'}
-        category = {'name': 'projects/my-project/locations/us-central1/glossaries/g/categories/sales'}
-        rows = (
-            glossary_export._get_aspect_rows_for_entry(
-                category, _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {'tier': 'SILVER'}}}))
-            + glossary_export._get_aspect_rows_for_entry(
-                term, _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': {'tier': 'GOLD'}}}))
-        )
-        assert rows == [['sales', 'CATEGORY', 'custom-gov.tier', 'SILVER'], ['sales', 'TERM', 'custom-gov.tier', 'GOLD']]
-        processor = _make_processor()
-        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([ASPECT_SHEET_HEADERS] + rows), SHARED_IDS)
-        assert is_valid is True
-        assert aspects == {("CATEGORY", "sales"): {GOV: {"tier": "SILVER"}}, ("TERM", "sales"): {GOV: {"tier": "GOLD"}}}
 
 
 class TestImportConvertToImportItem:
@@ -1843,7 +1663,7 @@ class TestImportConvertToImportItem:
     def test_custom_aspect_merged_for_term(self):
         processor = _make_processor()
         processor.aspects_by_id = {
-            ('TERM', 'term-customer-id'): {
+            'term-customer-id': {
                 'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {
                     'tier': 'HIGH', 'is_pii': True, 'retention_days': 365
                 }
@@ -1859,7 +1679,7 @@ class TestImportConvertToImportItem:
     def test_system_aspects_not_clobbered(self):
         processor = _make_processor()
         processor.aspects_by_id = {
-            ('TERM', 'term-customer-id'): {
+            'term-customer-id': {
                 'projects/dataplex-types/locations/global/aspectTypes/overview': {
                     'content': 'HIJACKED'
                 }
@@ -1872,7 +1692,7 @@ class TestImportConvertToImportItem:
     def test_custom_aspect_merged_for_category(self):
         processor = _make_processor()
         processor.aspects_by_id = {
-            ('CATEGORY', 'cat-core'): {
+            'cat-core': {
                 'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {'tier': 'LOW'}
             }
         }
@@ -1883,21 +1703,10 @@ class TestImportConvertToImportItem:
         assert 'dataplex-types.global.glossary-category-aspect' in aspects
         assert aspects['my-project.us-central1.custom-gov']['data'] == {'tier': 'LOW'}
 
-    def test_term_and_category_sharing_an_id_get_only_their_own_aspects(self):
-        processor = _make_processor()
-        processor.aspects_by_id = {
-            ('TERM', 'sales'): {GOV: {'tier': 'TERM-VALUE'}},
-            ('CATEGORY', 'sales'): {GOV: {'level': 'HIGH'}},
-        }
-        term = processor._convert_to_import_item(self._row(row_id='sales', row_type='TERM'), [])
-        category = processor._convert_to_import_item(self._row(row_id='sales', row_type='CATEGORY'), [])
-        assert term['entry']['aspects']['my-project.us-central1.custom-gov']['data'] == {'tier': 'TERM-VALUE'}
-        assert category['entry']['aspects']['my-project.us-central1.custom-gov']['data'] == {'level': 'HIGH'}
-
     def test_payload_is_json_serializable(self):
         processor = _make_processor()
         processor.aspects_by_id = {
-            ('TERM', 'term-customer-id'): {
+            'term-customer-id': {
                 'projects/my-project/locations/us-central1/aspectTypes/custom-gov': {
                     'tier': 'HIGH', 'owner': {'email': 'a@b.c'}, 'tags': ['x']
                 }
@@ -1909,11 +1718,11 @@ class TestImportConvertToImportItem:
     def test_get_aspect_type_resources_returns_sorted_unique_resources(self):
         processor = _make_processor()
         processor.aspects_by_id = {
-            ('TERM', 'term-1'): {
+            'term-1': {
                 'projects/my-project/locations/us-central1/aspectTypes/z-aspect': {'k': 'v'},
                 'projects/my-project/locations/us-central1/aspectTypes/a-aspect': {'k': 'v'},
             },
-            ('TERM', 'term-2'): {
+            'term-2': {
                 'projects/my-project/locations/us-central1/aspectTypes/a-aspect': {'k': 'v2'},
             },
         }

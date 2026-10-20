@@ -50,8 +50,7 @@ Share the Google Sheet with the service account (`SA_EMAIL`) as a **Viewer** so 
 *   **Glossary Import**: The sheet should contain the following header row:
     `id, parent, display_name, description, overview, type, contact1_email, contact1_name, contact2_email, contact2_name, label1_key, label1_value, label2_key, label2_value`
     *   *(Optional)* To import custom Dataplex Aspects, add a second worksheet
-        (`Sheet2` by default) with the header row `id, type, Aspect name, Aspect value`
-        (`type` is optional).
+        (`Sheet2` by default) with the header row `id, Aspect name, Aspect value`.
         See [Sheets file schema (Aspects)](#sheets-file-schema-aspects--second-sheet)
         below. Spreadsheets without this second sheet import exactly as before.
 *   **EntryLinks Import**: The sheet should contain the following header row (the format written by the EntryLinks export):
@@ -129,27 +128,15 @@ Where:
 ### Sheets file schema (Aspects — second sheet)
 
 Custom Dataplex **Aspects** are read from a **second worksheet** (`Sheet2` by
-default) using a normalized schema. The Sheet 1 schema above is **unchanged**,
-and its header validation still requires exactly those 14 columns.
+default) using a normalized 3-column schema. The Sheet 1 schema above is
+**unchanged**, and its header validation still requires exactly those 14 columns.
 
-`id, type, Aspect name, Aspect value`
-
-The headers are matched case-insensitively and in any order. `type` is
-optional: sheets without that column keep working.
+`id, Aspect name, Aspect value`
 
 Where:
 
 *   `id` (required): Foreign key to the `id` column of Sheet 1. Must reference a
     term or category that exists in Sheet 1. One id may own many aspect rows.
-*   `type` (optional): `TERM` or `CATEGORY`, written exactly as in Sheet 1's
-    `type` column. A term and a category can share an id in the same glossary
-    (Dataplex stores them separately, as `.../terms/sales` and
-    `.../categories/sales`), so `type` says which one the row is for:
-    *   `type` filled in: the aspect goes to the term or category with that
-        type and id, which must exist in Sheet 1.
-    *   `type` blank, or no `type` column: the aspect goes to the only item in
-        Sheet 1 with that id. If the id is both a term and a category, the
-        import stops and asks you to fill in `type` for that row.
 *   `Aspect name` (required): The aspect field identifier, in any of:
     *   Short — `<aspectTypeId>.<fieldName>`, e.g. `custom-gov.tier`
     *   Qualified — `<project>.<location>.<aspectTypeId>.<fieldName>`, e.g.
@@ -171,19 +158,14 @@ Where:
 
 Sheet 2:
 
-| id | type | Aspect name | Aspect value |
-|---|---|---|---|
-| `term-customer-id` | `TERM` | `custom-gov.tier` | `HIGH` |
-| `term-customer-id` | `TERM` | `custom-gov.is_pii` | `true` |
-| `term-customer-id` | | `custom-gov.retention_days` | `365` |
-| `sales` | `CATEGORY` | `custom-gov.tier` | `GOLD` |
+| id | Aspect name | Aspect value |
+|---|---|---|
+| `term-customer-id` | `custom-gov.tier` | `HIGH` |
+| `term-customer-id` | `custom-gov.is_pii` | `true` |
+| `term-customer-id` | `custom-gov.retention_days` | `365` |
 
-The third row leaves `type` blank, which works because `term-customer-id` is
-only a term in Sheet 1. The last row needs `type` if Sheet 1 also has a term
-with the id `sales`.
-
-All rows for the same `(type, id, aspect type)` are aggregated into **one**
-aspect object on the entry:
+All rows for the same `(id, aspect type)` are aggregated into **one** aspect
+object on the entry:
 
 ```json
 {"entry": {
@@ -237,16 +219,14 @@ Aspect rows are validated with row-numbered messages, like the glossary sheet:
     `id`, `Aspect name` and `Aspect value` headers.
 *   Missing `id`, `Aspect name` or `Aspect value`. To leave a field unset,
     delete its row.
-*   `id` that does not exist in Sheet 1, or `type` + `id` that does not.
-*   A `type` other than `TERM` or `CATEGORY`.
-*   A blank `type` on an id that is both a term and a category in Sheet 1.
+*   `id` that does not exist in Sheet 1.
 *   Malformed `Aspect name` (no field component, empty dotted segments, bad
     resource path).
-*   Duplicate `(type, id, aspect type, field)` combinations. Names are compared after
+*   Duplicate `(id, aspect type, field)` combinations. Names are compared after
     parsing, so `custom-gov.tier` and
     `my-project.us-central1.custom-gov.tier` count as the same field. Field
     names are case-sensitive, like the AspectType's `MetadataTemplate`.
-*   Overlapping fields for the same `(type, id, aspect type)`, such as
+*   Overlapping fields for the same `(id, aspect type)`, such as
     `custom-gov.owner` and `custom-gov.owner.email`: set either the whole value
     or its sub-fields, not both.
 *   Reserved aspect type ids (`overview`, `contacts`, `glossary-term-aspect`,

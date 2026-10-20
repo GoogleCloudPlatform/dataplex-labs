@@ -160,27 +160,14 @@ TARGET_ID_HEADER_ALIASES = ["target id"]
 # Aspect Sheet (Sheet 2) Constants
 # =============================================================================
 # Custom Dataplex Aspects are carried in a SECOND sheet/CSV with a normalized
-# (id, type, Aspect name, Aspect value) schema, leaving the 14-column glossary
-# sheet (Sheet 1) completely untouched.
-#
-# 'type' (TERM or CATEGORY, as in Sheet 1) is optional on import: a term and a
-# category may share an id in one glossary, and 'type' says which one a row is
-# for. Export always writes it.
+# (id, Aspect name, Aspect value) schema, leaving the 14-column glossary sheet
+# (Sheet 1) completely untouched.
 
 ASPECT_ID_COLUMN = "id"
-ASPECT_TYPE_COLUMN = "type"
 ASPECT_NAME_COLUMN = "Aspect name"
 ASPECT_VALUE_COLUMN = "Aspect value"
 
-# Header written by export.
-ASPECT_SHEET_HEADERS = [ASPECT_ID_COLUMN, ASPECT_TYPE_COLUMN, ASPECT_NAME_COLUMN, ASPECT_VALUE_COLUMN]
-# Columns an imported aspects sheet must have ('type' is optional).
-ASPECT_SHEET_REQUIRED_HEADERS = [ASPECT_ID_COLUMN, ASPECT_NAME_COLUMN, ASPECT_VALUE_COLUMN]
-
-# Entry kinds an aspect row can target; the same values as Sheet 1's 'type'.
-ASPECT_ENTRY_TYPE_TERM = "TERM"
-ASPECT_ENTRY_TYPE_CATEGORY = "CATEGORY"
-ASPECT_ENTRY_TYPES = (ASPECT_ENTRY_TYPE_TERM, ASPECT_ENTRY_TYPE_CATEGORY)
+ASPECT_SHEET_HEADERS = [ASPECT_ID_COLUMN, ASPECT_NAME_COLUMN, ASPECT_VALUE_COLUMN]
 
 # Default worksheet/tab name holding the aspect rows. Can be overridden at
 # runtime with the GLOSSARY_ASPECTS_SHEET_NAME environment variable (the
