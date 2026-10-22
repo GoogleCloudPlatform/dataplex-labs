@@ -153,7 +153,9 @@ Where:
     (`custom-gov.owner.email`). The resource-path form is never ambiguous; use
     it when the project id contains `.` or `:`, or when a short-form field
     starts with a segment that looks like a location (`custom-gov.us.tax.rate`
-    would be read as project `custom-gov`, location `us`).
+    would be read as project `custom-gov`, location `us`). Project, location
+    and aspect type names are not case-sensitive (`Custom-Gov.tier` is the
+    same as `custom-gov.tier`); field names are.
 *   `Aspect value` (required): The scalar or serialized value.
 
 #### Worked example
@@ -190,9 +192,13 @@ Notes on ambiguous cells:
 *   `1` and `0` are read as **integers** unless the AspectType declares the
     field as `bool`, in which case they are read as `true`/`false`.
 *   A comma-separated list is only split into an array when the AspectType
-    declares the field as `array`; otherwise it stays a string.
+    declares the field as `array`; otherwise it stays a string. Each item is
+    converted to the array's item type (`007, yes` stays `["007", "yes"]` in a
+    string array).
 *   Dotted field names rebuild nested records:
-    `custom-gov.owner.email` → `{"owner": {"email": ...}}`.
+    `custom-gov.owner.email` → `{"owner": {"email": ...}}`. For a map, a
+    dotted row sets one entry (`custom-gov.labels.code` → `{"labels":
+    {"code": ...}}`), converted to the map's value type.
 
 The importer reads each aspect type to convert the values to the right field
 types. If it cannot read an aspect type (permission denied, or it does not

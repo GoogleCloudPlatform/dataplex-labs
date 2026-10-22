@@ -420,6 +420,11 @@ def parse_aspect_identifier(
     by LOCATION_ID_PATTERN, or when a short-form field's first segment looks
     like a location ('custom-gov.us.tax.rate' reads as project 'custom-gov').
 
+    The project, location and aspect type id are lowercased (Google Cloud
+    project ids, locations and Dataplex aspect type ids are always lowercase),
+    so 'Custom-Gov.tier' and 'custom-gov.tier' name the same aspect type. The
+    field name keeps its case, like the AspectType's field names.
+
     Args:
         name: The raw 'Aspect name' cell value.
         default_project: Project to use when the identifier omits one, normally
@@ -441,6 +446,14 @@ def parse_aspect_identifier(
 
     cleaned = name.strip()
 
+    def _dotted_segments(field_name: str) -> List[str]:
+        segments = field_name.split('.')
+        if any(not segment.strip() for segment in segments):
+            raise InvalidAspectIdentifierError(
+                f"Invalid 'Aspect name' '{cleaned}'. Dotted segments must not be empty."
+            )
+        return [segment.strip() for segment in segments]
+
     # Shape 3: full resource path.
     resource_match = ASPECT_RESOURCE_PATTERN.match(cleaned)
     if resource_match:
@@ -451,10 +464,10 @@ def parse_aspect_identifier(
                 f"'projects/{{project}}/locations/{{location}}/aspectTypes/{{aspectType}}/{{field}}'."
             )
         return ParsedAspectIdentifier(
-            project_id=resource_match.group('project_id'),
-            location=resource_match.group('location_id'),
-            aspect_type_id=resource_match.group('aspect_type_id'),
-            field_name=field_name.replace('/', '.'),
+            project_id=resource_match.group('project_id').lower(),
+            location=resource_match.group('location_id').lower(),
+            aspect_type_id=resource_match.group('aspect_type_id').lower(),
+            field_name='.'.join(_dotted_segments(field_name.replace('/', '.'))),
         )
 
     if '/' in cleaned:
@@ -463,12 +476,7 @@ def parse_aspect_identifier(
             f"'projects/{{project}}/locations/{{location}}/aspectTypes/{{aspectType}}/{{field}}'."
         )
 
-    parts = cleaned.split('.')
-    if any(not part.strip() for part in parts):
-        raise InvalidAspectIdentifierError(
-            f"Invalid 'Aspect name' '{cleaned}'. Dotted segments must not be empty."
-        )
-    parts = [part.strip() for part in parts]
+    parts = _dotted_segments(cleaned)
 
     if len(parts) < 2:
         raise InvalidAspectIdentifierError(
@@ -478,19 +486,19 @@ def parse_aspect_identifier(
 
     # Shape 2: qualified. Requires >= 4 segments AND a location-looking segment
     # in position 1, otherwise the leading segments belong to a dotted field.
-    if len(parts) >= 4 and _is_location_id(parts[1]):
+    if len(parts) >= 4 and _is_location_id(parts[1].lower()):
         return ParsedAspectIdentifier(
-            project_id=parts[0],
-            location=parts[1],
-            aspect_type_id=parts[2],
+            project_id=parts[0].lower(),
+            location=parts[1].lower(),
+            aspect_type_id=parts[2].lower(),
             field_name='.'.join(parts[3:]),
         )
 
     # Shape 1: short (possibly with a dotted record sub-field).
     return ParsedAspectIdentifier(
-        project_id=default_project,
-        location=default_location,
-        aspect_type_id=parts[0],
+        project_id=(default_project or '').lower(),
+        location=(default_location or '').lower(),
+        aspect_type_id=parts[0].lower(),
         field_name='.'.join(parts[1:]),
     )
 
@@ -643,15 +651,21 @@ def _coerce_json(raw: str) -> Optional[Any]:
         return None
 
 
-def _split_comma_list(raw: str) -> List[Any]:
-    """Split a comma-separated cell into a list of coerced scalar values."""
+def _split_comma_list(raw: str, item_type: Optional[str] = None) -> List[Any]:
+    """Split a comma-separated cell into a list of coerced scalar values.
+
+    Args:
+        raw: The cell value.
+        item_type: The array's declared item type, if known. Each item is
+            coerced to it ('007' stays a string for a string array).
+    """
     stripped = raw.strip()
     if not stripped:
         return []
-    return [coerce_aspect_value(item.strip()) for item in stripped.split(',')]
+    return [coerce_aspect_value(item.strip(), item_type) for item in stripped.split(',')]
 
 
-def _coerce_with_declared_type(raw: str, field_type: str) -> Any:
+def _coerce_with_declared_type(raw: str, field_type: str, item_type: Optional[str] = None) -> Any:
     """Coerce a cell using the declared MetadataTemplate type.
 
     Falls back to heuristics whenever the declared type cannot be honoured, so
@@ -681,7 +695,7 @@ def _coerce_with_declared_type(raw: str, field_type: str) -> Any:
         if isinstance(parsed, list):
             return parsed
         # Comma-separated fallback is only safe when the schema says 'array'.
-        return _split_comma_list(stripped)
+        return _split_comma_list(stripped, item_type)
 
     if field_type in (ASPECT_FIELD_TYPE_MAP, ASPECT_FIELD_TYPE_RECORD):
         parsed = _coerce_json(stripped)
@@ -717,7 +731,9 @@ def _coerce_without_type(raw: str) -> Any:
     return stripped
 
 
-def coerce_aspect_value(raw: Any, field_type: Optional[str] = None) -> Any:
+def coerce_aspect_value(
+    raw: Any, field_type: Optional[str] = None, item_type: Optional[str] = None
+) -> Any:
     """Convert a raw 'Aspect value' cell into a typed Python value.
 
     When the AspectType's MetadataTemplate declares the field type, coercion is
@@ -737,6 +753,8 @@ def coerce_aspect_value(raw: Any, field_type: Optional[str] = None) -> Any:
         raw: The raw cell value.
         field_type: Optional MetadataTemplate type ('string', 'int', 'bool',
             'double', 'datetime', 'enum', 'array', 'map', 'record').
+        item_type: Optional item type of an 'array' field, used to coerce the
+            items of a comma-separated list.
 
     Returns:
         The coerced value, or the original string when no coercion applies.
@@ -749,8 +767,43 @@ def coerce_aspect_value(raw: Any, field_type: Optional[str] = None) -> Any:
         return raw
 
     if field_type:
-        return _coerce_with_declared_type(raw, field_type.strip().lower())
+        return _coerce_with_declared_type(
+            raw, field_type.strip().lower(), (item_type or '').strip().lower() or None
+        )
     return _coerce_without_type(raw)
+
+
+def resolve_field_type(
+    field_types: Dict[str, str], field_path: List[str]
+) -> Tuple[Optional[str], Optional[str]]:
+    """Return the declared (type, array item type) of a dotted field path.
+
+    field_types comes from api_layer.get_aspect_field_types: record sub-fields
+    are keyed by their dotted path ('owner.email'), map values by the map's
+    path plus '.*' ('labels.*'), and array items by the array's path plus
+    '[]' ('tags[]'). A map entry exported as its own row ('labels.code') is
+    therefore resolved through 'labels.*'.
+
+    Args:
+        field_types: Mapping of field path to declared type.
+        field_path: The field name split into its dotted segments.
+
+    Returns:
+        A (field_type, item_type) tuple; either is None when not declared.
+    """
+    resolved = ''
+    for segment in field_path:
+        exact = f"{resolved}.{segment}" if resolved else segment
+        wildcard = f"{resolved}.*" if resolved else ''
+        if exact in field_types:
+            resolved = exact
+        elif wildcard and wildcard in field_types:
+            resolved = wildcard
+        else:
+            return None, None
+    if not resolved:
+        return None, None
+    return field_types.get(resolved), field_types.get(f"{resolved}[]")
 
 
 def serialize_aspect_value(value: Any) -> str:

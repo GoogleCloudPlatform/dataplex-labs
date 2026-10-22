@@ -71,6 +71,36 @@ GLOSSARY_URL = (
 class TestParseAspectIdentifier:
     """Tests for parse_aspect_identifier."""
 
+    @pytest.mark.parametrize("name", [
+        "Custom-Gov.Tier",
+        "My-Project.US-Central1.Custom-Gov.Tier",
+        "projects/My-Project/locations/US-Central1/aspectTypes/Custom-Gov/Tier",
+    ])
+    def test_project_location_and_type_are_lowercased_field_keeps_case(self, name):
+        parsed = business_glossary_utils.parse_aspect_identifier(
+            name, default_project="My-Project", default_location="US-Central1"
+        )
+        assert parsed.aspect_type_resource == (
+            "projects/my-project/locations/us-central1/aspectTypes/custom-gov"
+        )
+        assert parsed.field_name == "Tier"
+
+    @pytest.mark.parametrize("name", [
+        "projects/p/locations/l/aspectTypes/at/.",
+        "projects/p/locations/l/aspectTypes/at/owner..email",
+        "projects/p/locations/l/aspectTypes/at/owner//email",
+        "projects/p/locations/l/aspectTypes/at/owner/ /email",
+    ])
+    def test_resource_path_with_empty_field_segments_is_rejected(self, name):
+        with pytest.raises(InvalidAspectIdentifierError, match="Dotted segments must not be empty"):
+            business_glossary_utils.parse_aspect_identifier(name)
+
+    def test_resource_path_nested_field_is_dotted(self):
+        parsed = business_glossary_utils.parse_aspect_identifier(
+            "projects/p/locations/l/aspectTypes/at/owner/email"
+        )
+        assert parsed.field_name == "owner.email"
+
     def test_short_form_uses_defaults(self):
         parsed = business_glossary_utils.parse_aspect_identifier(
             "custom-gov.tier", default_project="my-project", default_location="us-central1"
@@ -282,6 +312,60 @@ class TestSplitAspectKey:
 # ============================================================================
 # coerce_aspect_value
 # ============================================================================
+
+class TestResolveFieldType:
+    """Tests for resolve_field_type and item-typed coercion."""
+
+    FIELD_TYPES = {
+        'tier': 'string',
+        'owner': 'record',
+        'owner.email': 'string',
+        'labels': 'map',
+        'labels.*': 'string',
+        'scores': 'map',
+        'scores.*': 'int',
+        'contacts': 'map',
+        'contacts.*': 'record',
+        'contacts.*.email': 'string',
+        'tags': 'array',
+        'tags[]': 'string',
+        'counts': 'array',
+        'counts[]': 'int',
+    }
+
+    @pytest.mark.parametrize("path,expected", [
+        (['tier'], ('string', None)),
+        (['owner', 'email'], ('string', None)),
+        (['labels'], ('map', None)),
+        (['labels', 'code'], ('string', None)),
+        (['scores', 'n'], ('int', None)),
+        (['contacts', 'alice'], ('record', None)),
+        (['contacts', 'alice', 'email'], ('string', None)),
+        (['tags'], ('array', 'string')),
+        (['counts'], ('array', 'int')),
+        (['unknown'], (None, None)),
+        (['owner', 'unknown'], (None, None)),
+        ([], (None, None)),
+    ])
+    def test_resolution(self, path, expected):
+        assert business_glossary_utils.resolve_field_type(self.FIELD_TYPES, path) == expected
+
+    def test_record_field_wins_over_a_wildcard(self):
+        field_types = {'m': 'map', 'm.*': 'int', 'm.special': 'string'}
+        assert business_glossary_utils.resolve_field_type(field_types, ['m', 'special']) == ('string', None)
+
+    @pytest.mark.parametrize("raw,item_type,expected", [
+        ("007, yes", "string", ["007", "yes"]),
+        ("1, 2", "int", [1, 2]),
+        ("1, 0", "bool", [True, False]),
+        ("007, yes", None, [7, True]),
+    ])
+    def test_comma_list_items_use_the_item_type(self, raw, item_type, expected):
+        assert business_glossary_utils.coerce_aspect_value(raw, 'array', item_type) == expected
+
+    def test_json_array_is_kept_as_written(self):
+        assert business_glossary_utils.coerce_aspect_value('["007", 1]', 'array', 'string') == ["007", 1]
+
 
 class TestCoerceAspectValue:
     """Tests for coerce_aspect_value."""
@@ -893,6 +977,31 @@ class TestGetAspectType:
         assert api_layer.get_aspect_type(
             service, 'projects/p/locations/global/aspectTypes/custom-gov'
         ) is None
+
+    def test_field_types_include_map_and_array_item_types(self):
+        service = self._mock_service({
+            'name': 'at',
+            'metadataTemplate': {
+                'recordFields': [
+                    {'name': 'labels', 'type': 'map', 'mapItems': {'name': 'v', 'type': 'string'}},
+                    {'name': 'tags', 'type': 'array', 'arrayItems': {'name': 't', 'type': 'string'}},
+                    {
+                        'name': 'contacts', 'type': 'map',
+                        'mapItems': {
+                            'name': 'c', 'type': 'record',
+                            'recordFields': [{'name': 'email', 'type': 'string'}],
+                        },
+                    },
+                ]
+            },
+        })
+        assert api_layer.get_aspect_field_types(
+            service, 'projects/p/locations/global/aspectTypes/custom-gov'
+        ) == {
+            'labels': 'map', 'labels.*': 'string',
+            'tags': 'array', 'tags[]': 'string',
+            'contacts': 'map', 'contacts.*': 'record', 'contacts.*.email': 'string',
+        }
 
     def test_transient_failure_is_not_cached(self):
         """A 503 that outlasted the retries must not hide the schema for the rest of the run."""
@@ -1709,6 +1818,94 @@ class TestImportAspectsAreForTermsOnly:
         assert "'sales' in aspects sheet row 2 is both a term and a category" in output
         assert "applied to the term" in output
         assert "row 3" not in output
+
+    def test_rejected_shared_id_row_is_not_reported_as_applied(self, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['sales', 'custom-gov.owner', 'alice'],
+            ['sales', 'custom-gov.owner.email', 'a@b.c'],
+        ]), {'sales'}, {'sales'})
+        output = capsys.readouterr().out
+        assert is_valid is False
+        assert "row 2 is both a term and a category" in output
+        assert "row 3 is both a term and a category" not in output
+        assert "overlaps field 'owner' set in row 2" in output
+
+
+class TestImportAspectNameCasingAndItemTypes:
+    """Aspect type names are case-insensitive; map values and array items use their declared type."""
+
+    GOV = 'projects/my-project/locations/us-central1/aspectTypes/custom-gov'
+
+    def test_mixed_case_aspect_type_names_aggregate_into_one_aspect(self):
+        processor = _make_processor()
+        is_valid, aspects = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', 'Custom-Gov.tier', 'HIGH'],
+            ['term-1', 'custom-gov.owner.email', 'a@b.c'],
+            ['term-1', 'MY-PROJECT.US-CENTRAL1.CUSTOM-GOV.Level', 'LOW'],
+        ]), {'term-1'})
+        assert is_valid is True
+        assert aspects == {'term-1': {self.GOV: {
+            'tier': 'HIGH', 'owner': {'email': 'a@b.c'}, 'Level': 'LOW'
+        }}}
+
+    def test_same_field_in_different_casing_of_the_type_is_a_duplicate(self, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS,
+            ['term-1', 'custom-gov.tier', 'HIGH'],
+            ['term-1', 'CUSTOM-GOV.tier', 'LOW'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert "Duplicate" in capsys.readouterr().out
+
+    def test_reserved_id_in_another_case_is_rejected(self, capsys):
+        processor = _make_processor()
+        is_valid, _ = processor.read_aspects(_mock_spreadsheet([
+            ASPECT_SHEET_HEADERS, ['term-1', 'Overview.summary', 'x'],
+        ]), {'term-1'})
+        assert is_valid is False
+        assert "reserved" in capsys.readouterr().out
+
+    def _read_with_schema(self, rows, field_types):
+        processor = _make_processor()
+        processor._dataplex_service = MagicMock()
+        with patch.object(glossary_import.api_layer, 'get_aspect_field_types', return_value=field_types):
+            return processor.read_aspects(_mock_spreadsheet([ASPECT_SHEET_HEADERS] + rows), {'term-1'})
+
+    def test_map_entry_rows_use_the_map_value_type(self):
+        is_valid, aspects = self._read_with_schema([
+            ['term-1', 'custom-gov.labels.code', '007'],
+            ['term-1', 'custom-gov.labels.flag', 'yes'],
+            ['term-1', 'custom-gov.labels.expr', '[1, 2]'],
+            ['term-1', 'custom-gov.scores.n', '42'],
+        ], {'labels': 'map', 'labels.*': 'string', 'scores': 'map', 'scores.*': 'int'})
+        assert is_valid is True
+        assert aspects['term-1'][self.GOV] == {
+            'labels': {'code': '007', 'flag': 'yes', 'expr': '[1, 2]'},
+            'scores': {'n': 42},
+        }
+
+    def test_comma_separated_array_items_use_the_item_type(self):
+        _, aspects = self._read_with_schema(
+            [['term-1', 'custom-gov.tags', '007, yes']], {'tags': 'array', 'tags[]': 'string'}
+        )
+        assert aspects['term-1'][self.GOV] == {'tags': ['007', 'yes']}
+
+    def test_export_import_round_trip_of_a_string_map(self):
+        """A map<string> with number- and bool-looking values comes back unchanged."""
+        data = {'labels': {'code': '007', 'n': '123', 'flag': 'true'}, 'tags': ['007', 'yes']}
+        term = {'name': 'projects/my-project/locations/us-central1/glossaries/g/terms/term-1'}
+        rows = glossary_export._get_aspect_rows_for_entry(
+            term, _entry_with_aspects({'my-project.us-central1.custom-gov': {'data': data}})
+        )
+        is_valid, aspects = self._read_with_schema(rows, {
+            'labels': 'map', 'labels.*': 'string', 'tags': 'array', 'tags[]': 'string',
+        })
+        assert is_valid is True
+        assert aspects == {'term-1': {self.GOV: data}}
 
     def test_unknown_id_message_asks_for_a_term_id(self, capsys):
         processor = _make_processor()

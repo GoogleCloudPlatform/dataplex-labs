@@ -1135,7 +1135,12 @@ def _flatten_metadata_template(
     """Flatten an AspectType MetadataTemplate into a {field_path: type} map.
 
     Record sub-fields are recorded under their dotted path ('owner.email') so
-    they line up with the dotted 'Aspect name' values used in Sheet 2.
+    they line up with the dotted 'Aspect name' values used in Sheet 2. The
+    value type of a map is recorded under the map's path plus '.*'
+    ('labels.*'), because export writes each map entry as its own row
+    ('labels.code'); the item type of an array is recorded under the array's
+    path plus '[]' ('tags[]'). business_glossary_utils.resolve_field_type
+    reads these keys.
 
     Args:
         template: A MetadataTemplate node.
@@ -1143,23 +1148,29 @@ def _flatten_metadata_template(
         field_types: Accumulator dict (created on first call).
 
     Returns:
-        Mapping of dotted field path to declared MetadataTemplate type.
+        Mapping of field path to declared MetadataTemplate type.
     """
     if field_types is None:
         field_types = {}
     if not isinstance(template, dict):
         return field_types
 
+    def add_node(node: Dict, path: str) -> None:
+        node_type = (node.get('type') or '').lower()
+        if node_type:
+            field_types[path] = node_type
+        if node.get('recordFields'):
+            _flatten_metadata_template(node, path, field_types)
+        if isinstance(node.get('mapItems'), dict):
+            add_node(node['mapItems'], f"{path}.*")
+        if isinstance(node.get('arrayItems'), dict):
+            add_node(node['arrayItems'], f"{path}[]")
+
     for record_field in template.get('recordFields', []) or []:
         field_name = record_field.get('name')
         if not field_name:
             continue
-        field_path = f"{prefix}.{field_name}" if prefix else field_name
-        field_type = (record_field.get('type') or '').lower()
-        if field_type:
-            field_types[field_path] = field_type
-        if record_field.get('recordFields'):
-            _flatten_metadata_template(record_field, field_path, field_types)
+        add_node(record_field, f"{prefix}.{field_name}" if prefix else field_name)
 
     return field_types
 
@@ -1172,8 +1183,9 @@ def get_aspect_field_types(dataplex_service: build, aspect_type_resource: str) -
         aspect_type_resource: Full AspectType resource name.
 
     Returns:
-        Mapping of dotted field path to MetadataTemplate type (e.g.
-        {'tier': 'string', 'is_pii': 'bool', 'owner.email': 'string'}). Empty
+        Mapping of field path to MetadataTemplate type (e.g.
+        {'tier': 'string', 'owner.email': 'string', 'labels': 'map',
+        'labels.*': 'string', 'tags': 'array', 'tags[]': 'string'}). Empty
         when the AspectType cannot be read, which signals heuristic coercion.
     """
     aspect_type = get_aspect_type(dataplex_service, aspect_type_resource)

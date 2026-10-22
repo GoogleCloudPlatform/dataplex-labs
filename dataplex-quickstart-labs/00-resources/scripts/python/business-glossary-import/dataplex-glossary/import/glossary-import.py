@@ -457,9 +457,9 @@ class SheetProcessor:
             seen_pairs: Set of already-seen (id, aspect type resource, field
                 name) keys, mutated in place so duplicates are reported on
                 their second occurrence. The key uses the parsed identifier,
-                so equivalent spellings ('custom-gov.tier' and its qualified or
-                resource-path form) are caught, while field names stay
-                case-sensitive like the MetadataTemplate.
+                so equivalent spellings ('custom-gov.tier', 'Custom-Gov.tier'
+                and the qualified or resource-path forms) are caught, while
+                field names stay case-sensitive like the MetadataTemplate.
 
         Returns:
             The ParsedAspectIdentifier for the row.
@@ -518,7 +518,7 @@ class SheetProcessor:
 
         pair_key = (
             aspect_row.term_id,
-            parsed.aspect_type_resource.lower(),
+            parsed.aspect_type_resource,
             parsed.field_name,
         )
         if pair_key in seen_pairs:
@@ -642,19 +642,12 @@ class SheetProcessor:
                 print(f"Invalid aspect data: {validation_error}")
                 continue
 
-            if aspect_row.term_id in category_ids:
-                print(
-                    f"Warning: '{aspect_row.term_id}' in aspects sheet row "
-                    f"{aspect_row.row_number} is both a term and a category. Custom aspects can "
-                    f"only be set on terms, so this row is applied to the term."
-                )
-
             aspect_type_resource = parsed.aspect_type_resource
 
             # Reject overlapping fields ('owner' and 'owner.email') whatever
             # the row order, so no row can silently overwrite another.
             paths_for_aspect = assigned_paths.setdefault(
-                (aspect_row.term_id, aspect_type_resource.lower()), {}
+                (aspect_row.term_id, aspect_type_resource), {}
             )
             new_path = tuple(parsed.field_path)
             conflicting_path = business_glossary_utils.find_conflicting_field_path(
@@ -677,8 +670,11 @@ class SheetProcessor:
                 )
             field_types = field_types_cache[aspect_type_resource]
 
+            field_type, item_type = business_glossary_utils.resolve_field_type(
+                field_types, parsed.field_path
+            )
             coerced_value = business_glossary_utils.coerce_aspect_value(
-                aspect_row.aspect_value, field_types.get(parsed.field_name)
+                aspect_row.aspect_value, field_type, item_type
             )
 
             aspect_data = aspects_by_id.setdefault(aspect_row.term_id, {}).setdefault(
@@ -693,6 +689,16 @@ class SheetProcessor:
                 print(
                     f"Invalid aspect data in aspects sheet row {aspect_row.row_number}: "
                     f"{nesting_error}"
+                )
+                continue
+
+            # Only after the row has been applied, so a rejected row is never
+            # reported as applied.
+            if aspect_row.term_id in category_ids:
+                print(
+                    f"Warning: '{aspect_row.term_id}' in aspects sheet row "
+                    f"{aspect_row.row_number} is both a term and a category. Custom aspects can "
+                    f"only be set on terms, so this row is applied to the term."
                 )
 
         aspect_count = sum(len(by_type) for by_type in aspects_by_id.values())
