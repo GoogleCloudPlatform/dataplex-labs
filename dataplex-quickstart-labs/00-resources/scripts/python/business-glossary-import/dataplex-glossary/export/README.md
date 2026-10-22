@@ -152,17 +152,17 @@ Where:
 
 ### Sheets file schema (Aspects — second sheet)
 
-Custom Dataplex **Aspects** are exported to a **second worksheet** (`Sheet2` by
-default) using a normalized 3-column schema. Sheet 1 above is **unchanged**.
+Custom Dataplex **Aspects** on terms are exported to a **second worksheet**
+(`Sheet2` by default), one row per aspect field:
 
 `id, Aspect name, Aspect value`
 
 Where:
 
-*   `id` (required): Foreign key to the `id` column of Sheet 1. Custom aspects
-    can only be set on terms, so only term aspects are exported. One term may
-    own many aspect rows. If a category carries custom aspects (they can only
-    be attached outside the Business Glossary UI, for example through the API),
+*   `id` (required): The id of a term in Sheet 1. Custom aspects can only be
+    set on terms, so only term aspects are exported. One term can have many
+    aspect rows. If a category carries custom aspects (they can only be
+    attached outside the Business Glossary UI, for example through the API),
     export logs a warning and skips them; re-importing the spreadsheet removes
     them from the category.
 *   `Aspect name` (required): The aspect field identifier. Three forms are
@@ -211,13 +211,12 @@ Sheet 2:
 | `term-customer-id` | `custom-gov.tags` | `["finance","core"]` |
 | `term-customer-id` | `custom-gov.owner.email` | `alice@example.com` |
 
-All five rows are aggregated into a **single** `custom-gov` aspect on the
+All five rows are combined into a **single** `custom-gov` aspect on the
 `term-customer-id` entry.
 
 #### Datatypes
 
-Types follow `AspectType.MetadataTemplate` in
-`google/cloud/dataplex/v1/catalog.proto`.
+Field types are the ones defined in the aspect type.
 
 | Type | Cell representation (export) | Parsed as (import) |
 |---|---|---|
@@ -236,33 +235,26 @@ as a compact JSON object string in a single cell — e.g. a value of
 `{"owner": {"meta": {"x": 1}}}` exports as the row
 `custom-gov.owner.meta` = `{"x":1}`. Both forms round-trip through import.
 
-When the AspectType can be read (`dataplex.projects.locations.aspectTypes.get`),
-its `MetadataTemplate` drives the coercion. If it cannot be read (permission
-denied or missing), a warning is logged and value types are inferred
-heuristically.
+On import, each value is converted to the field's type; see the import
+README for details.
 
 #### System aspects are never exported to Sheet 2
 
 `overview`, `contacts`, `glossary-term-aspect`, `glossary-category-aspect` and
 `glossary-aspect` are already represented by Sheet 1 columns (or are purely
-structural), so they are filtered out of Sheet 2. The filter matches the aspect
-type id in any project, so both `655216118709.global.overview` and
-`dataplex-types.global.overview` are recognized. Dataplex Business Glossary
-treats these ids as built-in in every project, so an aspect type of your own
-with one of these ids cannot round-trip through the glossary import; export
-logs a warning and skips it.
+structural), so they are not written to Sheet 2. Dataplex Business Glossary
+treats these aspect type ids as built-in in every project, so an aspect type of
+your own with one of these ids cannot be imported through the glossary import;
+the export logs a warning and skips it.
 
-#### Backward compatibility
+#### Glossaries without custom aspects
 
 If the glossary has no custom aspects and the spreadsheet has no aspects tab,
-**no second sheet is created and nothing is written**: a single informational
-log line is emitted and the export is what it was before. If the aspects tab
-already exists from an earlier export, it is reset to just the header row.
-Glossary import replaces each term's and category's aspects with the
-spreadsheet contents, so leftover rows would otherwise bring back aspects that
-have since been removed. If the spreadsheet metadata cannot be read to check
-for that tab, the export fails rather than leaving stale rows behind. Sheet 1's
-14-column schema is unchanged.
+**no aspects tab is created**. If the aspects tab already exists from an
+earlier export, it is reset to just the header row: glossary import replaces
+each term's aspects with the spreadsheet contents, so leftover rows would bring
+back aspects that have since been removed. If the export cannot check whether
+the tab exists, it fails rather than leave old rows behind.
 
 #### Overriding the sheet name
 
