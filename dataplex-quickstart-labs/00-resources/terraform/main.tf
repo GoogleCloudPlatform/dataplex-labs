@@ -726,11 +726,20 @@ resource "google_dataproc_metastore_service" "datalake_metastore" {
     module.administrator_role_grants,
     time_sleep.sleep_after_network_and_storage_steps
   ]
+
+  timeouts {
+    create = "75m"
+  }
 }
 
 /******************************************
 12. Cloud Composer
 ******************************************/
+
+provider "google-beta" {
+  project = local.project_id
+  region  = local.location
+}
 
 resource "google_composer_environment" "create_cloud_composer_env" {
   name   = "oda-${local.project_nbr}-cc2"
